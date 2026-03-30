@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import Link from "next/link";
 import Image from "next/image";
 
 export default function TpemsLayout({
@@ -73,6 +74,22 @@ export default function TpemsLayout({
               </svg>
               <span className="text-sm font-medium">COURSE DELIVERY</span>
             </div>
+          </div>
+
+          {/* Center: Nav links */}
+          <div className="hidden md:flex items-center gap-4">
+            <Link
+              href="/tpems"
+              className="text-sm text-gray-500 hover:text-[#003366] transition"
+            >
+              Dashboard
+            </Link>
+            <Link
+              href="/"
+              className="text-sm text-gray-500 hover:text-[#003366] transition"
+            >
+              Catalogo de Cursos
+            </Link>
           </div>
 
           {/* Right: User */}

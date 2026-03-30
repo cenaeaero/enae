@@ -209,6 +209,12 @@ export default function AdminLoginPage() {
       <p className="mt-6 text-gray-400 text-sm">
         Al ingresar, accederas al panel de administracion de ENAE.
       </p>
+      <a
+        href="/"
+        className="mt-3 inline-block text-[#4FC3F7] hover:text-[#0288D1] text-sm"
+      >
+        ← Volver al Catalogo de Cursos
+      </a>
     </div>
   );
 }

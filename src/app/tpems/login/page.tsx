@@ -192,6 +192,12 @@ export default function TpemsLoginPage() {
       <p className="mt-6 text-gray-400 text-sm">
         Al ingresar, accederás al sistema de gestión de cursos ENAE.
       </p>
+      <a
+        href="/"
+        className="mt-3 inline-block text-[#4FC3F7] hover:text-[#0288D1] text-sm"
+      >
+        ← Volver al Catalogo de Cursos
+      </a>
     </div>
   );
 }
