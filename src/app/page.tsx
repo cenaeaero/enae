@@ -173,11 +173,11 @@ export default function Home() {
 
       {/* Hero image banner */}
       <section className="relative bg-[#001d3d]">
-        <div className="relative w-full h-[400px] md:h-[500px]">
+        <div className="relative w-full">
           <img
             src="/img/Foto banner.png"
             alt="Instructores ENAE en entrenamiento práctico con drones"
-            className="absolute inset-0 w-full h-full object-cover object-center"
+            className="w-full h-auto block"
           />
           {/* Overlay */}
           <div className="absolute inset-0 bg-gradient-to-r from-[#001d3d]/80 via-[#001d3d]/40 to-transparent" />
