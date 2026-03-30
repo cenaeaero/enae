@@ -28,6 +28,9 @@ export default function Header() {
             <Link href="/admision" className="hover:text-white transition">
               Admisión
             </Link>
+            <Link href="/tpems/login" className="hover:text-white transition">
+              Portal Alumno
+            </Link>
             <a
               href="https://plataforma.enae.cl"
               target="_blank"
