@@ -258,6 +258,12 @@ export default function EditCoursePage({
         </div>
         <div className="flex gap-2">
           <Link
+            href={`/admin/cursos/${id}/modulos`}
+            className="px-3 py-2 text-sm bg-[#0072CE] text-white rounded-lg hover:bg-[#005BA1]"
+          >
+            Módulos LMS
+          </Link>
+          <Link
             href={`/cursos/${id}`}
             target="_blank"
             className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"

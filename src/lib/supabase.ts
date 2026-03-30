@@ -101,6 +101,42 @@ export type DbPayment = {
   created_at: string;
 };
 
+export type ModuleActivity = {
+  type: "task" | "exam" | "discussion" | "zoom" | "reading";
+  title: string;
+  description?: string;
+  url?: string;
+};
+
+export type DbCourseModule = {
+  id: string;
+  course_id: string;
+  sort_order: number;
+  title: string;
+  description: string | null;
+  video_entry_id: string | null;
+  video_title: string | null;
+  activities: ModuleActivity[];
+  created_at: string;
+};
+
+export type DbModuleProgress = {
+  id: string;
+  registration_id: string;
+  module_id: string;
+  status: "not_started" | "in_progress" | "completed";
+  started_at: string | null;
+  completed_at: string | null;
+};
+
+export type DbCourseMessage = {
+  id: string;
+  registration_id: string;
+  sender_profile_id: string;
+  message: string;
+  created_at: string;
+};
+
 export type DbSurveyResponse = {
   id: string;
   registration_id: string;
