@@ -1,6 +1,7 @@
 import { courses } from "@/data/courses";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import CourseSessionsTable from "@/components/CourseSessionsTable";
 
 const areaIcons: Record<string, string> = {
   "uas-rpas": "🛩️",
@@ -284,108 +285,30 @@ export default async function CourseDetailPage({
                     </svg>
                     Sesiones Programadas
                   </h2>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="bg-gray-50 text-left text-sm text-gray-500">
-                          <th className="px-4 py-3 font-medium">Fechas</th>
-                          <th className="px-4 py-3 font-medium">Sede</th>
-                          <th className="px-4 py-3 font-medium">Modalidad</th>
-                          {course.sessions.some((s) => s.fee) && (
-                            <th className="px-4 py-3 font-medium">Valor</th>
-                          )}
-                          <th className="px-4 py-3 font-medium"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {course.sessions.map((session, i) => (
-                          <tr key={i} className="hover:bg-blue-50/50 transition">
-                            <td className="px-4 py-3 text-sm font-medium text-gray-700">
-                              {session.dates}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-600">
-                              {session.location}
-                            </td>
-                            <td className="px-4 py-3 text-sm">
-                              <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                                {session.modality}
-                              </span>
-                            </td>
-                            {course.sessions!.some((s) => s.fee) && (
-                              <td className="px-4 py-3 text-sm font-medium text-gray-700">
-                                {session.fee || "-"}
-                              </td>
-                            )}
-                            <td className="px-4 py-3">
-                              <Link
-                                href={`/registro/${course.id}`}
-                                className="inline-flex items-center px-4 py-1.5 bg-[#0072CE] text-white text-xs font-medium rounded hover:bg-[#005fa3] transition"
-                              >
-                                Inscribirse
-                              </Link>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div className="mt-4 pt-4 border-t border-gray-100">
-                    <Link
-                      href="/contacto"
-                      className="text-sm text-[#0072CE] hover:text-[#004B87] font-medium"
-                    >
-                      ¿No encuentras fecha? Solicita información →
-                    </Link>
-                  </div>
+                  <CourseSessionsTable
+                    courseCode={course.code}
+                    courseTitle={course.title}
+                    fallbackSlug={course.id}
+                  />
                 </div>
               )}
 
-              {/* Fallback sessions from dates array */}
-              {(!course.sessions || course.sessions.length === 0) &&
-                course.dates.length > 0 && (
-                  <div className="bg-white rounded-lg border border-gray-200 p-6">
-                    <h2 className="text-xl font-bold text-[#003366] mb-4">
-                      Sesiones Programadas
-                    </h2>
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="bg-gray-50 text-left text-sm text-gray-500">
-                            <th className="px-4 py-3 font-medium">Fechas</th>
-                            <th className="px-4 py-3 font-medium">Sede</th>
-                            <th className="px-4 py-3 font-medium">Modalidad</th>
-                            <th className="px-4 py-3 font-medium"></th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {course.dates.map((date, i) => (
-                            <tr key={i} className="hover:bg-blue-50/50 transition">
-                              <td className="px-4 py-3 text-sm font-medium text-gray-700">
-                                {date}
-                              </td>
-                              <td className="px-4 py-3 text-sm text-gray-600">
-                                {course.locations.join(", ")}
-                              </td>
-                              <td className="px-4 py-3 text-sm">
-                                <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                                  {course.modality}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3">
-                                <Link
-                                  href="/contacto"
-                                  className="inline-flex items-center px-4 py-1.5 bg-[#0072CE] text-white text-xs font-medium rounded hover:bg-[#005fa3] transition"
-                                >
-                                  Inscribirse
-                                </Link>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
+              {/* Fallback: dynamic sessions from Supabase for courses without static sessions */}
+              {(!course.sessions || course.sessions.length === 0) && (
+                <div className="bg-white rounded-lg border border-gray-200 p-6">
+                  <h2 className="text-xl font-bold text-[#003366] mb-4 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-[#0072CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Sesiones Programadas
+                  </h2>
+                  <CourseSessionsTable
+                    courseCode={course.code}
+                    courseTitle={course.title}
+                    fallbackSlug={course.id}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Sidebar - Course info card (ICAO style) */}
