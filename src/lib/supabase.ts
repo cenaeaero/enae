@@ -137,6 +137,40 @@ export type DbCourseMessage = {
   created_at: string;
 };
 
+export type DbGradeItem = {
+  id: string;
+  course_id: string;
+  sort_order: number;
+  name: string;
+  weight: number;
+  created_at: string;
+};
+
+export type DbStudentGrade = {
+  id: string;
+  registration_id: string;
+  grade_item_id: string;
+  score: number | null;
+  comments: string | null;
+  graded_by: string | null;
+  graded_at: string | null;
+};
+
+export type DbDiploma = {
+  id: string;
+  registration_id: string;
+  verification_code: string;
+  student_name: string;
+  course_title: string;
+  course_code: string | null;
+  final_score: number | null;
+  status: "approved" | "failed";
+  issued_date: string;
+  theoretical_start: string | null;
+  practical_end: string | null;
+  created_at: string;
+};
+
 export type DbSurveyResponse = {
   id: string;
   registration_id: string;

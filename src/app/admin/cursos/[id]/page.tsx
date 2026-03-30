@@ -264,6 +264,12 @@ export default function EditCoursePage({
             Módulos LMS
           </Link>
           <Link
+            href={`/admin/cursos/${id}/evaluaciones`}
+            className="px-3 py-2 text-sm bg-[#F57C00] text-white rounded-lg hover:bg-[#E65100]"
+          >
+            Evaluaciones
+          </Link>
+          <Link
             href={`/cursos/${id}`}
             target="_blank"
             className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"

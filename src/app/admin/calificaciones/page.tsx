@@ -1,0 +1,340 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
+
+type CourseOption = { id: string; title: string; code: string | null };
+type GradeItem = { id: string; name: string; weight: number; sort_order: number };
+type StudentRow = {
+  registrationId: string;
+  name: string;
+  email: string;
+  company: string | null;
+  grades: Record<string, number | null>; // grade_item_id -> score
+  finalScore: number | null;
+  gradeStatus: string | null;
+};
+
+export default function CalificacionesPage() {
+  const [courses, setCourses] = useState<CourseOption[]>([]);
+  const [selectedCourse, setSelectedCourse] = useState("");
+  const [gradeItems, setGradeItems] = useState<GradeItem[]>([]);
+  const [students, setStudents] = useState<StudentRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    supabase
+      .from("courses")
+      .select("id, title, code")
+      .eq("is_active", true)
+      .order("title")
+      .then(({ data }) => {
+        if (data) setCourses(data as CourseOption[]);
+      });
+  }, []);
+
+  async function loadGrades(courseId: string) {
+    setLoading(true);
+    setMessage("");
+
+    // Load grade items
+    const { data: items } = await supabase
+      .from("grade_items")
+      .select("*")
+      .eq("course_id", courseId)
+      .order("sort_order");
+
+    setGradeItems((items as GradeItem[]) || []);
+
+    // Load registrations for this course
+    const { data: regs } = await supabase
+      .from("registrations")
+      .select("id, first_name, last_name, email, company, final_score, grade_status")
+      .eq("course_id", courseId)
+      .in("status", ["confirmed", "completed"])
+      .order("last_name");
+
+    if (!regs || !items) {
+      setStudents([]);
+      setLoading(false);
+      return;
+    }
+
+    // Load existing grades
+    const regIds = regs.map((r: any) => r.id);
+    const { data: grades } = await supabase
+      .from("student_grades")
+      .select("registration_id, grade_item_id, score")
+      .in("registration_id", regIds);
+
+    const gradeMap: Record<string, Record<string, number | null>> = {};
+    (grades || []).forEach((g: any) => {
+      if (!gradeMap[g.registration_id]) gradeMap[g.registration_id] = {};
+      gradeMap[g.registration_id][g.grade_item_id] = g.score;
+    });
+
+    setStudents(
+      regs.map((r: any) => ({
+        registrationId: r.id,
+        name: `${r.first_name} ${r.last_name}`,
+        email: r.email,
+        company: r.company,
+        grades: gradeMap[r.id] || {},
+        finalScore: r.final_score,
+        gradeStatus: r.grade_status,
+      }))
+    );
+
+    setLoading(false);
+  }
+
+  function setGrade(regId: string, itemId: string, score: number | null) {
+    setStudents((prev) =>
+      prev.map((s) =>
+        s.registrationId === regId
+          ? { ...s, grades: { ...s.grades, [itemId]: score } }
+          : s
+      )
+    );
+  }
+
+  function calculateFinal(grades: Record<string, number | null>): number | null {
+    if (gradeItems.length === 0) return null;
+    let totalWeight = 0;
+    let weightedSum = 0;
+    let hasGrades = false;
+
+    for (const item of gradeItems) {
+      const score = grades[item.id];
+      if (score !== null && score !== undefined) {
+        weightedSum += score * item.weight;
+        totalWeight += item.weight;
+        hasGrades = true;
+      }
+    }
+
+    return hasGrades && totalWeight > 0
+      ? Math.round((weightedSum / totalWeight) * 100) / 100
+      : null;
+  }
+
+  async function saveAll() {
+    setSaving(true);
+    setMessage("");
+
+    for (const student of students) {
+      // Upsert each grade
+      for (const item of gradeItems) {
+        const score = student.grades[item.id];
+        if (score !== null && score !== undefined) {
+          await supabase.from("student_grades").upsert(
+            {
+              registration_id: student.registrationId,
+              grade_item_id: item.id,
+              score,
+            },
+            { onConflict: "registration_id,grade_item_id" }
+          );
+        }
+      }
+
+      // Calculate and save final
+      const finalScore = calculateFinal(student.grades);
+      const gradeStatus =
+        finalScore !== null
+          ? finalScore >= 60
+            ? "approved"
+            : "failed"
+          : "pending";
+
+      await supabase
+        .from("registrations")
+        .update({ final_score: finalScore, grade_status: gradeStatus })
+        .eq("id", student.registrationId);
+
+      student.finalScore = finalScore;
+      student.gradeStatus = gradeStatus;
+    }
+
+    setStudents([...students]);
+    setMessage("Calificaciones guardadas correctamente");
+    setSaving(false);
+  }
+
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-[#003366] mb-6">
+        Libro de Calificaciones
+      </h1>
+
+      {/* Course selector */}
+      <div className="bg-white rounded-lg border border-gray-200 p-5 mb-6">
+        <div className="flex items-end gap-4">
+          <div className="flex-1">
+            <label className="block text-xs text-gray-500 uppercase mb-1">
+              Seleccionar Curso
+            </label>
+            <select
+              value={selectedCourse}
+              onChange={(e) => {
+                setSelectedCourse(e.target.value);
+                if (e.target.value) loadGrades(e.target.value);
+              }}
+              className="w-full border border-gray-200 rounded px-3 py-2 text-sm"
+            >
+              <option value="">Seleccionar...</option>
+              {courses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.title} {c.code ? `(${c.code})` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+          {selectedCourse && students.length > 0 && (
+            <button
+              onClick={saveAll}
+              disabled={saving}
+              className="bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white px-5 py-2 rounded-lg text-sm font-medium transition"
+            >
+              {saving ? "Guardando..." : "Guardar Calificaciones"}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {message && (
+        <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
+          {message}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="text-center py-12 text-gray-400">Cargando...</div>
+      ) : selectedCourse && gradeItems.length === 0 ? (
+        <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+          <p className="text-gray-500">
+            No hay evaluaciones definidas para este curso.
+          </p>
+          <a
+            href={`/admin/cursos/${selectedCourse}/evaluaciones`}
+            className="text-[#0072CE] hover:underline text-sm mt-2 inline-block"
+          >
+            Definir evaluaciones
+          </a>
+        </div>
+      ) : selectedCourse && students.length === 0 ? (
+        <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+          <p className="text-gray-500">
+            No hay alumnos inscritos en este curso.
+          </p>
+        </div>
+      ) : selectedCourse ? (
+        <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
+                <th className="px-4 py-3 font-medium sticky left-0 bg-gray-50 z-10">
+                  Alumno
+                </th>
+                {gradeItems.map((item) => (
+                  <th
+                    key={item.id}
+                    className="px-3 py-3 font-medium text-center whitespace-nowrap"
+                  >
+                    {item.name}
+                    <span className="block text-[10px] text-gray-400 font-normal">
+                      Peso: {item.weight}
+                    </span>
+                  </th>
+                ))}
+                <th className="px-3 py-3 font-medium text-center">Final</th>
+                <th className="px-3 py-3 font-medium text-center">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {students.map((student) => {
+                const final_ = calculateFinal(student.grades);
+                const status =
+                  final_ !== null
+                    ? final_ >= 60
+                      ? "approved"
+                      : "failed"
+                    : "pending";
+                return (
+                  <tr
+                    key={student.registrationId}
+                    className="border-t border-gray-100 hover:bg-gray-50"
+                  >
+                    <td className="px-4 py-3 sticky left-0 bg-white z-10">
+                      <p className="font-medium text-gray-800">
+                        {student.name}
+                      </p>
+                      <p className="text-xs text-gray-400">{student.email}</p>
+                      {student.company && (
+                        <p className="text-xs text-gray-400">
+                          {student.company}
+                        </p>
+                      )}
+                    </td>
+                    {gradeItems.map((item) => (
+                      <td key={item.id} className="px-3 py-3 text-center">
+                        <input
+                          type="number"
+                          value={student.grades[item.id] ?? ""}
+                          onChange={(e) =>
+                            setGrade(
+                              student.registrationId,
+                              item.id,
+                              e.target.value === ""
+                                ? null
+                                : parseFloat(e.target.value)
+                            )
+                          }
+                          min="0"
+                          max="100"
+                          className="w-16 border border-gray-200 rounded px-2 py-1 text-sm text-center focus:ring-1 focus:ring-[#0072CE]"
+                        />
+                      </td>
+                    ))}
+                    <td className="px-3 py-3 text-center">
+                      <span
+                        className={`font-bold ${
+                          final_ === null
+                            ? "text-gray-400"
+                            : final_ >= 60
+                              ? "text-green-600"
+                              : "text-red-600"
+                        }`}
+                      >
+                        {final_ !== null ? `${final_}%` : "—"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-center">
+                      <span
+                        className={`text-xs font-medium px-2 py-1 rounded ${
+                          status === "approved"
+                            ? "bg-green-100 text-green-800"
+                            : status === "failed"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {status === "approved"
+                          ? "Aprobado"
+                          : status === "failed"
+                            ? "Reprobado"
+                            : "Pendiente"}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </div>
+  );
+}
