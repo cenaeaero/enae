@@ -10,8 +10,8 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-const FROM = process.env.SMTP_USER || "noreply@enae.cl";
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@enae.cl";
+const FROM = process.env.SMTP_USER || "escuela@enae.cl";
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "escuela@enae.cl";
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 export async function sendStudentCredentials(

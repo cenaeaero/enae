@@ -98,13 +98,28 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Locations */}
+          {/* Contact */}
           <div>
             <h3 className="font-semibold text-sm uppercase tracking-wider mb-4 text-blue-300">
-              Sedes
+              Contacto
             </h3>
             <ul className="space-y-3 text-sm text-blue-200">
               <li>
+                <a href="mailto:escuela@enae.cl" className="hover:text-white transition">
+                  escuela@enae.cl
+                </a>
+              </li>
+              <li>
+                <a href="https://wa.me/56952150764" target="_blank" rel="noopener noreferrer" className="hover:text-white transition">
+                  +56 9 5215 0764
+                </a>
+              </li>
+              <li>
+                <a href="https://wa.me/56967089439" target="_blank" rel="noopener noreferrer" className="hover:text-white transition">
+                  +56 9 6708 9439
+                </a>
+              </li>
+              <li className="pt-2">
                 <span className="block text-white font-medium">Santiago, Chile</span>
                 Aeródromo Eulogio Sánchez, Tobalaba
               </li>
