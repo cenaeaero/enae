@@ -631,15 +631,15 @@ export default function TpemsCourseDetail() {
                           <td className="px-6 py-3 text-center text-gray-500">{item.weight}%</td>
                           <td className="px-6 py-3 text-center">
                             {score !== null && score !== undefined ? (
-                              <span className={`font-bold ${score >= 60 ? "text-green-600" : "text-red-600"}`}>{score}%</span>
+                              <span className={`font-bold ${score >= 80 ? "text-green-600" : "text-red-600"}`}>{score}%</span>
                             ) : (
                               <span className="text-gray-300">—</span>
                             )}
                           </td>
                           <td className="px-6 py-3 text-center">
                             {score !== null && score !== undefined ? (
-                              <span className={`text-xs font-medium px-2 py-1 rounded ${score >= 60 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
-                                {score >= 60 ? "Aprobado" : "Reprobado"}
+                              <span className={`text-xs font-medium px-2 py-1 rounded ${score >= 80 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                                {score >= 80 ? "Aprobado" : "Reprobado"}
                               </span>
                             ) : (
                               <span className="text-xs text-gray-400">Pendiente</span>
@@ -666,7 +666,7 @@ export default function TpemsCourseDetail() {
                   return (
                     <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
                       <span className="font-semibold text-gray-800">Nota Final (Promedio Ponderado)</span>
-                      <span className={`text-xl font-bold ${final_ >= 60 ? "text-green-600" : "text-red-600"}`}>{final_}%</span>
+                      <span className={`text-xl font-bold ${final_ >= 80 ? "text-green-600" : "text-red-600"}`}>{final_}%</span>
                     </div>
                   );
                 })()}

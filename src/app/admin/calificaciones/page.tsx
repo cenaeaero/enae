@@ -144,7 +144,7 @@ export default function CalificacionesPage() {
       const finalScore = calculateFinal(student.grades);
       const gradeStatus =
         finalScore !== null
-          ? finalScore >= 60
+          ? finalScore >= 80
             ? "approved"
             : "failed"
           : "pending";
@@ -258,7 +258,7 @@ export default function CalificacionesPage() {
                 const final_ = calculateFinal(student.grades);
                 const status =
                   final_ !== null
-                    ? final_ >= 60
+                    ? final_ >= 80
                       ? "approved"
                       : "failed"
                     : "pending";
@@ -303,7 +303,7 @@ export default function CalificacionesPage() {
                         className={`font-bold ${
                           final_ === null
                             ? "text-gray-400"
-                            : final_ >= 60
+                            : final_ >= 80
                               ? "text-green-600"
                               : "text-red-600"
                         }`}
