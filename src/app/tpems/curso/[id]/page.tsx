@@ -52,7 +52,11 @@ type Message = {
   profiles: { first_name: string; last_name: string; role: string } | null;
 };
 
-type Tab = "info" | "modules" | "evaluation" | "messages";
+type Tab = "info" | "modules" | "grades" | "evaluation" | "messages";
+
+type GradeItemRow = { id: string; name: string; weight: number };
+type GradeRow = { grade_item_id: string; score: number | null };
+type DiplomaRow = { verification_code: string; final_score: number | null; status: string; issued_date: string };
 
 const activityIcons: Record<string, string> = {
   task: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4",
@@ -87,6 +91,9 @@ export default function TpemsCourseDetail() {
   const [newMessage, setNewMessage] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
   const [updatingProgress, setUpdatingProgress] = useState(false);
+  const [gradeItems, setGradeItems] = useState<GradeItemRow[]>([]);
+  const [studentGrades, setStudentGrades] = useState<GradeRow[]>([]);
+  const [diploma, setDiploma] = useState<DiplomaRow | null>(null);
 
   const registrationId = params.id as string;
 
@@ -156,6 +163,29 @@ export default function TpemsCourseDetail() {
             setSelectedModuleId(modulesData[0].id);
           }
         }
+
+        // Load grades and diploma
+        const { data: gItems } = await supabase
+          .from("grade_items")
+          .select("id, name, weight")
+          .eq("course_id", r.course_id)
+          .order("sort_order");
+        if (gItems) setGradeItems(gItems as GradeItemRow[]);
+
+        if (gItems && gItems.length > 0) {
+          const { data: grades } = await supabase
+            .from("student_grades")
+            .select("grade_item_id, score")
+            .eq("registration_id", r.id);
+          if (grades) setStudentGrades(grades as GradeRow[]);
+        }
+
+        const { data: diplomaData } = await supabase
+          .from("diplomas")
+          .select("verification_code, final_score, status, issued_date")
+          .eq("registration_id", r.id)
+          .maybeSingle();
+        if (diplomaData) setDiploma(diplomaData as DiplomaRow);
 
         // Load survey responses if completed
         if (r.status === "completed") {
@@ -279,6 +309,7 @@ export default function TpemsCourseDetail() {
   const tabs: { key: Tab; label: string }[] = [
     { key: "info", label: "Info" },
     ...(modules.length > 0 ? [{ key: "modules" as Tab, label: `Módulos (${totalModules})` }] : []),
+    { key: "grades", label: "Calificaciones" },
     { key: "evaluation", label: "Evaluation" },
     { key: "messages", label: "Mensajes" },
   ];
@@ -565,6 +596,130 @@ export default function TpemsCourseDetail() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* ============ GRADES TAB ============ */}
+        {activeTab === "grades" && (
+          <div className="space-y-6">
+            {/* Grades table */}
+            {gradeItems.length === 0 ? (
+              <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+                <p className="text-gray-500">Las calificaciones estarán disponibles una vez que el instructor las registre.</p>
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100">
+                  <h3 className="font-semibold text-gray-800">Mis Calificaciones</h3>
+                </div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
+                      <th className="px-6 py-3 font-medium">Evaluación</th>
+                      <th className="px-6 py-3 font-medium text-center">Ponderación</th>
+                      <th className="px-6 py-3 font-medium text-center">Nota</th>
+                      <th className="px-6 py-3 font-medium text-center">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gradeItems.map((item) => {
+                      const grade = studentGrades.find((g) => g.grade_item_id === item.id);
+                      const score = grade?.score;
+                      return (
+                        <tr key={item.id} className="border-t border-gray-50">
+                          <td className="px-6 py-3 text-gray-700">{item.name}</td>
+                          <td className="px-6 py-3 text-center text-gray-500">{item.weight}%</td>
+                          <td className="px-6 py-3 text-center">
+                            {score !== null && score !== undefined ? (
+                              <span className={`font-bold ${score >= 60 ? "text-green-600" : "text-red-600"}`}>{score}%</span>
+                            ) : (
+                              <span className="text-gray-300">—</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-3 text-center">
+                            {score !== null && score !== undefined ? (
+                              <span className={`text-xs font-medium px-2 py-1 rounded ${score >= 60 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                                {score >= 60 ? "Aprobado" : "Reprobado"}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400">Pendiente</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {/* Final score */}
+                {(() => {
+                  const gradedItems = gradeItems.filter((item) => {
+                    const g = studentGrades.find((sg) => sg.grade_item_id === item.id);
+                    return g?.score !== null && g?.score !== undefined;
+                  });
+                  if (gradedItems.length === 0) return null;
+                  let totalW = 0, wSum = 0;
+                  gradedItems.forEach((item) => {
+                    const g = studentGrades.find((sg) => sg.grade_item_id === item.id);
+                    if (g?.score != null) { wSum += g.score * item.weight; totalW += item.weight; }
+                  });
+                  const final_ = totalW > 0 ? Math.round((wSum / totalW) * 100) / 100 : 0;
+                  return (
+                    <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+                      <span className="font-semibold text-gray-800">Nota Final (Promedio Ponderado)</span>
+                      <span className={`text-xl font-bold ${final_ >= 60 ? "text-green-600" : "text-red-600"}`}>{final_}%</span>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* Diploma */}
+            {diploma && (
+              <div className="bg-white rounded-lg border border-green-200 overflow-hidden">
+                <div className="bg-green-50 px-6 py-4 flex items-center gap-3">
+                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                  </svg>
+                  <div>
+                    <h3 className="font-bold text-green-800">Diploma Emitido</h3>
+                    <p className="text-sm text-green-600">Tu certificado ha sido emitido exitosamente.</p>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase">Código de Verificación</p>
+                      <p className="font-mono font-bold text-[#003366] text-lg">{diploma.verification_code}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase">Calificación Final</p>
+                      <p className="font-bold text-lg text-green-600">{diploma.final_score}%</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase">Estado</p>
+                      <span className="text-xs font-medium px-2.5 py-1 rounded bg-green-100 text-green-800">
+                        {diploma.status === "approved" ? "Aprobado" : "Reprobado"}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase">Fecha de Emisión</p>
+                      <p className="text-gray-700">{new Date(diploma.issued_date).toLocaleDateString("es-CL", { day: "2-digit", month: "long", year: "numeric" })}</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-gray-100 flex gap-3">
+                    <a
+                      href={`/verificar?code=${diploma.verification_code}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 bg-[#003366] hover:bg-[#004B87] text-white text-sm font-medium px-4 py-2 rounded-lg transition"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                      Verificar Diploma
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
