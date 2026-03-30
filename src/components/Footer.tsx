@@ -136,10 +136,10 @@ export default function Footer() {
         <div className="border-t border-blue-800 mt-10 pt-6 flex flex-col md:flex-row justify-between items-center text-sm text-blue-300">
           <p>&copy; {new Date().getFullYear()} ENAE - Escuela de Navegación Aérea SpA. Todos los derechos reservados.</p>
           <div className="flex gap-4 mt-3 md:mt-0">
-            <Link href="/contacto" className="hover:text-white transition">
+            <Link href="/privacidad" className="hover:text-white transition">
               Política de Privacidad
             </Link>
-            <Link href="/contacto" className="hover:text-white transition">
+            <Link href="/terminos" className="hover:text-white transition">
               Términos de Uso
             </Link>
           </div>
