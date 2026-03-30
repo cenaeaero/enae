@@ -173,7 +173,7 @@ export default function Home() {
 
       {/* Hero image banner */}
       <section className="relative bg-[#001d3d] overflow-hidden">
-        <div className="max-w-7xl mx-auto">
+        <div>
           <div className="relative h-[400px] md:h-[500px]">
             <img
               src="/img/Foto banner.png"
