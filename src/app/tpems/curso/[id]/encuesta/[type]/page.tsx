@@ -135,10 +135,10 @@ export default function SurveyFormPage() {
             valiosa.
           </p>
           <button
-            onClick={() => router.push(`/tpems/curso/${registrationId}`)}
+            onClick={() => router.push(`/tpems/curso/${registrationId}?tab=evaluation`)}
             className="bg-[#0072CE] hover:bg-[#005BA1] text-white px-6 py-2 rounded-lg text-sm font-medium transition"
           >
-            Volver al curso
+            Volver a Evaluación
           </button>
         </div>
       </div>
