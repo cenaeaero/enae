@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { Suspense, useEffect, useState, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { courses, areas, Course } from "@/data/courses";
 import Link from "next/link";
@@ -17,6 +17,14 @@ const levelColors: Record<string, string> = {
 type Tab = "all" | "presencial" | "online" | "hibrido";
 
 export default function CursosPage() {
+  return (
+    <Suspense fallback={<div className="text-center py-16 text-gray-400">Cargando...</div>}>
+      <CursosContent />
+    </Suspense>
+  );
+}
+
+function CursosContent() {
   const searchParams = useSearchParams();
   const urlArea = searchParams.get("area") || "todos";
 
