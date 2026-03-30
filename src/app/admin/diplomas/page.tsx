@@ -83,12 +83,22 @@ export default function AdminDiplomasPage() {
     courseCode: string | null,
     area: string
   ): string {
-    const areaCode = courseCode
-      ? courseCode.split("/").slice(0, 2).join("-")
-      : area.replace(/[^A-Z]/gi, "").substring(0, 6).toUpperCase();
-    const number = String(Math.floor(Math.random() * 9000000) + 1000000);
+    // Use course code format: ENAE/UAS/001 → UAS-001-0104650-2025
+    let prefix = "";
+    if (courseCode) {
+      // "ENAE/UAS/001" → "UAS-001"
+      const parts = courseCode.split("/");
+      if (parts.length >= 3) {
+        prefix = `${parts[1]}-${parts[2]}`;
+      } else {
+        prefix = parts.join("-");
+      }
+    } else {
+      prefix = area.replace(/[^A-Z]/gi, "").substring(0, 6).toUpperCase();
+    }
+    const number = String(Math.floor(Math.random() * 9000000) + 1000000).padStart(7, "0");
     const year = new Date().getFullYear();
-    return `${areaCode}-${number}-${year}`;
+    return `${prefix}-${number}-${year}`;
   }
 
   async function issueDiploma(student: ApprovedStudent) {
