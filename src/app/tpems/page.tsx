@@ -71,7 +71,7 @@ export default function TpemsDashboard() {
       document.body.appendChild(form);
       form.submit();
     } else {
-      alert("Error al iniciar el pago.");
+      alert("Error al iniciar el pago: " + (data.error || "Intenta nuevamente"));
       setPayingId(null);
     }
   }

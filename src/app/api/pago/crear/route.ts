@@ -55,7 +55,7 @@ export async function POST(request: Request) {
   } catch (error: any) {
     console.error("Payment creation error:", error);
     return NextResponse.json(
-      { error: "Error al crear transaccion" },
+      { error: "Error al crear transaccion: " + (error?.message || String(error)) },
       { status: 500 }
     );
   }
