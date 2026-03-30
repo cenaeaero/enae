@@ -176,7 +176,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto">
           <div className="relative h-[400px] md:h-[500px]">
             <img
-              src="/img/enae-drone-training.jpg"
+              src="/img/Foto banner.png"
               alt="Instructores ENAE en entrenamiento práctico con drones"
               className="w-full h-full object-cover"
             />
