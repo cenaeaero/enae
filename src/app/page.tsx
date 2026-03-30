@@ -171,6 +171,47 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Hero image banner */}
+      <section className="relative bg-[#001d3d] overflow-hidden">
+        <div className="max-w-7xl mx-auto">
+          <div className="relative h-[400px] md:h-[500px]">
+            <img
+              src="/img/enae-drone-training.jpg"
+              alt="Instructores ENAE en entrenamiento práctico con drones"
+              className="w-full h-full object-cover"
+            />
+            {/* Overlay */}
+            <div className="absolute inset-0 bg-gradient-to-r from-[#001d3d]/80 via-[#001d3d]/40 to-transparent" />
+            <div className="absolute bottom-0 left-0 right-0 p-8 md:p-12">
+              <div className="max-w-xl">
+                <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">
+                  Formación Práctica en Terreno
+                </h2>
+                <p className="text-blue-200 text-sm md:text-base mb-5">
+                  Nuestros programas combinan teoría y práctica con equipamiento
+                  de última generación en aeródromos certificados.
+                </p>
+                <div className="flex gap-3">
+                  <Link
+                    href="/calendario"
+                    className="inline-flex items-center gap-2 bg-[#F57C00] hover:bg-[#E65100] text-white font-medium px-5 py-2.5 rounded-lg transition text-sm"
+                  >
+                    Ver Programación
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                  </Link>
+                  <Link
+                    href="/admision"
+                    className="inline-flex items-center gap-2 border border-white/30 text-white font-medium px-5 py-2.5 rounded-lg hover:bg-white/10 transition text-sm"
+                  >
+                    Postular
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Locations */}
       <section className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4">
