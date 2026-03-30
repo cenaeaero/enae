@@ -119,15 +119,36 @@ function PagoExitoContent() {
         </div>
       )}
 
+      {/* Next steps */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-5 mb-6">
+        <h3 className="font-semibold text-[#003366] mb-2">Siguientes pasos</h3>
+        <ol className="text-sm text-gray-700 space-y-1.5 list-decimal pl-5">
+          <li>Recibirás un email de confirmación con los detalles del pago</li>
+          <li>Tu inscripción ha sido confirmada y puedes acceder al curso</li>
+          <li>Ingresa a la plataforma LMS para comenzar tu formación</li>
+        </ol>
+      </div>
+
       <div className="text-center space-y-3">
-        <Link
-          href="/tpems"
-          className="inline-block bg-[#0072CE] hover:bg-[#005fa3] text-white font-medium px-6 py-3 rounded-lg transition"
-        >
-          Ir al Dashboard
-        </Link>
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <a
+            href="https://cursos.enae.cl"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 bg-[#F57C00] hover:bg-[#E65100] text-white font-semibold px-6 py-3 rounded-lg transition"
+          >
+            Iniciar Curso en LMS
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+          </a>
+          <Link
+            href="/tpems"
+            className="inline-flex items-center justify-center gap-2 bg-[#0072CE] hover:bg-[#005fa3] text-white font-medium px-6 py-3 rounded-lg transition"
+          >
+            Ir al Portal Alumno
+          </Link>
+        </div>
         <p className="text-xs text-gray-400">
-          Recibiras un email de confirmacion en tu correo.
+          Recibirás un email de confirmación en tu correo.
         </p>
       </div>
     </div>

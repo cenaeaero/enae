@@ -32,7 +32,7 @@ export default function Header() {
               Portal Alumno
             </Link>
             <a
-              href="https://plataforma.enae.cl"
+              href="https://cursos.enae.cl"
               target="_blank"
               rel="noopener"
               className="hover:text-white transition"

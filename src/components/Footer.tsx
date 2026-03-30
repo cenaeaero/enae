@@ -87,7 +87,7 @@ export default function Footer() {
               </li>
               <li>
                 <a
-                  href="https://plataforma.enae.cl"
+                  href="https://cursos.enae.cl"
                   target="_blank"
                   rel="noopener"
                   className="text-blue-200 hover:text-white transition"

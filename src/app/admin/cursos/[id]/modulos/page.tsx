@@ -308,7 +308,7 @@ export default function AdminModulosPage({
               value={moodleUrl}
               onChange={(e) => setMoodleUrl(e.target.value)}
               className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#0072CE]"
-              placeholder="https://moodle.enae.cl/course/..."
+              placeholder="https://cursos.enae.cl/course/..."
             />
           </div>
         </div>
