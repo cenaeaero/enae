@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 type Profile = {
@@ -276,7 +276,7 @@ export default function AdminPerfilesPage() {
             </thead>
             <tbody>
               {filtered.map((profile) => (
-                <>
+                <Fragment key={profile.id}>
                   <tr
                     key={profile.id}
                     className="border-t border-gray-100 hover:bg-gray-50 cursor-pointer"
@@ -466,7 +466,7 @@ export default function AdminPerfilesPage() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 type Payment = {
@@ -256,7 +256,7 @@ export default function AdminPagosPage() {
             </thead>
             <tbody>
               {filtered.map((payment) => (
-                <>
+                <Fragment key={payment.id}>
                   <tr
                     key={payment.id}
                     className="border-t border-gray-100 hover:bg-gray-50 cursor-pointer"
@@ -454,7 +454,7 @@ export default function AdminPagosPage() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>
