@@ -177,7 +177,7 @@ export default function Home() {
           <img
             src="/img/Foto banner.png"
             alt="Instructores ENAE en entrenamiento práctico con drones"
-            className="absolute inset-0 w-full h-full object-cover object-[center_20%]"
+            className="absolute inset-0 w-full h-full object-cover object-center"
           />
           {/* Overlay */}
           <div className="absolute inset-0 bg-gradient-to-r from-[#001d3d]/80 via-[#001d3d]/40 to-transparent" />
