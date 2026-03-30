@@ -15,7 +15,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const buyOrder = `ENAE-${registrationId.slice(0, 8)}-${Date.now()}`;
+    const buyOrder = `E${Date.now()}`;
     const sessionId = registrationId;
     const returnUrl = `${SITE_URL}/api/pago/resultado`;
 
