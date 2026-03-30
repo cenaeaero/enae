@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:igat.icao.int)",
+      "WebFetch(domain:enae.cl)"
+    ]
+  }
+}
