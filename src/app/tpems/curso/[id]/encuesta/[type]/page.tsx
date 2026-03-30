@@ -7,7 +7,6 @@ import {
   getQuestionnaireConfig,
   LIKERT_OPTIONS,
   type QuestionnaireType,
-  type SurveyQuestion,
 } from "@/data/survey-questions";
 
 export default function SurveyFormPage() {
@@ -210,22 +209,92 @@ export default function SurveyFormPage() {
       </div>
 
       {/* Questions */}
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        <div className="bg-white rounded-lg border border-gray-200">
-          {sectionQuestions.map((question, idx) => (
-            <QuestionRow
-              key={question.id}
-              question={question}
-              index={
-                config.questions
-                  .filter((q) => q.type === question.type || true)
-                  .indexOf(question) + 1
-              }
-              value={answers[question.id] || ""}
-              onChange={(val) => setAnswer(question.id, val)}
-              isLast={idx === sectionQuestions.length - 1}
-            />
-          ))}
+      <div className="max-w-5xl mx-auto px-4 py-6">
+        <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
+          {/* Likert questions as table */}
+          {sectionQuestions.some((q) => q.type === "likert") && (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left px-6 py-3 w-[40%]"></th>
+                  {LIKERT_OPTIONS.map((opt) => (
+                    <th
+                      key={opt.value}
+                      className="px-2 py-3 text-center text-xs font-medium text-gray-500 whitespace-nowrap"
+                    >
+                      {opt.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sectionQuestions
+                  .filter((q) => q.type === "likert")
+                  .map((question) => {
+                    const globalIdx =
+                      config.questions.indexOf(question) + 1;
+                    return (
+                      <tr
+                        key={question.id}
+                        className="border-b border-gray-50 last:border-0"
+                      >
+                        <td className="px-6 py-4 text-sm text-gray-700 align-top">
+                          {globalIdx}. {question.text}
+                        </td>
+                        {LIKERT_OPTIONS.map((option) => (
+                          <td
+                            key={option.value}
+                            className="px-2 py-4 text-center"
+                          >
+                            <input
+                              type="radio"
+                              name={question.id}
+                              value={option.value}
+                              checked={
+                                answers[question.id] === option.value
+                              }
+                              onChange={() =>
+                                setAnswer(question.id, option.value)
+                              }
+                              className="w-4 h-4 accent-[#F57C00] cursor-pointer"
+                            />
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          )}
+
+          {/* Text questions */}
+          {sectionQuestions
+            .filter((q) => q.type === "text")
+            .map((question) => {
+              const globalIdx = config.questions.indexOf(question) + 1;
+              return (
+                <div
+                  key={question.id}
+                  className="px-6 py-5 border-t border-gray-100"
+                >
+                  <label className="block text-sm text-gray-700 mb-2">
+                    {globalIdx}. {question.text}
+                    {!question.required && (
+                      <span className="text-gray-400 text-xs ml-2">
+                        (Opcional)
+                      </span>
+                    )}
+                  </label>
+                  <textarea
+                    value={answers[question.id] || ""}
+                    onChange={(e) => setAnswer(question.id, e.target.value)}
+                    rows={3}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0072CE]/20 focus:border-[#0072CE] resize-none"
+                    placeholder="Escribe tu respuesta aquí..."
+                  />
+                </div>
+              );
+            })}
         </div>
 
         {error && (
@@ -299,67 +368,3 @@ export default function SurveyFormPage() {
   );
 }
 
-// ============================================
-// Question Row Component
-// ============================================
-function QuestionRow({
-  question,
-  index,
-  value,
-  onChange,
-  isLast,
-}: {
-  question: SurveyQuestion;
-  index: number;
-  value: string;
-  onChange: (val: string) => void;
-  isLast: boolean;
-}) {
-  if (question.type === "text") {
-    return (
-      <div className={`px-6 py-5 ${!isLast ? "border-b border-gray-100" : ""}`}>
-        <label className="block text-sm text-gray-700 mb-2">
-          {index}. {question.text}
-          {!question.required && (
-            <span className="text-gray-400 text-xs ml-2">(Opcional)</span>
-          )}
-        </label>
-        <textarea
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          rows={3}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0072CE]/20 focus:border-[#0072CE] resize-none"
-          placeholder="Escribe tu respuesta aquí..."
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className={`px-6 py-5 ${!isLast ? "border-b border-gray-100" : ""}`}>
-      <div className="flex flex-col lg:flex-row lg:items-start gap-4">
-        <p className="text-sm text-gray-700 lg:w-1/3 shrink-0">
-          {index}. {question.text}
-        </p>
-        <div className="flex flex-wrap gap-x-5 gap-y-2">
-          {LIKERT_OPTIONS.map((option) => (
-            <label
-              key={option.value}
-              className="flex items-center gap-1.5 cursor-pointer"
-            >
-              <input
-                type="radio"
-                name={question.id}
-                value={option.value}
-                checked={value === option.value}
-                onChange={() => onChange(option.value)}
-                className="w-4 h-4 text-[#F57C00] accent-[#F57C00]"
-              />
-              <span className="text-xs text-gray-600">{option.label}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
