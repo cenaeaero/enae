@@ -34,22 +34,29 @@ export default function AdminLoginPage() {
     setError("");
     setLoading(true);
 
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (authError) {
-      setError(
-        authError.message === "Invalid login credentials"
-          ? "Credenciales incorrectas. Verifica tu email y contrasena."
-          : authError.message
-      );
+      if (authError) {
+        setError(
+          authError.message === "Invalid login credentials"
+            ? "Credenciales incorrectas. Verifica tu email y contrasena."
+            : authError.message
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Small delay to ensure cookies are set before redirect
+      await new Promise((r) => setTimeout(r, 500));
+      window.location.href = "/admin";
+    } catch (err: any) {
+      setError("Error de conexion. Intenta nuevamente.");
       setLoading(false);
-      return;
     }
-
-    window.location.href = "/admin";
   }
 
   return (

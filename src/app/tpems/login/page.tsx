@@ -33,22 +33,28 @@ export default function TpemsLoginPage() {
     setError("");
     setLoading(true);
 
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (authError) {
-      setError(
-        authError.message === "Invalid login credentials"
-          ? "Credenciales incorrectas. Verifica tu email y contraseña."
-          : authError.message
-      );
+      if (authError) {
+        setError(
+          authError.message === "Invalid login credentials"
+            ? "Credenciales incorrectas. Verifica tu email y contraseña."
+            : authError.message
+        );
+        setLoading(false);
+        return;
+      }
+
+      await new Promise((r) => setTimeout(r, 500));
+      window.location.href = "/tpems";
+    } catch (err: any) {
+      setError("Error de conexion. Intenta nuevamente.");
       setLoading(false);
-      return;
     }
-
-    window.location.href = "/tpems";
   }
 
   return (
