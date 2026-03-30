@@ -4,6 +4,16 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 
+type Payment = {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  created_at: string;
+  tbk_response: any;
+  course_title?: string;
+};
+
 type Registration = {
   id: string;
   course_id: string;
@@ -36,6 +46,7 @@ const statusLabels: Record<string, string> = {
 
 export default function TpemsDashboard() {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [payingId, setPayingId] = useState<string | null>(null);
 
@@ -102,6 +113,7 @@ export default function TpemsDashboard() {
         .order("created_at", { ascending: false });
 
       if (!error && data) {
+        const regIds = data.map((r: any) => r.id);
         setRegistrations(
           data.map((r: any) => ({
             id: r.id,
@@ -117,6 +129,29 @@ export default function TpemsDashboard() {
             institution: "Escuela de Navegación Aérea (ENAE)",
           }))
         );
+
+        // Load payments for these registrations
+        if (regIds.length > 0) {
+          const { data: payData } = await supabase
+            .from("payments")
+            .select("id, amount, currency, status, created_at, tbk_response, registration_id, registrations (courses (title))")
+            .in("registration_id", regIds)
+            .order("created_at", { ascending: false });
+
+          if (payData) {
+            setPayments(
+              payData.map((p: any) => ({
+                id: p.id,
+                amount: p.amount,
+                currency: p.currency,
+                status: p.status,
+                created_at: p.created_at,
+                tbk_response: p.tbk_response,
+                course_title: p.registrations?.courses?.title,
+              }))
+            );
+          }
+        }
       }
       setLoading(false);
     }
@@ -309,6 +344,81 @@ export default function TpemsDashboard() {
             </Link>
           ))}
         </div>
+      )}
+
+      {/* Transactions section */}
+      {payments.length > 0 && (
+        <>
+          <h2 className="text-xl font-light text-gray-800 mt-10 mb-4">
+            Transacciones
+          </h2>
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase">
+                    Fecha
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase">
+                    Curso
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase hidden sm:table-cell">
+                    Orden
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase hidden sm:table-cell">
+                    Tarjeta
+                  </th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase">
+                    Monto
+                  </th>
+                  <th className="text-center px-4 py-3 font-medium text-gray-500 text-xs uppercase">
+                    Estado
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {payments.map((p) => (
+                  <tr key={p.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-gray-600">
+                      {new Date(p.created_at).toLocaleDateString("es-CL")}
+                    </td>
+                    <td className="px-4 py-3 text-gray-800 font-medium">
+                      {p.course_title || "—"}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 font-mono text-xs hidden sm:table-cell">
+                      {p.tbk_response?.buyOrder || "—"}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 font-mono text-xs hidden sm:table-cell">
+                      {p.tbk_response?.cardNumber
+                        ? "****" + p.tbk_response.cardNumber
+                        : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-gray-800 text-right font-medium">
+                      ${p.amount.toLocaleString("es-CL")}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span
+                        className={`text-xs font-medium px-2 py-1 rounded-full ${
+                          p.status === "approved"
+                            ? "bg-green-100 text-green-800"
+                            : p.status === "rejected"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-yellow-100 text-yellow-800"
+                        }`}
+                      >
+                        {p.status === "approved"
+                          ? "Aprobado"
+                          : p.status === "rejected"
+                            ? "Rechazado"
+                            : "Pendiente"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );

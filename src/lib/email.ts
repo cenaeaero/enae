@@ -99,3 +99,53 @@ export async function sendAdminPaymentNotification(
     `,
   });
 }
+
+export async function sendStudentPaymentReceipt(
+  email: string,
+  studentName: string,
+  courseName: string,
+  transaction: {
+    buyOrder: string;
+    amount: number;
+    cardNumber: string;
+    authorizationCode: string;
+    installments: number;
+    date: string;
+  }
+) {
+  const formattedAmount = "$" + transaction.amount.toLocaleString("es-CL");
+  const formattedDate = new Date(transaction.date).toLocaleString("es-CL", {
+    dateStyle: "long",
+    timeStyle: "short",
+  });
+
+  await transporter.sendMail({
+    from: '"ENAE Training" <' + FROM + ">",
+    to: email,
+    subject: "Comprobante de Pago - " + courseName,
+    html: '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">' +
+      '<div style="background: #003366; padding: 20px; text-align: center;">' +
+      '<h1 style="color: white; margin: 0; font-size: 24px;">ENAE TPEMS</h1>' +
+      '<p style="color: #93C5FD; margin: 5px 0 0; font-size: 12px;">Comprobante de Pago</p>' +
+      "</div>" +
+      '<div style="padding: 30px; background: #f8f9fa;">' +
+      '<h2 style="color: #003366;">Hola ' + studentName + ",</h2>" +
+      "<p>Tu pago por el curso <strong>" + courseName + "</strong> ha sido procesado exitosamente.</p>" +
+      '<div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; margin: 20px 0;">' +
+      '<div style="background: #003366; color: white; padding: 10px 16px; font-size: 14px; font-weight: bold;">Detalle de la Transaccion</div>' +
+      '<table style="width: 100%; border-collapse: collapse;">' +
+      '<tr style="border-bottom: 1px solid #f0f0f0;"><td style="padding: 10px 16px; color: #6b7280; font-size: 13px;">Orden de compra</td><td style="padding: 10px 16px; text-align: right; font-family: monospace; font-size: 13px;">' + transaction.buyOrder + "</td></tr>" +
+      '<tr style="border-bottom: 1px solid #f0f0f0;"><td style="padding: 10px 16px; color: #6b7280; font-size: 13px;">Monto</td><td style="padding: 10px 16px; text-align: right; font-weight: bold; font-size: 14px;">' + formattedAmount + " CLP</td></tr>" +
+      '<tr style="border-bottom: 1px solid #f0f0f0;"><td style="padding: 10px 16px; color: #6b7280; font-size: 13px;">Tarjeta</td><td style="padding: 10px 16px; text-align: right; font-family: monospace; font-size: 13px;">**** **** **** ' + transaction.cardNumber + "</td></tr>" +
+      '<tr style="border-bottom: 1px solid #f0f0f0;"><td style="padding: 10px 16px; color: #6b7280; font-size: 13px;">Codigo autorizacion</td><td style="padding: 10px 16px; text-align: right; font-family: monospace; font-size: 13px;">' + transaction.authorizationCode + "</td></tr>" +
+      '<tr style="border-bottom: 1px solid #f0f0f0;"><td style="padding: 10px 16px; color: #6b7280; font-size: 13px;">Fecha</td><td style="padding: 10px 16px; text-align: right; font-size: 13px;">' + formattedDate + "</td></tr>" +
+      '<tr><td style="padding: 10px 16px; color: #6b7280; font-size: 13px;">Estado</td><td style="padding: 10px 16px; text-align: right;"><span style="background: #D1FAE5; color: #065F46; padding: 2px 10px; border-radius: 10px; font-size: 12px;">Aprobado</span></td></tr>' +
+      "</table></div>" +
+      '<p>Puedes ver tus transacciones en el <a href="' + SITE_URL + '/tpems" style="color: #0072CE;">portal de alumnos</a>.</p>' +
+      '<p style="color: #6b7280; font-size: 13px; margin-top: 20px;">Si tienes dudas, contactanos en <a href="mailto:' + ADMIN_EMAIL + '">' + ADMIN_EMAIL + "</a></p>" +
+      "</div>" +
+      '<div style="background: #001d3d; padding: 15px; text-align: center;">' +
+      '<p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegacion Aerea | AOC 1521 DGAC</p>' +
+      "</div></div>",
+  });
+}

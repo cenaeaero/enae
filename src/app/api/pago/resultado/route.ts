@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { confirmTransaction } from "@/lib/transbank";
 import { supabaseAdmin } from "@/lib/supabase-service";
-import { sendAdminPaymentNotification } from "@/lib/email";
+import { sendAdminPaymentNotification, sendStudentPaymentReceipt } from "@/lib/email";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
@@ -47,7 +47,7 @@ async function handlePaymentResult(token: string | null) {
         .update({ status: "confirmed" })
         .eq("id", payment.registration_id);
 
-      // Send admin notification
+      // Send emails
       try {
         const { data: reg } = await supabaseAdmin
           .from("registrations")
@@ -57,11 +57,30 @@ async function handlePaymentResult(token: string | null) {
 
         if (reg) {
           const r = reg as any;
+          const studentName = r.first_name + " " + r.last_name;
+          const courseName = r.courses?.title || "Curso";
+
+          // Admin notification
           await sendAdminPaymentNotification(
-            `${r.first_name} ${r.last_name}`,
+            studentName,
             r.email,
-            r.courses?.title || "Curso",
+            courseName,
             payment.amount
+          );
+
+          // Student receipt
+          await sendStudentPaymentReceipt(
+            r.email,
+            studentName,
+            courseName,
+            {
+              buyOrder: result.buyOrder || "",
+              amount: result.amount || payment.amount,
+              cardNumber: result.cardNumber || "",
+              authorizationCode: result.authorizationCode || "",
+              installments: result.installmentsNumber || 0,
+              date: result.transactionDate || new Date().toISOString(),
+            }
           );
         }
       } catch (e) {
