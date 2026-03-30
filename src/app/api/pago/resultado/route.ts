@@ -68,7 +68,15 @@ async function handlePaymentResult(token: string | null) {
         console.error("Email notification failed:", e);
       }
 
-      return NextResponse.redirect(successUrl, { status: 303 });
+      const params = new URLSearchParams({
+        order: result.buyOrder || "",
+        amount: String(result.amount || payment.amount),
+        card: result.cardNumber || "",
+        auth: result.authorizationCode || "",
+        date: result.transactionDate || new Date().toISOString(),
+        installments: String(result.installmentsNumber || 0),
+      });
+      return NextResponse.redirect(`${successUrl}?${params.toString()}`, { status: 303 });
     } else {
       // Payment rejected
       console.log("Payment rejected, responseCode:", result.responseCode);
