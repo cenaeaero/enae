@@ -31,6 +31,11 @@ export async function createTransaction(
   };
 }
 
+export async function refundTransaction(token: string, amount: number) {
+  const response = await tx.refund(token, amount);
+  return response;
+}
+
 export async function confirmTransaction(token: string) {
   const response = await tx.commit(token);
   return {

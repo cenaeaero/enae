@@ -87,6 +87,20 @@ export type DbProfile = {
   updated_at: string;
 };
 
+export type DbPayment = {
+  id: string;
+  registration_id: string;
+  amount: number;
+  currency: string;
+  tbk_token: string | null;
+  tbk_response: Record<string, any> | null;
+  status: "pending" | "approved" | "rejected" | "refunded";
+  refund_amount: number | null;
+  refund_response: Record<string, any> | null;
+  refunded_at: string | null;
+  created_at: string;
+};
+
 export type DbSurveyResponse = {
   id: string;
   registration_id: string;

@@ -120,7 +120,10 @@ CREATE TABLE payments (
   currency TEXT DEFAULT 'CLP',
   tbk_token TEXT,
   tbk_response JSONB,
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'refunded')),
+  refund_amount INTEGER,
+  refund_response JSONB,
+  refunded_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
