@@ -62,7 +62,7 @@ export type DbRegistration = {
   phone: string | null;
   how_found: string | null;
   comments: string | null;
-  status: "pending" | "confirmed" | "rejected" | "cancelled";
+  status: "pending" | "confirmed" | "completed" | "rejected" | "cancelled";
   created_at: string;
 };
 
@@ -85,4 +85,14 @@ export type DbProfile = {
   role: "student" | "instructor" | "admin";
   created_at: string;
   updated_at: string;
+};
+
+export type DbSurveyResponse = {
+  id: string;
+  registration_id: string;
+  profile_id: string;
+  questionnaire_type: "module" | "course" | "instructor";
+  module_name: string | null;
+  answers: Record<string, string>;
+  created_at: string;
 };

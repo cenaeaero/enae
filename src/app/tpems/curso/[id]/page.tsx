@@ -18,6 +18,13 @@ type CourseDelivery = {
   session_modality: string;
 };
 
+type SurveyResponse = {
+  id: string;
+  questionnaire_type: string;
+  module_name: string | null;
+  created_at: string;
+};
+
 type Tab = "info" | "evaluation" | "discussions";
 
 export default function TpemsCourseDetail() {
@@ -26,6 +33,7 @@ export default function TpemsCourseDetail() {
   const [course, setCourse] = useState<CourseDelivery | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("info");
+  const [surveyResponses, setSurveyResponses] = useState<SurveyResponse[]>([]);
 
   useEffect(() => {
     async function load() {
@@ -56,6 +64,18 @@ export default function TpemsCourseDetail() {
           session_location: r.sessions?.location || "",
           session_modality: r.sessions?.modality || "",
         });
+
+        // Load survey responses for this registration
+        if (r.status === "completed") {
+          const { data: responses } = await supabase
+            .from("survey_responses")
+            .select("id, questionnaire_type, module_name, created_at")
+            .eq("registration_id", r.id);
+
+          if (responses) {
+            setSurveyResponses(responses);
+          }
+        }
       }
       setLoading(false);
     }
@@ -87,6 +107,66 @@ export default function TpemsCourseDetail() {
     { key: "evaluation", label: "Evaluation" },
     { key: "discussions", label: "Discussions (0)" },
   ];
+
+  // Build questionnaire list for Evaluation tab
+  function buildQuestionnaireList() {
+    const items: {
+      name: string;
+      type: string;
+      moduleName?: string;
+      completed: boolean;
+      dateCompleted?: string;
+    }[] = [];
+
+    // One questionnaire per module
+    if (course!.course_modules && course!.course_modules.length > 0) {
+      course!.course_modules.forEach((mod) => {
+        const response = surveyResponses.find(
+          (r) => r.questionnaire_type === "module" && r.module_name === mod
+        );
+        items.push({
+          name: `Cuestionario de opinión sobre el módulo - ${mod}`,
+          type: "module",
+          moduleName: mod,
+          completed: !!response,
+          dateCompleted: response?.created_at,
+        });
+      });
+    }
+
+    // Course integral questionnaire
+    const courseResponse = surveyResponses.find(
+      (r) => r.questionnaire_type === "course"
+    );
+    items.push({
+      name: "Cuestionario integral del curso",
+      type: "course",
+      completed: !!courseResponse,
+      dateCompleted: courseResponse?.created_at,
+    });
+
+    // Instructor evaluation questionnaire
+    const instructorResponse = surveyResponses.find(
+      (r) => r.questionnaire_type === "instructor"
+    );
+    items.push({
+      name: "Cuestionario de evaluación del instructor",
+      type: "instructor",
+      completed: !!instructorResponse,
+      dateCompleted: instructorResponse?.created_at,
+    });
+
+    return items;
+  }
+
+  function formatDate(dateStr: string) {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString("es-CL", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  }
 
   return (
     <>
@@ -245,33 +325,89 @@ export default function TpemsCourseDetail() {
           )}
 
           {activeTab === "evaluation" && (
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100">
-                    <th className="text-left px-6 py-4 font-medium text-gray-500 uppercase text-xs tracking-wider">
-                      Questionnaire
-                    </th>
-                    <th className="text-left px-6 py-4 font-medium text-gray-500 uppercase text-xs tracking-wider">
-                      Status
-                    </th>
-                    <th className="text-left px-6 py-4 font-medium text-gray-500 uppercase text-xs tracking-wider">
-                      Date Completed
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td
-                      colSpan={3}
-                      className="px-6 py-8 text-center text-gray-400"
-                    >
-                      No evaluations available yet.
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            <>
+              {course.status !== "completed" ? (
+                <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+                  <svg
+                    className="w-12 h-12 text-gray-300 mx-auto mb-3"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                    />
+                  </svg>
+                  <p className="text-gray-500 font-medium">
+                    Los cuestionarios estarán disponibles al finalizar el curso
+                  </p>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Una vez que el curso sea marcado como completado, podrás
+                    responder las encuestas de evaluación.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100">
+                        <th className="text-left px-6 py-4 font-medium text-gray-500 uppercase text-xs tracking-wider">
+                          Questionnaire
+                        </th>
+                        <th className="text-left px-6 py-4 font-medium text-gray-500 uppercase text-xs tracking-wider">
+                          Status
+                        </th>
+                        <th className="text-left px-6 py-4 font-medium text-gray-500 uppercase text-xs tracking-wider">
+                          Date Completed
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {buildQuestionnaireList().map((item, idx) => (
+                        <tr
+                          key={idx}
+                          className="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition"
+                        >
+                          <td className="px-6 py-4">
+                            {item.completed ? (
+                              <span className="text-gray-600">
+                                {item.name}
+                              </span>
+                            ) : (
+                              <Link
+                                href={`/tpems/curso/${course.id}/encuesta/${item.type}${item.moduleName ? `?module=${encodeURIComponent(item.moduleName)}` : ""}`}
+                                className="text-[#0072CE] hover:underline"
+                              >
+                                {item.name}
+                              </Link>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            {item.completed ? (
+                              <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded bg-green-100 text-green-800 border border-green-200">
+                                Completed
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded bg-yellow-100 text-yellow-800 border border-yellow-200">
+                                Pending
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-gray-500">
+                            {item.dateCompleted
+                              ? formatDate(item.dateCompleted)
+                              : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
           )}
 
           {activeTab === "discussions" && (

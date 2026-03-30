@@ -106,7 +106,7 @@ CREATE TABLE registrations (
   billing_country TEXT,
   how_found TEXT,
   comments TEXT,
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'rejected', 'cancelled')),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'completed', 'rejected', 'cancelled')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -288,6 +288,42 @@ UNION ALL
 SELECT id, '04 May - 15 May 2026', 'Santiago, Chile', 'Híbrido', 'CLP $800.000' FROM courses WHERE code = 'ENAE/SMS/001'
 UNION ALL
 SELECT id, '07 Sep - 18 Sep 2026', 'Bogotá, Colombia', 'Híbrido', 'USD $950' FROM courses WHERE code = 'ENAE/SMS/001';
+
+-- ============================================
+-- SURVEY RESPONSES TABLE
+-- ============================================
+CREATE TABLE survey_responses (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  registration_id UUID NOT NULL REFERENCES registrations(id) ON DELETE CASCADE,
+  profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  questionnaire_type TEXT NOT NULL CHECK (questionnaire_type IN ('module', 'course', 'instructor')),
+  module_name TEXT,
+  answers JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(registration_id, questionnaire_type, module_name)
+);
+
+CREATE INDEX idx_survey_responses_registration ON survey_responses(registration_id);
+CREATE INDEX idx_survey_responses_profile ON survey_responses(profile_id);
+CREATE INDEX idx_survey_responses_type ON survey_responses(questionnaire_type);
+
+ALTER TABLE survey_responses ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can insert own survey responses"
+  ON survey_responses FOR INSERT WITH CHECK (
+    profile_id = (SELECT id FROM profiles WHERE user_id = auth.uid())
+  );
+
+CREATE POLICY "Users can view own survey responses"
+  ON survey_responses FOR SELECT USING (
+    profile_id = (SELECT id FROM profiles WHERE user_id = auth.uid())
+    OR EXISTS (SELECT 1 FROM profiles WHERE user_id = auth.uid() AND role = 'admin')
+  );
+
+CREATE POLICY "Admins can manage survey responses"
+  ON survey_responses FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE user_id = auth.uid() AND role = 'admin')
+  );
 
 -- Create initial admin profile (replace with your actual email after setting up auth)
 -- INSERT INTO profiles (first_name, last_name, email, job_title, organization, role)
