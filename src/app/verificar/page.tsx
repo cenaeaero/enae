@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
@@ -19,6 +19,14 @@ type DiplomaResult = {
 };
 
 export default function VerificarPage() {
+  return (
+    <Suspense fallback={<div className="text-center py-16 text-gray-400">Cargando...</div>}>
+      <VerificarContent />
+    </Suspense>
+  );
+}
+
+function VerificarContent() {
   const searchParams = useSearchParams();
   const [code, setCode] = useState("");
   const [result, setResult] = useState<DiplomaResult | null>(null);
