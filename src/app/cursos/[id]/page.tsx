@@ -2,6 +2,7 @@ import { courses } from "@/data/courses";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import CourseSessionsTable from "@/components/CourseSessionsTable";
+import { DynamicObjectives, DynamicModules, DynamicPrerequisites, DynamicImage } from "@/components/CourseDetailDynamic";
 
 const areaIcons: Record<string, string> = {
   "uas-rpas": "🛩️",
@@ -117,154 +118,38 @@ export default async function CourseDetailPage({
                 </div>
               )}
 
-              {/* Learning objectives */}
-              {course.objectives && course.objectives.length > 0 && (
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <h2 className="text-xl font-bold text-[#003366] mb-4 flex items-center gap-2">
-                    <svg
-                      className="w-5 h-5 text-[#0072CE]"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                    Objetivos de Aprendizaje
-                  </h2>
-                  <ul className="space-y-3">
-                    {course.objectives.map((obj, i) => (
-                      <li key={i} className="flex items-start gap-3">
-                        <span className="w-6 h-6 bg-blue-50 text-[#0072CE] rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
-                          {i + 1}
-                        </span>
-                        <span className="text-gray-600">{obj}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+              {/* Learning objectives (dynamic from Supabase) */}
+              <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <h2 className="text-xl font-bold text-[#003366] mb-4 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-[#0072CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Objetivos de Aprendizaje
+                </h2>
+                <DynamicObjectives courseCode={course.code} courseTitle={course.title} staticObjectives={course.objectives} />
+              </div>
 
-              {/* Modules / Course structure */}
-              {course.modules && course.modules.length > 0 && (
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <h2 className="text-xl font-bold text-[#003366] mb-4 flex items-center gap-2">
-                    <svg
-                      className="w-5 h-5 text-[#0072CE]"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-                      />
-                    </svg>
-                    Estructura del Curso
-                  </h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {course.modules.map((mod, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100"
-                      >
-                        <span className="w-8 h-8 bg-[#003366] text-white rounded flex items-center justify-center text-sm font-bold shrink-0">
-                          {i + 1}
-                        </span>
-                        <span className="text-sm text-gray-700">{mod}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {/* Modules / Course structure (dynamic from Supabase) */}
+              <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <h2 className="text-xl font-bold text-[#003366] mb-4 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-[#0072CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                  Estructura del Curso
+                </h2>
+                <DynamicModules courseCode={course.code} courseTitle={course.title} staticModules={course.modules} />
+              </div>
 
-              {/* Target audience & Prerequisites */}
-              {(course.targetAudience || course.prerequisites) && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {course.targetAudience &&
-                    course.targetAudience.length > 0 && (
-                      <div className="bg-white rounded-lg border border-gray-200 p-6">
-                        <h2 className="text-lg font-bold text-[#003366] mb-3 flex items-center gap-2">
-                          <svg
-                            className="w-5 h-5 text-[#0072CE]"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                            />
-                          </svg>
-                          Dirigido a
-                        </h2>
-                        <ul className="space-y-2">
-                          {course.targetAudience.map((t, i) => (
-                            <li
-                              key={i}
-                              className="flex items-start gap-2 text-sm text-gray-600"
-                            >
-                              <span className="text-[#0072CE] mt-1">•</span>
-                              {t}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                  {course.prerequisites && course.prerequisites.length > 0 && (
-                    <div className="bg-white rounded-lg border border-gray-200 p-6">
-                      <h2 className="text-lg font-bold text-[#003366] mb-3 flex items-center gap-2">
-                        <svg
-                          className="w-5 h-5 text-[#0072CE]"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
-                          />
-                        </svg>
-                        Requisitos de Ingreso
-                      </h2>
-                      <ul className="space-y-2">
-                        {course.prerequisites.map((p, i) => (
-                          <li
-                            key={i}
-                            className="flex items-start gap-2 text-sm text-gray-600"
-                          >
-                            <svg
-                              className="w-4 h-4 text-green-500 mt-0.5 shrink-0"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M5 13l4 4L19 7"
-                              />
-                            </svg>
-                            {p}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
+              {/* Prerequisites (dynamic from Supabase) */}
+              <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <h2 className="text-lg font-bold text-[#003366] mb-3 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-[#0072CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                  </svg>
+                  Requisitos de Ingreso
+                </h2>
+                <DynamicPrerequisites courseCode={course.code} courseTitle={course.title} staticPrereqs={course.prerequisites} />
+              </div>
 
               {/* Sessions table */}
               {course.sessions && course.sessions.length > 0 && (
