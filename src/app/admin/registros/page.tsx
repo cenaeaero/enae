@@ -49,14 +49,44 @@ export default function AdminRegistrosPage() {
   }, []);
 
   async function loadRegistrations() {
-    try {
-      // Use admin API to bypass RLS and get ALL registrations
-      const res = await fetch("/api/admin/registros");
-      const json = await res.json();
+    let loaded = false;
 
-      if (json.registrations) {
+    // Method 1: Try admin API (bypasses RLS)
+    try {
+      const res = await fetch("/api/admin/registros");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.registrations && json.registrations.length >= 0) {
+          setRegistrations(
+            json.registrations.map((r: any) => ({
+              id: r.id,
+              first_name: r.first_name,
+              last_name: r.last_name,
+              email: r.email,
+              status: r.status,
+              created_at: r.created_at,
+              course_title: r.courses?.title,
+              course_id: r.course_id,
+            }))
+          );
+          loaded = true;
+        }
+      }
+    } catch (err) {
+      console.error("Admin API failed:", err);
+    }
+
+    // Method 2: Fallback to direct Supabase client
+    if (!loaded) {
+      console.log("Falling back to direct Supabase client...");
+      const { data, error } = await supabase
+        .from("registrations")
+        .select("id, first_name, last_name, email, status, created_at, course_id, courses(title)")
+        .order("created_at", { ascending: false });
+
+      if (!error && data) {
         setRegistrations(
-          json.registrations.map((r: any) => ({
+          data.map((r: any) => ({
             id: r.id,
             first_name: r.first_name,
             last_name: r.last_name,
@@ -68,28 +98,41 @@ export default function AdminRegistrosPage() {
           }))
         );
       }
-    } catch (err) {
-      console.error("Error loading registrations:", err);
     }
+
     setLoading(false);
   }
 
   async function updateStatus(id: string, newStatus: string) {
     setUpdatingId(id);
+    let updated = false;
+
+    // Try admin API first
     try {
       const res = await fetch("/api/admin/registros", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, status: newStatus }),
       });
-      const json = await res.json();
-      if (json.success) {
-        setRegistrations((prev) =>
-          prev.map((r) => (r.id === id ? { ...r, status: newStatus } : r))
-        );
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success) updated = true;
       }
-    } catch (err) {
-      console.error("Error updating status:", err);
+    } catch {}
+
+    // Fallback to direct client
+    if (!updated) {
+      const { error } = await supabase
+        .from("registrations")
+        .update({ status: newStatus })
+        .eq("id", id);
+      if (!error) updated = true;
+    }
+
+    if (updated) {
+      setRegistrations((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, status: newStatus } : r))
+      );
     }
     setUpdatingId(null);
   }
