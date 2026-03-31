@@ -204,8 +204,16 @@ export default async function CourseDetailPage({
                   <h3 className="font-semibold text-sm uppercase tracking-wider mb-3">
                     Información del Curso
                   </h3>
-                  <div className="text-4xl text-center py-2">
-                    {areaIcons[course.areaSlug] || "📋"}
+                  <div className="aspect-video overflow-hidden">
+                    <DynamicImage
+                      courseCode={course.code}
+                      courseTitle={course.title}
+                      fallback={
+                        <div className="w-full h-full flex items-center justify-center text-4xl">
+                          {areaIcons[course.areaSlug] || "📋"}
+                        </div>
+                      }
+                    />
                   </div>
                 </div>
 

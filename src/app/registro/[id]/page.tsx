@@ -413,7 +413,7 @@ export default function RegistroPage() {
                   <label className="flex items-start gap-3 cursor-pointer">
                     <input type="checkbox" required className="rounded border-gray-300 text-[#0072CE] focus:ring-[#0072CE] mt-1" />
                     <span className="text-sm text-gray-600">
-                      Acepto los <a href="#" className="text-[#0072CE] underline">términos y condiciones</a> de ENAE y autorizo el tratamiento de mis datos personales conforme a la <a href="#" className="text-[#0072CE] underline">política de privacidad</a>. <span className="text-red-500">*</span>
+                      Acepto los <a href="/terminos" target="_blank" rel="noopener noreferrer" className="text-[#0072CE] underline">términos y condiciones</a> de ENAE y autorizo el tratamiento de mis datos personales conforme a la <a href="/privacidad" target="_blank" rel="noopener noreferrer" className="text-[#0072CE] underline">política de privacidad</a>. <span className="text-red-500">*</span>
                     </span>
                   </label>
                 </div>
