@@ -124,3 +124,51 @@ export function DynamicPrerequisites({ courseCode, courseTitle, staticPrereqs }:
     </ul>
   );
 }
+
+export function DynamicFee({ courseCode, courseTitle, fallbackFee }: { courseCode?: string; courseTitle?: string; fallbackFee?: string }) {
+  const [fee, setFee] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      let courseId: string | null = null;
+
+      if (courseCode) {
+        const { data } = await supabase.from("courses").select("id").eq("code", courseCode).single();
+        if (data) courseId = data.id;
+      }
+      if (!courseId && courseTitle) {
+        const { data } = await supabase.from("courses").select("id").eq("title", courseTitle).single();
+        if (data) courseId = data.id;
+      }
+
+      if (courseId) {
+        const { data: sessions } = await supabase
+          .from("sessions")
+          .select("fee")
+          .eq("course_id", courseId)
+          .eq("is_active", true)
+          .order("created_at")
+          .limit(1);
+
+        if (sessions && sessions.length > 0 && sessions[0].fee) {
+          setFee(sessions[0].fee);
+        }
+      }
+      setLoading(false);
+    }
+    load();
+  }, [courseCode, courseTitle]);
+
+  const displayFee = fee || fallbackFee;
+
+  if (loading && !fallbackFee) return null;
+  if (!displayFee) return null;
+
+  return (
+    <div className="flex items-center justify-between py-2 border-b border-gray-100">
+      <span className="text-xs text-gray-400 uppercase tracking-wider">Valor</span>
+      <span className="text-sm font-bold text-[#003366]">{displayFee}</span>
+    </div>
+  );
+}

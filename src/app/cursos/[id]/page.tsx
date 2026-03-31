@@ -2,7 +2,7 @@ import { courses } from "@/data/courses";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import CourseSessionsTable from "@/components/CourseSessionsTable";
-import { DynamicObjectives, DynamicModules, DynamicPrerequisites, DynamicImage } from "@/components/CourseDetailDynamic";
+import { DynamicObjectives, DynamicModules, DynamicPrerequisites, DynamicImage, DynamicFee } from "@/components/CourseDetailDynamic";
 
 const areaIcons: Record<string, string> = {
   "uas-rpas": "🛩️",
@@ -275,16 +275,7 @@ export default async function CourseDetailPage({
                     </span>
                   </div>
 
-                  {course.sessions?.[0]?.fee && (
-                    <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                      <span className="text-xs text-gray-400 uppercase tracking-wider">
-                        Valor
-                      </span>
-                      <span className="text-sm font-bold text-[#003366]">
-                        {course.sessions[0].fee}
-                      </span>
-                    </div>
-                  )}
+                  <DynamicFee courseCode={course.code} courseTitle={course.title} fallbackFee={course.sessions?.[0]?.fee} />
 
                   {/* CTA buttons */}
                   <div className="space-y-3 pt-2">
