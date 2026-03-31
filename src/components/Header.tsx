@@ -172,12 +172,24 @@ export default function Header() {
         {/* Mobile menu */}
         {mobileOpen && (
           <div className="lg:hidden pb-4 border-t border-[#004B87]">
-            <Link
-              href="/"
-              className="block px-3 py-2 text-sm hover:bg-[#004B87] rounded-md"
-            >
-              Inicio
-            </Link>
+            {[
+              { href: "/", label: "Inicio" },
+              { href: "/cursos", label: "Cursos" },
+              { href: "/calendario", label: "Calendario" },
+              { href: "/programas", label: "Programas" },
+              { href: "/institucional", label: "Institucional" },
+              { href: "/contacto", label: "Contacto" },
+            ].map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setMobileOpen(false)}
+                className="block px-3 py-2.5 text-sm hover:bg-[#004B87] rounded-md"
+              >
+                {item.label}
+              </Link>
+            ))}
+
             <div className="px-3 py-2 text-xs font-semibold text-blue-300 uppercase tracking-wider mt-2">
               Áreas de Formación
             </div>
@@ -185,47 +197,37 @@ export default function Header() {
               <Link
                 key={area.href}
                 href={area.href}
+                onClick={() => setMobileOpen(false)}
                 className="block px-6 py-2 text-sm hover:bg-[#004B87] rounded-md"
               >
                 {area.name}
               </Link>
             ))}
-            <Link
-              href="/cursos"
-              className="block px-3 py-2 text-sm hover:bg-[#004B87] rounded-md mt-2"
-            >
-              Cursos
-            </Link>
-            <Link
-              href="/calendario"
-              className="block px-3 py-2 text-sm hover:bg-[#004B87] rounded-md"
-            >
-              Calendario
-            </Link>
-            <Link
-              href="/programas"
-              className="block px-3 py-2 text-sm hover:bg-[#004B87] rounded-md"
-            >
-              Programas
-            </Link>
-            <Link
-              href="/institucional"
-              className="block px-3 py-2 text-sm hover:bg-[#004B87] rounded-md"
-            >
-              Institucional
-            </Link>
-            <Link
-              href="/contacto"
-              className="block px-3 py-2 text-sm hover:bg-[#004B87] rounded-md"
-            >
-              Contacto
-            </Link>
-            <Link
-              href="/admision"
-              className="block px-3 py-2 text-sm hover:bg-[#004B87] rounded-md"
-            >
-              Admisión
-            </Link>
+
+            <div className="border-t border-[#004B87] mt-3 pt-3 space-y-1">
+              <Link
+                href="/tpems/login"
+                onClick={() => setMobileOpen(false)}
+                className="block px-3 py-2.5 text-sm bg-[#0072CE] hover:bg-[#005fa3] rounded-md font-medium"
+              >
+                Portal Alumno
+              </Link>
+              <Link
+                href="/admision"
+                onClick={() => setMobileOpen(false)}
+                className="block px-3 py-2.5 text-sm hover:bg-[#004B87] rounded-md"
+              >
+                Admisión
+              </Link>
+              <a
+                href="https://cursos.enae.cl"
+                target="_blank"
+                rel="noopener"
+                className="block px-3 py-2.5 text-sm hover:bg-[#004B87] rounded-md text-blue-200"
+              >
+                Plataforma LMS ↗
+              </a>
+            </div>
           </div>
         )}
       </nav>
