@@ -3,7 +3,8 @@ import type { NextRequest } from "next/server";
 import { confirmTransaction } from "@/lib/transbank";
 import { supabaseAdmin } from "@/lib/supabase-service";
 import { sendAdminPaymentNotification, sendStudentPaymentReceipt } from "@/lib/email";
-import { enrollStudentInMoodle, extractMoodleCourseId } from "@/lib/moodle";
+import { enrollStudentInMoodleByCode } from "@/lib/moodle";
+import { sendStudentMoodleAccess } from "@/lib/email";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
@@ -49,10 +50,11 @@ async function handlePaymentResult(token: string | null) {
         .eq("id", payment.registration_id);
 
       // Send emails + Moodle enrollment
+      let moodleResult: { success: boolean; moodleUsername?: string } | null = null;
       try {
         const { data: reg } = await supabaseAdmin
           .from("registrations")
-          .select("first_name, last_name, email, courses (title, moodle_url)")
+          .select("first_name, last_name, email, courses (title, code, moodle_url)")
           .eq("id", payment.registration_id)
           .single();
 
@@ -60,6 +62,8 @@ async function handlePaymentResult(token: string | null) {
           const r = reg as any;
           const studentName = r.first_name + " " + r.last_name;
           const courseName = r.courses?.title || "Curso";
+          const courseCode = r.courses?.code || null;
+          const moodleUrl = r.courses?.moodle_url || null;
 
           // Admin notification
           await sendAdminPaymentNotification(
@@ -84,18 +88,33 @@ async function handlePaymentResult(token: string | null) {
             }
           );
 
-          // Moodle enrollment
-          const moodleUrl = r.courses?.moodle_url;
-          if (moodleUrl) {
-            const moodleCourseId = extractMoodleCourseId(moodleUrl);
-            if (moodleCourseId) {
-              const moodleResult = await enrollStudentInMoodle(
+          // Moodle enrollment — try by course code first, then by URL
+          moodleResult = await enrollStudentInMoodleByCode(
+            r.email,
+            r.first_name,
+            r.last_name,
+            courseCode,
+            moodleUrl
+          );
+
+          console.log(
+            "Moodle enrollment:",
+            moodleResult.success
+              ? `OK (user=${moodleResult.moodleUserId}, course=${moodleResult.moodleCourseId})`
+              : moodleResult.error
+          );
+
+          // Send Moodle access email to student
+          if (moodleResult.success && moodleResult.moodleUsername) {
+            try {
+              await sendStudentMoodleAccess(
                 r.email,
-                r.first_name,
-                r.last_name,
-                moodleCourseId
+                studentName,
+                courseName,
+                moodleResult.moodleUsername
               );
-              console.log("Moodle enrollment:", moodleResult.success ? "OK" : moodleResult.error);
+            } catch (e) {
+              console.error("Failed to send Moodle access email:", e);
             }
           }
         }
@@ -111,6 +130,7 @@ async function handlePaymentResult(token: string | null) {
         date: result.transactionDate || new Date().toISOString(),
         installments: String(result.installmentsNumber || 0),
         regId: payment.registration_id,
+        moodle: moodleResult?.success ? "1" : "0",
       });
       return NextResponse.redirect(`${successUrl}?${params.toString()}`, { status: 303 });
     } else {

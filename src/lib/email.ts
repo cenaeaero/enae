@@ -149,3 +149,50 @@ export async function sendStudentPaymentReceipt(
       "</div></div>",
   });
 }
+
+const MOODLE_URL = process.env.MOODLE_URL || "https://cursos.enae.cl";
+
+export async function sendStudentMoodleAccess(
+  email: string,
+  studentName: string,
+  courseName: string,
+  moodleUsername: string
+) {
+  await transporter.sendMail({
+    from: `"ENAE Training" <${FROM}>`,
+    to: email,
+    subject: `Acceso al Curso - ${courseName}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #003366; padding: 20px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">ENAE LMS</h1>
+          <p style="color: #93C5FD; margin: 5px 0 0; font-size: 12px;">Plataforma de Cursos Online</p>
+        </div>
+        <div style="padding: 30px; background: #f8f9fa;">
+          <h2 style="color: #003366;">Hola ${studentName},</h2>
+          <p>Tu pago ha sido confirmado y ya puedes acceder al curso <strong>${courseName}</strong> en nuestra plataforma LMS.</p>
+
+          <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="color: #003366; margin: 0 0 15px; font-size: 16px;">Datos de acceso a la plataforma LMS</h3>
+            <p style="margin: 5px 0;"><strong>URL:</strong> <a href="${MOODLE_URL}" style="color: #0072CE;">${MOODLE_URL}</a></p>
+            <p style="margin: 5px 0;"><strong>Usuario:</strong> ${moodleUsername}</p>
+            <p style="margin: 5px 0;"><strong>Contrasena:</strong> La misma que usas en el portal de alumnos ENAE</p>
+          </div>
+
+          <div style="text-align: center; margin: 25px 0;">
+            <a href="${MOODLE_URL}/login" style="display: inline-block; background: #F57C00; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">Acceder al Curso Ahora</a>
+          </div>
+
+          <div style="background: #FEF3C7; border: 1px solid #FDE68A; border-radius: 8px; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0; color: #92400E; font-size: 13px;"><strong>Nota:</strong> Si es tu primera vez accediendo, usa tu email (${email}) como usuario. Si ya cambiaste tu contrasena en el portal de alumnos ENAE, usa esa misma contrasena.</p>
+          </div>
+
+          <p style="color: #6b7280; font-size: 14px;">Si tienes dudas, contactanos en <a href="mailto:${ADMIN_EMAIL}">${ADMIN_EMAIL}</a></p>
+        </div>
+        <div style="background: #001d3d; padding: 15px; text-align: center;">
+          <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegacion Aerea | AOC 1521 DGAC</p>
+        </div>
+      </div>
+    `,
+  });
+}

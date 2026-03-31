@@ -129,6 +129,97 @@ export function extractMoodleCourseId(url: string): number | null {
   return match ? parseInt(match[1]) : null;
 }
 
+/**
+ * Find a Moodle course by its shortname (should match ENAE course code)
+ */
+export async function getMoodleCourseByCode(
+  courseCode: string
+): Promise<{ id: number; shortname: string; fullname: string } | null> {
+  if (!MOODLE_TOKEN || !courseCode) return null;
+
+  try {
+    const result = await moodleCall("core_course_get_courses_by_field", {
+      field: "shortname",
+      value: courseCode,
+    });
+
+    if (result?.courses?.length > 0) {
+      const c = result.courses[0];
+      return { id: c.id, shortname: c.shortname, fullname: c.fullname };
+    }
+  } catch (err) {
+    console.error("Moodle course lookup by code failed:", err);
+  }
+
+  return null;
+}
+
+/**
+ * Full enrollment with code-based course lookup.
+ * Tries matching by course code (shortname) first, then falls back to moodle_url.
+ * Returns Moodle username for the student.
+ */
+export async function enrollStudentInMoodleByCode(
+  email: string,
+  firstName: string,
+  lastName: string,
+  courseCode: string | null,
+  moodleUrl: string | null
+): Promise<{
+  success: boolean;
+  moodleUserId?: number;
+  moodleCourseId?: number;
+  moodleUsername?: string;
+  error?: string;
+}> {
+  if (!MOODLE_TOKEN) {
+    return { success: false, error: "Moodle token not configured" };
+  }
+
+  try {
+    // 1. Resolve Moodle course ID
+    let moodleCourseId: number | null = null;
+
+    // Try by course code (shortname) first
+    if (courseCode) {
+      const course = await getMoodleCourseByCode(courseCode);
+      if (course) {
+        moodleCourseId = course.id;
+        console.log(`Moodle: matched course by code "${courseCode}" -> ID ${course.id}`);
+      }
+    }
+
+    // Fallback to moodle_url
+    if (!moodleCourseId && moodleUrl) {
+      moodleCourseId = extractMoodleCourseId(moodleUrl);
+      if (moodleCourseId) {
+        console.log(`Moodle: matched course by URL -> ID ${moodleCourseId}`);
+      }
+    }
+
+    if (!moodleCourseId) {
+      return { success: false, error: "No se pudo identificar el curso en Moodle" };
+    }
+
+    // 2. Create/find user and enroll
+    const userId = await ensureMoodleUser(email, firstName, lastName);
+    await enrolUserInCourse(userId, moodleCourseId);
+
+    // Derive the Moodle username (same logic as ensureMoodleUser)
+    const moodleUsername = email.split("@")[0].toLowerCase().replace(/[^a-z0-9]/g, "");
+
+    return {
+      success: true,
+      moodleUserId: userId,
+      moodleCourseId,
+      moodleUsername,
+    };
+  } catch (error: any) {
+    console.error("Moodle enrollment error:", error);
+    return { success: false, error: error?.message || String(error) };
+  }
+}
+
 function generatePassword(): string {
   const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$";
   let pass = "";
