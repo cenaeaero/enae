@@ -116,8 +116,8 @@ export default function TpemsLayout({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Login page renders without portal chrome
-  if (pathname === "/tpems/login") {
+  // Login and password reset pages render without portal chrome
+  if (pathname === "/tpems/login" || pathname === "/tpems/restablecer-clave") {
     return <>{children}</>;
   }
 
