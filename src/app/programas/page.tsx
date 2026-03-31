@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { programs } from "@/data/programs";
+import { useState, useMemo, useEffect } from "react";
+import { programs as staticPrograms } from "@/data/programs";
 import { areas } from "@/data/courses";
+import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 
 const typeColors: Record<string, string> = {
@@ -23,6 +24,35 @@ const areaIcons: Record<string, string> = {
 export default function ProgramasPage() {
   const [areaFilter, setAreaFilter] = useState("todos");
   const [typeFilter, setTypeFilter] = useState("todos");
+  const [programs, setPrograms] = useState(staticPrograms.map((p) => ({
+    ...p, areaSlug: p.areaSlug, courseIds: p.courseIds,
+  })));
+
+  // Try to load from DB, fallback to static
+  useEffect(() => {
+    supabase
+      .from("programs")
+      .select("*")
+      .eq("is_active", true)
+      .order("sort_order")
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setPrograms(data.map((p: any) => ({
+            id: p.slug || p.id,
+            title: p.title,
+            area: p.area,
+            areaSlug: p.area_slug,
+            type: p.type,
+            duration: p.duration,
+            language: p.language,
+            description: p.description,
+            goal: p.goal,
+            fee: p.fee,
+            courseIds: p.course_ids || [],
+          })));
+        }
+      });
+  }, []);
 
   const filtered = useMemo(() => {
     return programs.filter((p) => {
