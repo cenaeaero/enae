@@ -109,25 +109,42 @@ export default function EvaluacionesPage({
   async function saveAll() {
     setSaving(true);
     setMessage("");
+    let hasError = false;
 
     const { data: current } = await supabase
       .from("grade_items").select("id").eq("course_id", courseId);
 
     const keepIds = items.filter((i) => i.id).map((i) => i.id!);
     const toDelete = (current || []).filter((c: any) => !keepIds.includes(c.id)).map((c: any) => c.id);
-    if (toDelete.length > 0) await supabase.from("grade_items").delete().in("id", toDelete);
+    if (toDelete.length > 0) {
+      const { error } = await supabase.from("grade_items").delete().in("id", toDelete);
+      if (error) { console.error("Delete error:", error.message); hasError = true; }
+    }
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      const data = { course_id: courseId, name: item.name, weight: item.weight, sort_order: i };
+      const payload = { course_id: courseId, name: item.name, weight: item.weight, sort_order: i };
       if (item.id && !item.is_new) {
-        await supabase.from("grade_items").update(data).eq("id", item.id);
+        const { error } = await supabase.from("grade_items").update(payload).eq("id", item.id);
+        if (error) { console.error("Update error:", error.message); hasError = true; }
       } else {
-        const { data: inserted } = await supabase.from("grade_items").insert(data).select().single();
-        if (inserted) { items[i].id = inserted.id; items[i].is_new = false; }
+        const { data: inserted, error } = await supabase.from("grade_items").insert(payload).select().single();
+        if (error) {
+          console.error("Insert error:", error.message);
+          hasError = true;
+          setMessage("Error al guardar: " + error.message);
+        } else if (inserted) {
+          items[i].id = inserted.id;
+          items[i].is_new = false;
+        }
       }
     }
-    setMessage("Evaluaciones guardadas correctamente");
+
+    if (!hasError) {
+      setMessage("Evaluaciones guardadas correctamente");
+    } else if (!message) {
+      setMessage("Hubo errores al guardar. Revisa la consola del navegador.");
+    }
     setSaving(false);
   }
 
@@ -137,7 +154,10 @@ export default function EvaluacionesPage({
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link href={`/admin/cursos/${courseId}`} className="text-sm text-[#0072CE] hover:underline">← Volver al curso</Link>
+          <div className="flex gap-4">
+            <Link href={`/admin/cursos/${courseId}`} className="text-sm text-[#0072CE] hover:underline">← Volver al curso</Link>
+            <Link href="/admin/calificaciones" className="text-sm text-[#0072CE] hover:underline">← Ir a Calificaciones</Link>
+          </div>
           <h1 className="text-2xl font-bold text-[#003366] mt-1">Evaluaciones del Curso</h1>
           <p className="text-sm text-gray-500">{courseTitle}</p>
         </div>
