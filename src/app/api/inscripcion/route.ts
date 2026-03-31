@@ -67,8 +67,8 @@ export async function POST(request: Request) {
           { onConflict: "email" }
         );
 
-        // Create registration
-        const { error: regError } = await supabaseAdmin.from("registrations").insert({
+        // Create registration — try with date columns, fallback without them
+        const baseReg: Record<string, any> = {
           course_id: courseId,
           session_id: sessionId || null,
           first_name: firstName,
@@ -77,14 +77,25 @@ export async function POST(request: Request) {
           organization: company || null,
           phone: student.phone || null,
           address: student.address || null,
+          status: "confirmed",
+        };
+
+        // Try with theoretical_start/practical_end first
+        let regResult = await supabaseAdmin.from("registrations").insert({
+          ...baseReg,
           theoretical_start: theoreticalStart || null,
           practical_end: practicalEnd || null,
-          status: "confirmed",
         });
 
-        if (regError) {
-          console.error("Registration insert error:", regError.message);
-          results.push({ email, success: false, error: "Error al crear registro: " + regError.message });
+        // If columns don't exist, retry without them
+        if (regResult.error && regResult.error.message.includes("schema cache")) {
+          console.log("Date columns not found, retrying without them...");
+          regResult = await supabaseAdmin.from("registrations").insert(baseReg);
+        }
+
+        if (regResult.error) {
+          console.error("Registration insert error:", regResult.error.message);
+          results.push({ email, success: false, error: "Error al crear registro: " + regResult.error.message });
           continue;
         }
 
