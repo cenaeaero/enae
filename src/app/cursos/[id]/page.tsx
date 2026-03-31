@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import CourseSessionsTable from "@/components/CourseSessionsTable";
 import { DynamicObjectives, DynamicModules, DynamicPrerequisites, DynamicImage, DynamicFee } from "@/components/CourseDetailDynamic";
+import { fetchPublicCourse } from "@/lib/courses-public";
 
 const areaIcons: Record<string, string> = {
   "uas-rpas": "🛩️",
@@ -20,9 +21,13 @@ const levelColors: Record<string, string> = {
   Especialización: "bg-orange-100 text-orange-800",
 };
 
+// Static params for legacy static courses
 export function generateStaticParams() {
   return courses.map((c) => ({ id: c.id }));
 }
+
+// Allow dynamic params (Supabase UUIDs) beyond the static ones
+export const dynamicParams = true;
 
 export default async function CourseDetailPage({
   params,
@@ -30,7 +35,17 @@ export default async function CourseDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const course = courses.find((c) => c.id === id);
+
+  // Try Supabase first (handles UUIDs from admin + checks is_active)
+  let course = await fetchPublicCourse(id);
+
+  // Fall back to static data for legacy course slugs
+  if (!course) {
+    const staticCourse = courses.find((c) => c.id === id);
+    if (staticCourse) {
+      course = staticCourse;
+    }
+  }
 
   if (!course) {
     notFound();
