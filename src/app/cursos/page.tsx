@@ -345,24 +345,32 @@ function CourseListItem({ course }: { course: Course }) {
       className="bg-white rounded-lg border border-gray-200 hover:border-[#0072CE] hover:shadow-md transition overflow-hidden"
     >
       <div className="flex flex-col sm:flex-row">
-        {/* Thumbnail / color block */}
-        <div className="sm:w-48 h-32 sm:h-auto bg-gradient-to-br from-[#003366] to-[#004B87] flex items-center justify-center shrink-0">
-          <div className="text-center text-white p-4">
-            <div className="text-3xl mb-1">
-              {course.areaSlug === "uas-rpas"
-                ? "🛩️"
-                : course.areaSlug === "atm-navegacion"
-                  ? "🗼"
-                  : course.areaSlug === "seguridad-avsec"
-                    ? "🛡️"
-                    : course.areaSlug === "simuladores"
-                      ? "🖥️"
-                      : course.areaSlug === "safety-ffhh"
-                        ? "⚕️"
-                        : "📋"}
+        {/* Thumbnail / image */}
+        <div className="sm:w-48 h-32 sm:h-auto bg-gradient-to-br from-[#003366] to-[#004B87] flex items-center justify-center shrink-0 overflow-hidden">
+          {course.image ? (
+            <img
+              src={course.image}
+              alt={course.title}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="text-center text-white p-4">
+              <div className="text-3xl mb-1">
+                {course.areaSlug === "uas-rpas"
+                  ? "🛩️"
+                  : course.areaSlug === "atm-navegacion"
+                    ? "🗼"
+                    : course.areaSlug === "seguridad-avsec"
+                      ? "🛡️"
+                      : course.areaSlug === "simuladores"
+                        ? "🖥️"
+                        : course.areaSlug === "safety-ffhh"
+                          ? "⚕️"
+                          : "📋"}
+              </div>
+              <div className="text-xs text-blue-200">{course.area}</div>
             </div>
-            <div className="text-xs text-blue-200">{course.area}</div>
-          </div>
+          )}
         </div>
 
         {/* Content */}
