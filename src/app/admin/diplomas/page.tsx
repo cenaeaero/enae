@@ -122,7 +122,10 @@ export default function AdminDiplomasPage() {
       practical_end: student.practicalEnd,
     });
 
-    if (!error) {
+    if (error) {
+      console.error("Error emitting diploma:", error.message);
+      alert("Error al emitir diploma: " + error.message);
+    } else {
       await loadData();
     }
     setIssuing(null);

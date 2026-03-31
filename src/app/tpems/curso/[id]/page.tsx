@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import KalturaPlayer from "@/components/KalturaPlayer";
+import { jsPDF } from "jspdf";
 
 type CourseDelivery = {
   id: string;
@@ -96,6 +97,133 @@ export default function TpemsCourseDetail() {
   const [diploma, setDiploma] = useState<DiplomaRow | null>(null);
 
   const registrationId = params.id as string;
+
+  function downloadGradesPDF() {
+    if (!course || gradeItems.length === 0) return;
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Header
+    doc.setFontSize(18);
+    doc.setTextColor(0, 51, 102);
+    doc.text("ENAE - Escuela de Navegacion Aerea", pageWidth / 2, 25, { align: "center" });
+    doc.setFontSize(14);
+    doc.setTextColor(60, 60, 60);
+    doc.text("Certificado de Calificaciones", pageWidth / 2, 35, { align: "center" });
+
+    // Course info
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Curso: ${course.course_title}`, 20, 50);
+    doc.text(`Codigo: ${course.course_code || ""}`, 20, 57);
+    doc.text(`Fecha: ${new Date().toLocaleDateString("es-CL")}`, 20, 64);
+
+    // Table header
+    let y = 80;
+    doc.setFillColor(0, 51, 102);
+    doc.rect(20, y - 5, pageWidth - 40, 10, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
+    doc.text("Evaluacion", 25, y + 1);
+    doc.text("Peso", 120, y + 1);
+    doc.text("Nota", 145, y + 1);
+    doc.text("Estado", 170, y + 1);
+
+    // Table rows
+    y += 12;
+    doc.setTextColor(50, 50, 50);
+    gradeItems.forEach((item) => {
+      const grade = studentGrades.find((g) => g.grade_item_id === item.id);
+      const score = grade?.score;
+      doc.text(item.name, 25, y);
+      doc.text(`${item.weight}%`, 120, y);
+      doc.text(score != null ? `${score}%` : "-", 145, y);
+      doc.text(score != null ? (score >= 80 ? "Aprobado" : "Reprobado") : "Pendiente", 170, y);
+      y += 8;
+    });
+
+    // Final score
+    const gradedItems = gradeItems.filter((item) => {
+      const g = studentGrades.find((sg) => sg.grade_item_id === item.id);
+      return g?.score != null;
+    });
+    if (gradedItems.length > 0) {
+      let totalW = 0, wSum = 0;
+      gradedItems.forEach((item) => {
+        const g = studentGrades.find((sg) => sg.grade_item_id === item.id);
+        if (g?.score != null) { wSum += g.score * item.weight; totalW += item.weight; }
+      });
+      const final_ = totalW > 0 ? Math.round((wSum / totalW) * 100) / 100 : 0;
+      y += 5;
+      doc.setDrawColor(200, 200, 200);
+      doc.line(20, y - 3, pageWidth - 20, y - 3);
+      doc.setFontSize(11);
+      doc.setTextColor(0, 51, 102);
+      doc.text("Nota Final (Promedio Ponderado):", 25, y + 5);
+      doc.text(`${final_}%`, 145, y + 5);
+    }
+
+    doc.save(`Calificaciones_${course.course_code || "curso"}.pdf`);
+  }
+
+  function downloadDiplomaPDF() {
+    if (!diploma || !course) return;
+    const doc = new jsPDF("landscape");
+    const pw = doc.internal.pageSize.getWidth();
+    const ph = doc.internal.pageSize.getHeight();
+
+    // Border
+    doc.setDrawColor(0, 51, 102);
+    doc.setLineWidth(3);
+    doc.rect(10, 10, pw - 20, ph - 20);
+    doc.setLineWidth(0.5);
+    doc.rect(15, 15, pw - 30, ph - 30);
+
+    // Header
+    doc.setFontSize(14);
+    doc.setTextColor(100, 100, 100);
+    doc.text("ESCUELA DE NAVEGACION AEREA", pw / 2, 40, { align: "center" });
+
+    doc.setFontSize(32);
+    doc.setTextColor(0, 51, 102);
+    doc.text("CERTIFICADO", pw / 2, 60, { align: "center" });
+
+    // Body
+    doc.setFontSize(12);
+    doc.setTextColor(80, 80, 80);
+    doc.text("Se certifica que", pw / 2, 80, { align: "center" });
+
+    doc.setFontSize(24);
+    doc.setTextColor(0, 51, 102);
+    doc.text(diploma.verification_code ? course.course_title : "", pw / 2, 95, { align: "center" });
+
+    // Student name — get from course data
+    const studentName = diploma.verification_code ? "" : "";
+    // We'll use the page title or fetch from somewhere
+    doc.setFontSize(12);
+    doc.setTextColor(80, 80, 80);
+    doc.text("Ha completado satisfactoriamente el curso", pw / 2, 80, { align: "center" });
+
+    doc.setFontSize(22);
+    doc.setTextColor(0, 51, 102);
+    doc.text(course.course_title, pw / 2, 100, { align: "center" });
+
+    doc.setFontSize(12);
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Calificacion Final: ${diploma.final_score}%  |  Estado: ${diploma.status === "approved" ? "APROBADO" : "REPROBADO"}`, pw / 2, 115, { align: "center" });
+
+    doc.text(`Codigo de Verificacion: ${diploma.verification_code}`, pw / 2, 130, { align: "center" });
+
+    const issuedDate = new Date(diploma.issued_date).toLocaleDateString("es-CL", { day: "2-digit", month: "long", year: "numeric" });
+    doc.text(`Fecha de Emision: ${issuedDate}`, pw / 2, 140, { align: "center" });
+
+    // Footer
+    doc.setFontSize(9);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`Verificar en: https://www.enae.cl/verificar?code=${diploma.verification_code}`, pw / 2, ph - 25, { align: "center" });
+
+    doc.save(`Diploma_${course.course_code || "curso"}_${diploma.verification_code}.pdf`);
+  }
 
   useEffect(() => {
     async function load() {
@@ -650,6 +778,18 @@ export default function TpemsCourseDetail() {
                     })}
                   </tbody>
                 </table>
+                {/* Download grades button */}
+                {studentGrades.length > 0 && (
+                  <div className="px-6 py-3 border-t border-gray-100">
+                    <button
+                      onClick={downloadGradesPDF}
+                      className="inline-flex items-center gap-2 text-sm text-[#003366] hover:text-[#004B87] font-medium transition"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                      Descargar Calificaciones (PDF)
+                    </button>
+                  </div>
+                )}
                 {/* Final score */}
                 {(() => {
                   const gradedItems = gradeItems.filter((item) => {
@@ -706,7 +846,7 @@ export default function TpemsCourseDetail() {
                       <p className="text-gray-700">{new Date(diploma.issued_date).toLocaleDateString("es-CL", { day: "2-digit", month: "long", year: "numeric" })}</p>
                     </div>
                   </div>
-                  <div className="mt-4 pt-4 border-t border-gray-100 flex gap-3">
+                  <div className="mt-4 pt-4 border-t border-gray-100 flex gap-3 flex-wrap">
                     <a
                       href={`/verificar?code=${diploma.verification_code}`}
                       target="_blank"
@@ -716,6 +856,13 @@ export default function TpemsCourseDetail() {
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
                       Verificar Diploma
                     </a>
+                    <button
+                      onClick={downloadDiplomaPDF}
+                      className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                      Descargar Diploma (PDF)
+                    </button>
                   </div>
                 </div>
               </div>
