@@ -39,73 +39,7 @@ export async function POST(request: Request) {
       comments,
     } = body;
 
-    // Generate random password
-    const password = crypto.randomBytes(4).toString("hex"); // 8 char hex
-
-    // 1. Create Supabase Auth user
-    const { data: authData, error: authError } =
-      await supabaseAdmin.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: {
-          full_name: `${firstName} ${lastName}`,
-        },
-      });
-
-    let userId = authData?.user?.id;
-
-    if (authError) {
-      if (authError.message.includes("already been registered")) {
-        // User exists — update password and get their ID
-        const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-        const existingUser = existingUsers?.users?.find((u: any) => u.email === email);
-        if (existingUser) {
-          userId = existingUser.id;
-          await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
-            password,
-          });
-        }
-      } else {
-        return NextResponse.json(
-          { error: "Error al crear usuario: " + authError.message },
-          { status: 400 }
-        );
-      }
-    }
-
-    // 2. Create or update profile
-    const { error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .upsert(
-        {
-          user_id: userId,
-          title,
-          first_name: firstName,
-          last_name: lastName,
-          email,
-          job_title: jobTitle,
-          organization,
-          organization_type: organizationType,
-          supervisor_name: supervisorName,
-          supervisor_email: supervisorEmail,
-          address,
-          city,
-          state,
-          postal_code: postalCode,
-          country: country || "Chile",
-          phone,
-          secondary_phone: secondaryPhone,
-          role: "student",
-        },
-        { onConflict: "email" }
-      );
-
-    if (profileError) {
-      console.error("Profile error:", profileError);
-    }
-
-    // 2.5. Resolve course UUID — the frontend sends a static slug, not a DB UUID
+    // 0. Resolve course UUID first — needed to check duplicate registrations
     let resolvedCourseId = courseId;
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(courseId);
     if (!isUuid) {
@@ -137,7 +71,106 @@ export async function POST(request: Request) {
       }
     }
 
-    // 2.6. Resolve session UUID
+    // 1. Check if student already exists
+    const { data: existingProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("id, user_id, email")
+      .eq("email", email)
+      .single();
+
+    if (existingProfile?.user_id) {
+      // Student already has an account — check if already registered for this course
+      const { data: existingReg } = await supabaseAdmin
+        .from("registrations")
+        .select("id")
+        .eq("email", email)
+        .eq("course_id", resolvedCourseId)
+        .single();
+
+      if (existingReg) {
+        return NextResponse.json({
+          existingStudent: true,
+          alreadyCourseRegistered: true,
+          message:
+            "Ya estas registrado en este curso. Ingresa al portal de alumnos para ver tu inscripcion.",
+        });
+      }
+
+      return NextResponse.json({
+        existingStudent: true,
+        message:
+          "Ya tienes una cuenta en ENAE. Ingresa al portal de alumnos para adquirir este curso desde la seccion Cursos Disponibles.",
+      });
+    }
+
+    // 2. New student — create auth user with temporary password
+    const password = crypto.randomBytes(4).toString("hex"); // 8 char hex
+
+    const { data: authData, error: authError } =
+      await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: {
+          full_name: `${firstName} ${lastName}`,
+        },
+      });
+
+    let userId = authData?.user?.id;
+
+    if (authError) {
+      if (authError.message.includes("already been registered")) {
+        // Auth user exists but no profile — get their ID (edge case)
+        const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+        const existingUser = existingUsers?.users?.find((u: any) => u.email === email);
+        if (existingUser) {
+          userId = existingUser.id;
+          // Update password only for users without a profile (orphaned auth)
+          await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
+            password,
+          });
+        }
+      } else {
+        return NextResponse.json(
+          { error: "Error al crear usuario: " + authError.message },
+          { status: 400 }
+        );
+      }
+    }
+
+    // 3. Create profile with must_change_password = true
+    const { error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .upsert(
+        {
+          user_id: userId,
+          title,
+          first_name: firstName,
+          last_name: lastName,
+          email,
+          job_title: jobTitle,
+          organization,
+          organization_type: organizationType,
+          supervisor_name: supervisorName,
+          supervisor_email: supervisorEmail,
+          address,
+          city,
+          state,
+          postal_code: postalCode,
+          country: country || "Chile",
+          phone,
+          secondary_phone: secondaryPhone,
+          role: "student",
+          must_change_password: true,
+        },
+        { onConflict: "email" }
+      );
+
+    if (profileError) {
+      console.error("Profile error:", profileError);
+    }
+
+    // 4. Resolve session UUID
     let resolvedSessionId = null;
     if (sessionDates && resolvedCourseId) {
       const { data: sessionMatch } = await supabaseAdmin
@@ -161,7 +194,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // 3. Create registration
+    // 5. Create registration
     const { data: registration, error: regError } = await supabaseAdmin
       .from("registrations")
       .insert({
@@ -201,7 +234,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 4. Get course name for emails
+    // 6. Get course name for emails
     const { data: course } = await supabaseAdmin
       .from("courses")
       .select("title")
@@ -211,7 +244,7 @@ export async function POST(request: Request) {
     const courseName = course?.title || "Curso ENAE";
     const studentName = `${firstName} ${lastName}`;
 
-    // 5. Send emails (don't fail the request if email fails)
+    // 7. Send emails (don't fail the request if email fails)
     try {
       await sendStudentCredentials(email, password, studentName, courseName);
     } catch (e) {

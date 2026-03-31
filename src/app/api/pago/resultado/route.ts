@@ -110,6 +110,7 @@ async function handlePaymentResult(token: string | null) {
         auth: result.authorizationCode || "",
         date: result.transactionDate || new Date().toISOString(),
         installments: String(result.installmentsNumber || 0),
+        regId: payment.registration_id,
       });
       return NextResponse.redirect(`${successUrl}?${params.toString()}`, { status: 303 });
     } else {

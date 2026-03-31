@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import Image from "next/image";
+import ForcePasswordChangeModal from "@/components/ForcePasswordChangeModal";
 
 export default function TpemsLayout({
   children,
@@ -21,6 +22,7 @@ export default function TpemsLayout({
   const [notifications, setNotifications] = useState<
     { id: string; course: string; message: string; date: string; registrationId: string }[]
   >([]);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
@@ -33,6 +35,18 @@ export default function TpemsLayout({
             "Participant"
         );
         setUserEmail(user.email || "");
+
+        // Check if user must change password
+        supabase
+          .from("profiles")
+          .select("must_change_password")
+          .eq("user_id", user.id)
+          .single()
+          .then(({ data: profile }) => {
+            if (profile?.must_change_password) {
+              setShowPasswordModal(true);
+            }
+          });
       }
     });
   }, []);
@@ -168,6 +182,12 @@ export default function TpemsLayout({
               className={`text-sm transition ${pathname === "/tpems" ? "text-[#003366] font-medium" : "text-gray-500 hover:text-[#003366]"}`}
             >
               Mis Cursos
+            </Link>
+            <Link
+              href="/tpems/cursos-disponibles"
+              className={`text-sm transition ${pathname === "/tpems/cursos-disponibles" ? "text-[#003366] font-medium" : "text-gray-500 hover:text-[#003366]"}`}
+            >
+              Cursos Disponibles
             </Link>
             <Link
               href="/"
@@ -327,6 +347,17 @@ export default function TpemsLayout({
                   </Link>
 
                   <Link
+                    href="/tpems/cursos-disponibles"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition"
+                  >
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                    Cursos Disponibles
+                  </Link>
+
+                  <Link
                     href="/tpems/perfil"
                     onClick={() => setMenuOpen(false)}
                     className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition"
@@ -395,6 +426,12 @@ export default function TpemsLayout({
 
       {/* Main content */}
       <main className="flex-1">{children}</main>
+
+      {/* Force password change modal for first login */}
+      <ForcePasswordChangeModal
+        isOpen={showPasswordModal}
+        onComplete={() => setShowPasswordModal(false)}
+      />
     </div>
   );
 }

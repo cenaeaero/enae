@@ -1,5 +1,12 @@
-import { createSupabaseServer } from "./supabase-server";
+import { createClient } from "@supabase/supabase-js";
 import type { Course } from "@/data/courses";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+// Lightweight client for public read-only queries in server components
+// No cookies/auth needed since we only read public data with anon key
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 type DbCourseRow = {
   id: string;
@@ -70,7 +77,6 @@ function mapDbCourseToPublic(row: DbCourseRow): Course {
 export async function fetchPublicCourseServer(
   id: string
 ): Promise<Course | null> {
-  const supabase = await createSupabaseServer();
   const { data, error } = await supabase
     .from("courses")
     .select("*, sessions(*)")

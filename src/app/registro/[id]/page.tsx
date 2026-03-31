@@ -30,6 +30,8 @@ export default function RegistroPage() {
   const [sameAddress, setSameAddress] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [existingStudent, setExistingStudent] = useState(false);
+  const [existingMessage, setExistingMessage] = useState("");
   const [submitError, setSubmitError] = useState("");
 
   useEffect(() => {
@@ -179,6 +181,9 @@ export default function RegistroPage() {
       const data = await res.json();
       if (data.success) {
         setSubmitted(true);
+      } else if (data.existingStudent) {
+        setExistingStudent(true);
+        setExistingMessage(data.message || "Ya tienes una cuenta en ENAE.");
       } else {
         setSubmitError(data.error || "Error al procesar el registro.");
       }
@@ -280,8 +285,39 @@ export default function RegistroPage() {
             </div>
           )}
 
+          {/* Existing student message */}
+          {existingStudent && (
+            <div className="bg-white rounded-lg border border-blue-200 p-8 text-center">
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-bold text-[#003366] mb-2">
+                Ya eres alumno de ENAE
+              </h2>
+              <p className="text-gray-600 mb-6">
+                {existingMessage}
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Link
+                  href="/tpems/login"
+                  className="inline-block bg-[#0072CE] hover:bg-[#005fa3] text-white font-medium px-6 py-3 rounded-lg transition"
+                >
+                  Ir al Portal de Alumnos
+                </Link>
+                <Link
+                  href="/tpems/cursos-disponibles"
+                  className="inline-block bg-[#F57C00] hover:bg-[#E65100] text-white font-medium px-6 py-3 rounded-lg transition"
+                >
+                  Ver Cursos Disponibles
+                </Link>
+              </div>
+            </div>
+          )}
+
           {/* Registration form */}
-          {!submitted && (
+          {!submitted && !existingStudent && (
             <form onSubmit={handleSubmit}>
               <div className="space-y-8">
                 {/* Personal Information */}

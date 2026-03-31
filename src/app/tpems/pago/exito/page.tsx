@@ -13,6 +13,7 @@ function PagoExitoContent() {
   const auth = params.get("auth") || "";
   const date = params.get("date") || "";
   const installments = params.get("installments") || "0";
+  const regId = params.get("regId") || "";
 
   const formattedDate = date
     ? new Date(date).toLocaleString("es-CL", {
@@ -131,15 +132,27 @@ function PagoExitoContent() {
 
       <div className="text-center space-y-3">
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <a
-            href="https://cursos.enae.cl"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center justify-center gap-2 bg-[#F57C00] hover:bg-[#E65100] text-white font-semibold px-6 py-3 rounded-lg transition"
-          >
-            Iniciar Curso en LMS
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-          </a>
+          {regId ? (
+            <Link
+              href={`/tpems/curso/${regId}`}
+              className="inline-flex items-center justify-center gap-2 bg-[#F57C00] hover:bg-[#E65100] text-white font-semibold px-6 py-3 rounded-lg transition"
+            >
+              Ver mi Curso
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              </svg>
+            </Link>
+          ) : (
+            <a
+              href="https://cursos.enae.cl"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 bg-[#F57C00] hover:bg-[#E65100] text-white font-semibold px-6 py-3 rounded-lg transition"
+            >
+              Iniciar Curso en LMS
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+            </a>
+          )}
           <Link
             href="/tpems"
             className="inline-flex items-center justify-center gap-2 bg-[#0072CE] hover:bg-[#005fa3] text-white font-medium px-6 py-3 rounded-lg transition"

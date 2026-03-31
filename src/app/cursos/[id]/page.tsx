@@ -21,13 +21,8 @@ const levelColors: Record<string, string> = {
   Especialización: "bg-orange-100 text-orange-800",
 };
 
-// Static params for legacy static courses
-export function generateStaticParams() {
-  return courses.map((c) => ({ id: c.id }));
-}
-
-// Allow dynamic params (Supabase UUIDs) beyond the static ones
-export const dynamicParams = true;
+// Always render dynamically so Supabase queries run fresh on each request
+export const dynamic = "force-dynamic";
 
 export default async function CourseDetailPage({
   params,
