@@ -50,7 +50,7 @@ async function handlePaymentResult(token: string | null) {
         .eq("id", payment.registration_id);
 
       // Send emails + Moodle enrollment
-      let moodleResult: { success: boolean; moodleUsername?: string } | null = null;
+      let moodleResult: { success: boolean; moodleUserId?: number; moodleCourseId?: number; moodleUsername?: string; error?: string } | null = null;
       try {
         const { data: reg } = await supabaseAdmin
           .from("registrations")
