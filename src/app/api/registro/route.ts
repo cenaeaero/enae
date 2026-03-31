@@ -71,23 +71,28 @@ export async function POST(request: Request) {
       }
     }
 
-    // 1. Check if student already exists
+    // 1. Check if student already exists — check BOTH profile and auth
     const { data: existingProfile } = await supabaseAdmin
       .from("profiles")
       .select("id, user_id, email")
       .eq("email", email)
       .single();
 
-    if (existingProfile?.user_id) {
-      // Student already has an account — check if already registered for this course
-      const { data: existingReg } = await supabaseAdmin
-        .from("registrations")
-        .select("id")
-        .eq("email", email)
-        .eq("course_id", resolvedCourseId)
-        .single();
+    // Also check registrations directly (covers case where profile has no user_id)
+    const { data: existingRegs } = await supabaseAdmin
+      .from("registrations")
+      .select("id, course_id")
+      .eq("email", email);
 
-      if (existingReg) {
+    const hasExistingAccount = existingProfile != null || (existingRegs && existingRegs.length > 0);
+
+    if (hasExistingAccount) {
+      // Check if already registered for THIS specific course
+      const alreadyInCourse = existingRegs?.some(
+        (r: any) => r.course_id === resolvedCourseId
+      );
+
+      if (alreadyInCourse) {
         return NextResponse.json({
           existingStudent: true,
           alreadyCourseRegistered: true,
@@ -120,16 +125,13 @@ export async function POST(request: Request) {
 
     if (authError) {
       if (authError.message.includes("already been registered")) {
-        // Auth user exists but no profile — get their ID (edge case)
-        const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-        const existingUser = existingUsers?.users?.find((u: any) => u.email === email);
-        if (existingUser) {
-          userId = existingUser.id;
-          // Update password only for users without a profile (orphaned auth)
-          await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
-            password,
-          });
-        }
+        // Auth user exists in Supabase Auth but has no profile/registrations
+        // This means they have an account — redirect to portal
+        return NextResponse.json({
+          existingStudent: true,
+          message:
+            "Ya tienes una cuenta en ENAE. Ingresa al portal de alumnos para adquirir este curso desde la seccion Cursos Disponibles.",
+        });
       } else {
         return NextResponse.json(
           { error: "Error al crear usuario: " + authError.message },
@@ -138,36 +140,42 @@ export async function POST(request: Request) {
       }
     }
 
-    // 3. Create profile with must_change_password = true
-    const { error: profileError } = await supabaseAdmin
+    // 3. Create profile
+    const profileData: Record<string, any> = {
+      user_id: userId,
+      title,
+      first_name: firstName,
+      last_name: lastName,
+      email,
+      job_title: jobTitle,
+      organization,
+      organization_type: organizationType,
+      supervisor_name: supervisorName,
+      supervisor_email: supervisorEmail,
+      address,
+      city,
+      state,
+      postal_code: postalCode,
+      country: country || "Chile",
+      phone,
+      secondary_phone: secondaryPhone,
+      role: "student",
+    };
+
+    // Try with must_change_password first; if column doesn't exist, retry without
+    let { error: profileError } = await supabaseAdmin
       .from("profiles")
-      .upsert(
-        {
-          user_id: userId,
-          title,
-          first_name: firstName,
-          last_name: lastName,
-          email,
-          job_title: jobTitle,
-          organization,
-          organization_type: organizationType,
-          supervisor_name: supervisorName,
-          supervisor_email: supervisorEmail,
-          address,
-          city,
-          state,
-          postal_code: postalCode,
-          country: country || "Chile",
-          phone,
-          secondary_phone: secondaryPhone,
-          role: "student",
-          must_change_password: true,
-        },
-        { onConflict: "email" }
-      );
+      .upsert({ ...profileData, must_change_password: true }, { onConflict: "email" });
 
     if (profileError) {
-      console.error("Profile error:", profileError);
+      console.error("Profile upsert error (with must_change_password):", profileError);
+      // Retry without must_change_password in case column doesn't exist yet
+      const { error: retryError } = await supabaseAdmin
+        .from("profiles")
+        .upsert(profileData, { onConflict: "email" });
+      if (retryError) {
+        console.error("Profile upsert retry error:", retryError);
+      }
     }
 
     // 4. Resolve session UUID
