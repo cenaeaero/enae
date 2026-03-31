@@ -95,6 +95,14 @@ export default function Footer() {
                   Plataforma LMS
                 </a>
               </li>
+              <li>
+                <a
+                  href="/verificar"
+                  className="text-blue-200 hover:text-white transition"
+                >
+                  Verificar Diploma
+                </a>
+              </li>
             </ul>
           </div>
 
