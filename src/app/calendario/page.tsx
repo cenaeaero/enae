@@ -55,9 +55,10 @@ export default function CalendarioPage() {
         .from("sessions")
         .select(
           `id, dates, location, modality, fee, course_id,
-          courses (title, code, area, level, duration, language)`
+          courses!inner (title, code, area, level, duration, language, is_active)`
         )
         .eq("is_active", true)
+        .eq("courses.is_active", true)
         .order("created_at");
 
       if (!error && data) {
