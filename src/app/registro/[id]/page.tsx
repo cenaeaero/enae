@@ -14,6 +14,7 @@ type SessionInfo = {
   courseArea: string;
   courseDuration: string;
   courseAreaSlug: string;
+  courseImage: string | null;
   dates: string;
   location: string;
   modality: string;
@@ -43,7 +44,7 @@ export default function RegistroPage() {
         const { data } = await supabase
           .from("sessions")
           .select(
-            "id, dates, location, modality, fee, course_id, courses(title, code, area, area_slug, duration)"
+            "id, dates, location, modality, fee, course_id, courses(title, code, area, area_slug, duration, image_url)"
           )
           .eq("id", id)
           .single();
@@ -58,6 +59,7 @@ export default function RegistroPage() {
             courseArea: s.courses?.area || "",
             courseDuration: s.courses?.duration || "",
             courseAreaSlug: s.courses?.area_slug || "",
+            courseImage: s.courses?.image_url || null,
             dates: s.dates,
             location: s.location,
             modality: s.modality,
@@ -80,6 +82,7 @@ export default function RegistroPage() {
           courseArea: staticCourse.area,
           courseDuration: staticCourse.duration,
           courseAreaSlug: staticCourse.areaSlug,
+          courseImage: staticCourse.image || null,
           dates: firstSession?.dates || staticCourse.dates[0] || "Por confirmar",
           location: firstSession?.location || staticCourse.locations[0] || "",
           modality: staticCourse.modality,
@@ -205,8 +208,12 @@ export default function RegistroPage() {
         <div className="max-w-4xl mx-auto px-4">
           {/* Course summary card */}
           <div className="bg-white rounded-lg border border-gray-200 p-5 mb-8 flex flex-col sm:flex-row gap-5">
-            <div className="sm:w-32 h-24 sm:h-auto bg-gradient-to-br from-[#003366] to-[#004B87] rounded-lg flex items-center justify-center shrink-0">
-              <span className="text-3xl">{areaEmoji}</span>
+            <div className="sm:w-32 h-24 sm:h-auto bg-gradient-to-br from-[#003366] to-[#004B87] rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
+              {session.courseImage ? (
+                <img src={session.courseImage} alt={session.courseTitle} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-3xl">{areaEmoji}</span>
+              )}
             </div>
             <div className="flex-1">
               <h2 className="text-lg font-bold text-[#003366]">
@@ -312,6 +319,10 @@ export default function RegistroPage() {
                     <div className="sm:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-red-500">*</span></label>
                       <input type="email" required data-field="email" className="w-full py-2.5 px-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0072CE]" placeholder="correo@ejemplo.com" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">RUT / DNI / Pasaporte <span className="text-red-500">*</span></label>
+                      <input type="text" required data-field="nationalId" className="w-full py-2.5 px-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0072CE]" placeholder="Ej: 12.345.678-9" />
                     </div>
                   </div>
                 </div>
