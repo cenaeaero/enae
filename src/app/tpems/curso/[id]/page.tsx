@@ -176,136 +176,159 @@ export default function TpemsCourseDetail() {
     const ph = doc.internal.pageSize.getHeight();
     const cx = pw / 2;
 
-    // Try to load diploma template image
+    // Helper to load images
+    function loadImg(src: string): Promise<HTMLImageElement> {
+      return new Promise((resolve, reject) => {
+        const img = new window.Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => resolve(img);
+        img.onerror = () => reject();
+        img.src = src;
+      });
+    }
+
+    // Try to load diploma template
     let hasTemplate = false;
     try {
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => { resolve(); };
-        img.onerror = () => { reject(); };
-        img.src = "/img/diploma-template.png";
-      });
-      doc.addImage(img, "PNG", 0, 0, pw, ph);
+      const tpl = await loadImg("/img/diploma-template.png");
+      doc.addImage(tpl, "PNG", 0, 0, pw, ph);
       hasTemplate = true;
     } catch {
-      // No template — draw default design
-      // Outer border
+      // Default design
+      // Outer border - navy
       doc.setDrawColor(0, 51, 102);
       doc.setLineWidth(3);
       doc.rect(8, 8, pw - 16, ph - 16);
-      // Inner border
-      doc.setLineWidth(0.5);
+      // Gold inner border
       doc.setDrawColor(180, 160, 100);
+      doc.setLineWidth(1);
       doc.rect(13, 13, pw - 26, ph - 26);
-      // Decorative line
+      // Thin navy inner
       doc.setDrawColor(0, 51, 102);
       doc.setLineWidth(0.3);
       doc.rect(16, 16, pw - 32, ph - 32);
     }
 
-    // Content — positioned to work with or without template
-    const topY = hasTemplate ? 35 : 32;
+    // Load logos
+    try {
+      const logoEnae = await loadImg("/img/logo-enae.png");
+      doc.addImage(logoEnae, "PNG", 30, 22, 22, 22);
+    } catch {}
+    try {
+      const logoDgac = await loadImg("/img/logo-DGAC.jpg");
+      doc.addImage(logoDgac, "JPEG", pw - 52, 22, 22, 22);
+    } catch {}
 
-    if (!hasTemplate) {
-      // Institution name
-      doc.setFontSize(11);
-      doc.setTextColor(120, 120, 120);
-      doc.text("ESCUELA DE NAVEGACION AEREA", cx, topY, { align: "center" });
-      doc.setFontSize(9);
-      doc.text("Centro de Navegacion Aerea SpA  |  AOC 1521 - DGAC Chile", cx, topY + 7, { align: "center" });
-    }
+    // Institution name
+    doc.setFontSize(11);
+    doc.setTextColor(100, 100, 100);
+    doc.text("ESCUELA DE NAVEGACION AEREA SpA", cx, 30, { align: "center" });
+    doc.setFontSize(8);
+    doc.setTextColor(140, 140, 140);
+    doc.text("AOC 1521 - DGAC Chile", cx, 36, { align: "center" });
 
-    // CERTIFICADO title
+    // CERTIFICADO
     doc.setFontSize(36);
     doc.setTextColor(0, 51, 102);
-    doc.text("CERTIFICADO", cx, hasTemplate ? topY + 15 : topY + 25, { align: "center" });
+    doc.text("CERTIFICADO", cx, 55, { align: "center" });
 
-    // Decorative line under title
-    if (!hasTemplate) {
-      doc.setDrawColor(180, 160, 100);
-      doc.setLineWidth(1);
-      doc.line(cx - 60, topY + 30, cx + 60, topY + 30);
-    }
+    // Gold line
+    doc.setDrawColor(180, 160, 100);
+    doc.setLineWidth(1);
+    doc.line(cx - 65, 60, cx + 65, 60);
 
     // "Se certifica que"
     doc.setFontSize(12);
     doc.setTextColor(100, 100, 100);
-    doc.text("Se certifica que", cx, hasTemplate ? topY + 35 : topY + 42, { align: "center" });
+    doc.text("Se certifica que", cx, 72, { align: "center" });
 
-    // Student name (big, bold)
+    // Student name
     doc.setFontSize(26);
     doc.setTextColor(0, 51, 102);
-    doc.text(course.student_name || "Alumno", cx, hasTemplate ? topY + 50 : topY + 58, { align: "center" });
+    doc.text(course.student_name || "Alumno", cx, 87, { align: "center" });
 
     // "ha completado satisfactoriamente el curso"
     doc.setFontSize(12);
     doc.setTextColor(100, 100, 100);
-    doc.text("ha completado satisfactoriamente el curso", cx, hasTemplate ? topY + 62 : topY + 70, { align: "center" });
+    doc.text("ha completado satisfactoriamente el curso", cx, 98, { align: "center" });
 
     // Course title
     doc.setFontSize(20);
     doc.setTextColor(0, 75, 135);
-    doc.text(course.course_title, cx, hasTemplate ? topY + 77 : topY + 85, { align: "center" });
+    doc.text(course.course_title, cx, 113, { align: "center" });
 
     // Course code
     if (course.course_code) {
-      doc.setFontSize(10);
-      doc.setTextColor(130, 130, 130);
-      doc.text(`Codigo: ${course.course_code}`, cx, hasTemplate ? topY + 85 : topY + 93, { align: "center" });
+      doc.setFontSize(9);
+      doc.setTextColor(140, 140, 140);
+      doc.text(`Codigo: ${course.course_code}`, cx, 120, { align: "center" });
     }
 
     // Score and status
-    doc.setFontSize(12);
+    doc.setFontSize(11);
     doc.setTextColor(60, 60, 60);
-    const scoreY = hasTemplate ? topY + 98 : topY + 106;
-    doc.text(`Calificacion Final: ${diploma.final_score}%   |   Estado: ${diploma.status === "approved" ? "APROBADO" : "REPROBADO"}`, cx, scoreY, { align: "center" });
+    doc.text(`Calificacion Final: ${diploma.final_score}%   |   Estado: ${diploma.status === "approved" ? "APROBADO" : "REPROBADO"}`, cx, 131, { align: "center" });
 
     // Issue date
     const issuedDate = new Date(diploma.issued_date).toLocaleDateString("es-CL", { day: "2-digit", month: "long", year: "numeric" });
     doc.setFontSize(10);
     doc.setTextColor(100, 100, 100);
-    doc.text(`Fecha de Emision: ${issuedDate}`, cx, scoreY + 10, { align: "center" });
+    doc.text(`Fecha de Emision: ${issuedDate}`, cx, 139, { align: "center" });
 
     // Verification code
     doc.setFontSize(9);
     doc.setTextColor(0, 51, 102);
-    doc.text(`Codigo de Verificacion: ${diploma.verification_code}`, cx, scoreY + 18, { align: "center" });
+    doc.text(`Codigo de Verificacion: ${diploma.verification_code}`, cx, 147, { align: "center" });
+
+    // Signatures with images
+    const sigY = ph - 42;
+    doc.setDrawColor(150, 150, 150);
+    doc.setLineWidth(0.3);
+
+    // Left signature - Vivian Garcia (Directora Academica)
+    try {
+      const firmaVivian = await loadImg("/img/Firma Vivian García.png");
+      doc.addImage(firmaVivian, "PNG", 55, sigY - 20, 50, 18);
+    } catch {}
+    doc.line(40, sigY, 125, sigY);
+    doc.setFontSize(9);
+    doc.setTextColor(60, 60, 60);
+    doc.text("Vivian Garcia Lopera", 82.5, sigY + 5, { align: "center" });
+    doc.setFontSize(7);
+    doc.setTextColor(120, 120, 120);
+    doc.text("Directora Academica", 82.5, sigY + 10, { align: "center" });
+    doc.text("Escuela de Navegacion Aerea SpA", 82.5, sigY + 14, { align: "center" });
+
+    // Right signature - Ivan Araos (Director)
+    try {
+      const firmaIvan = await loadImg("/img/Firma Ivan Araos.png");
+      doc.addImage(firmaIvan, "PNG", pw - 105, sigY - 20, 50, 18);
+    } catch {}
+    doc.line(pw - 125, sigY, pw - 40, sigY);
+    doc.setFontSize(9);
+    doc.setTextColor(60, 60, 60);
+    doc.text("Ivan Araos Mancilla", pw - 82.5, sigY + 5, { align: "center" });
+    doc.setFontSize(7);
+    doc.setTextColor(120, 120, 120);
+    doc.text("Director", pw - 82.5, sigY + 10, { align: "center" });
+    doc.text("Escuela de Navegacion Aerea SpA", pw - 82.5, sigY + 14, { align: "center" });
 
     // QR code
     try {
       const verifyUrl = `https://www.enae.cl/verificar?code=${diploma.verification_code}`;
-      const qrDataUrl = await QRCode.toDataURL(verifyUrl, { width: 200, margin: 1, color: { dark: "#003366", light: "#FFFFFF" } });
-      const qrSize = 28;
-      doc.addImage(qrDataUrl, "PNG", pw - 50, ph - 48, qrSize, qrSize);
-      doc.setFontSize(7);
-      doc.setTextColor(130, 130, 130);
-      doc.text("Escanea para verificar", pw - 50 + qrSize / 2, ph - 18, { align: "center" });
+      const qrDataUrl = await QRCode.toDataURL(verifyUrl, { width: 300, margin: 1, color: { dark: "#003366", light: "#FFFFFF" } });
+      doc.addImage(qrDataUrl, "PNG", cx - 12, ph - 40, 24, 24);
+      doc.setFontSize(6);
+      doc.setTextColor(150, 150, 150);
+      doc.text("Escanea para verificar", cx, ph - 15, { align: "center" });
     } catch (e) {
       console.error("QR generation failed:", e);
     }
 
     // Footer
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text(`Verificar en: https://www.enae.cl/verificar?code=${diploma.verification_code}`, cx, ph - 18, { align: "center" });
-
-    // Signature lines (if no template)
-    if (!hasTemplate) {
-      const sigY = ph - 50;
-      doc.setDrawColor(150, 150, 150);
-      doc.setLineWidth(0.3);
-      // Left signature
-      doc.line(40, sigY, 120, sigY);
-      doc.setFontSize(8);
-      doc.setTextColor(100, 100, 100);
-      doc.text("Director Academico", 80, sigY + 5, { align: "center" });
-      doc.text("Escuela de Navegacion Aerea", 80, sigY + 10, { align: "center" });
-      // Right signature
-      doc.line(pw - 120, sigY, pw - 40, sigY);
-      doc.text("Instructor del Curso", pw - 80, sigY + 5, { align: "center" });
-      doc.text("ENAE Training", pw - 80, sigY + 10, { align: "center" });
-    }
+    doc.setFontSize(7);
+    doc.setTextColor(170, 170, 170);
+    doc.text(`www.enae.cl/verificar?code=${diploma.verification_code}`, cx, ph - 11, { align: "center" });
 
     doc.save(`Diploma_${course.course_code || "curso"}_${diploma.verification_code}.pdf`);
   }
