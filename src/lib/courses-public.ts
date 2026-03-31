@@ -54,6 +54,7 @@ function mapDbCourseToPublic(row: DbCourseRow): Course {
     modules: row.modules ?? undefined,
     targetAudience: row.target_audience ?? undefined,
     prerequisites: row.prerequisites ?? undefined,
+    image: row.image_url ?? undefined,
     locations: locations.length > 0 ? locations : ["Por confirmar"],
     dates,
     sessions: activeSessions.map((s) => ({
