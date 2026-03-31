@@ -1,14 +1,25 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { courses, areas } from "@/data/courses";
+import { useRef, useState, useEffect } from "react";
+import { courses as staticCourses, areas, Course } from "@/data/courses";
+import { fetchActiveCourses } from "@/lib/courses-public";
 import CourseCard from "@/components/CourseCard";
 import Link from "next/link";
 
 export default function Home() {
   const [activeArea, setActiveArea] = useState("todos");
   const [search, setSearch] = useState("");
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [loading, setLoading] = useState(true);
   const coursesRef = useRef<HTMLElement>(null);
+
+  // Load active courses from Supabase
+  useEffect(() => {
+    fetchActiveCourses()
+      .then((dbCourses) => setCourses(dbCourses))
+      .catch(() => setCourses(staticCourses))
+      .finally(() => setLoading(false));
+  }, []);
 
   const filtered = courses.filter((c) => {
     const matchesArea = activeArea === "todos" || c.areaSlug === activeArea;
@@ -62,7 +73,7 @@ export default function Home() {
           {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-12">
             {[
-              { label: "Cursos Disponibles", value: courses.length.toString() },
+              { label: "Cursos Disponibles", value: loading ? "–" : courses.length.toString() },
               { label: "Áreas de Formación", value: (areas.length - 1).toString() },
               { label: "Sedes", value: "3" },
               { label: "Modalidades", value: "3" },

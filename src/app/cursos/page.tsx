@@ -2,7 +2,8 @@
 
 import { Suspense, useEffect, useState, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
-import { courses, areas, Course } from "@/data/courses";
+import { courses as staticCourses, areas, Course } from "@/data/courses";
+import { fetchActiveCourses } from "@/lib/courses-public";
 import Link from "next/link";
 
 const ITEMS_PER_PAGE = 9;
@@ -30,6 +31,16 @@ function CursosContent() {
 
   const [search, setSearch] = useState("");
   const [area, setArea] = useState(urlArea);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Load active courses from Supabase
+  useEffect(() => {
+    fetchActiveCourses()
+      .then((dbCourses) => setCourses(dbCourses))
+      .catch(() => setCourses(staticCourses))
+      .finally(() => setLoading(false));
+  }, []);
 
   // Sync area state when URL query param changes (e.g. header nav clicks)
   useEffect(() => {
@@ -69,7 +80,7 @@ function CursosContent() {
     }
 
     return result;
-  }, [search, area, level, tab, orderBy]);
+  }, [courses, search, area, level, tab, orderBy]);
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const paged = filtered.slice(
