@@ -96,7 +96,7 @@ export default async function CourseDetailPage({
               <h1 className="text-3xl md:text-4xl font-bold mb-3">
                 {course.title}
               </h1>
-              <p className="text-blue-200 text-lg max-w-3xl">
+              <p className="text-blue-200 text-lg max-w-3xl text-justify">
                 {course.description}
               </p>
             </div>
@@ -129,7 +129,7 @@ export default async function CourseDetailPage({
                     </svg>
                     Objetivo
                   </h2>
-                  <p className="text-gray-600 leading-relaxed">{course.goal}</p>
+                  <p className="text-gray-600 leading-relaxed text-justify">{course.goal}</p>
                 </div>
               )}
 
