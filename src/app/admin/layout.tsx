@@ -38,7 +38,7 @@ export default function AdminLayout({
   return (
     <div className="flex min-h-[calc(100vh-130px)]">
       {/* Sidebar */}
-      <aside className="w-64 bg-[#001d3d] text-white shrink-0 hidden lg:block">
+      <aside className="w-64 bg-[#001d3d] text-white shrink-0 hidden lg:block relative">
         <div className="p-5 border-b border-blue-800">
           <h2 className="font-bold text-lg">Panel Admin</h2>
           <p className="text-xs text-blue-300 mt-0.5">ENAE Training</p>
