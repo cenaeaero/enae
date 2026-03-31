@@ -68,19 +68,25 @@ export async function POST(request: Request) {
         );
 
         // Create registration
-        await supabaseAdmin.from("registrations").insert({
+        const { error: regError } = await supabaseAdmin.from("registrations").insert({
           course_id: courseId,
           session_id: sessionId || null,
           first_name: firstName,
           last_name: lastName,
           email,
           organization: company || null,
-          company: company || null,
+          phone: student.phone || null,
+          address: student.address || null,
           theoretical_start: theoreticalStart || null,
           practical_end: practicalEnd || null,
           status: "confirmed",
-          grade_status: "pending",
         });
+
+        if (regError) {
+          console.error("Registration insert error:", regError.message);
+          results.push({ email, success: false, error: "Error al crear registro: " + regError.message });
+          continue;
+        }
 
         // Get course name for email
         const { data: course } = await supabaseAdmin

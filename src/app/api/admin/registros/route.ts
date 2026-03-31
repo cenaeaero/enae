@@ -1,0 +1,80 @@
+import { NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase-service";
+import { createSupabaseServer } from "@/lib/supabase-server";
+
+async function verifyAdmin() {
+  const supabase = await createSupabaseServer();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user?.email) return null;
+
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("role")
+    .eq("email", user.email)
+    .single();
+
+  return profile?.role === "admin" ? user : null;
+}
+
+export async function GET() {
+  try {
+    const admin = await verifyAdmin();
+    if (!admin) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
+
+    // Fetch all registrations using admin client (bypasses RLS)
+    const { data, error } = await supabaseAdmin
+      .from("registrations")
+      .select("id, first_name, last_name, email, status, created_at, course_id, courses(title)")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching registrations:", error.message);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ registrations: data || [] });
+  } catch (err: any) {
+    console.error("Admin registros error:", err?.message);
+    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const admin = await verifyAdmin();
+    if (!admin) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
+
+    const { id, status } = await request.json();
+
+    if (!id || !status) {
+      return NextResponse.json({ error: "id y status requeridos" }, { status: 400 });
+    }
+
+    const validStatuses = ["pending", "confirmed", "completed", "rejected", "cancelled"];
+    if (!validStatuses.includes(status)) {
+      return NextResponse.json({ error: "Estado inválido" }, { status: 400 });
+    }
+
+    const { error } = await supabaseAdmin
+      .from("registrations")
+      .update({ status })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error updating registration:", error.message);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    console.error("Admin registros PATCH error:", err?.message);
+    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+  }
+}

@@ -11,6 +11,7 @@ type Registration = {
   status: string;
   created_at: string;
   course_title?: string;
+  course_id?: string;
 };
 
 const statusOptions = [
@@ -48,38 +49,47 @@ export default function AdminRegistrosPage() {
   }, []);
 
   async function loadRegistrations() {
-    const { data, error } = await supabase
-      .from("registrations")
-      .select("id, first_name, last_name, email, status, created_at, courses(title)")
-      .order("created_at", { ascending: false });
+    try {
+      // Use admin API to bypass RLS and get ALL registrations
+      const res = await fetch("/api/admin/registros");
+      const json = await res.json();
 
-    if (!error && data) {
-      setRegistrations(
-        data.map((r: any) => ({
-          id: r.id,
-          first_name: r.first_name,
-          last_name: r.last_name,
-          email: r.email,
-          status: r.status,
-          created_at: r.created_at,
-          course_title: r.courses?.title,
-        }))
-      );
+      if (json.registrations) {
+        setRegistrations(
+          json.registrations.map((r: any) => ({
+            id: r.id,
+            first_name: r.first_name,
+            last_name: r.last_name,
+            email: r.email,
+            status: r.status,
+            created_at: r.created_at,
+            course_title: r.courses?.title,
+            course_id: r.course_id,
+          }))
+        );
+      }
+    } catch (err) {
+      console.error("Error loading registrations:", err);
     }
     setLoading(false);
   }
 
   async function updateStatus(id: string, newStatus: string) {
     setUpdatingId(id);
-    const { error } = await supabase
-      .from("registrations")
-      .update({ status: newStatus })
-      .eq("id", id);
-
-    if (!error) {
-      setRegistrations((prev) =>
-        prev.map((r) => (r.id === id ? { ...r, status: newStatus } : r))
-      );
+    try {
+      const res = await fetch("/api/admin/registros", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status: newStatus }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setRegistrations((prev) =>
+          prev.map((r) => (r.id === id ? { ...r, status: newStatus } : r))
+        );
+      }
+    } catch (err) {
+      console.error("Error updating status:", err);
     }
     setUpdatingId(null);
   }
