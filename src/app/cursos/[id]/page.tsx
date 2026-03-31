@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import CourseSessionsTable from "@/components/CourseSessionsTable";
 import { DynamicObjectives, DynamicModules, DynamicPrerequisites, DynamicImage, DynamicFee } from "@/components/CourseDetailDynamic";
-import { fetchPublicCourse } from "@/lib/courses-public";
+import { fetchPublicCourseServer } from "@/lib/courses-public-server";
 
 const areaIcons: Record<string, string> = {
   "uas-rpas": "🛩️",
@@ -37,7 +37,7 @@ export default async function CourseDetailPage({
   const { id } = await params;
 
   // Try Supabase first (handles UUIDs from admin + checks is_active)
-  let course = await fetchPublicCourse(id);
+  let course = await fetchPublicCourseServer(id);
 
   // Fall back to static data for legacy course slugs
   if (!course) {
