@@ -49,14 +49,16 @@ export default function CalificacionesPage() {
     setGradeItems((items as GradeItem[]) || []);
 
     // Load registrations for this course
-    const { data: regs } = await supabase
+    const { data: regs, error: regsError } = await supabase
       .from("registrations")
-      .select("id, first_name, last_name, email, company, final_score, grade_status")
+      .select("id, first_name, last_name, email, organization, status")
       .eq("course_id", courseId)
       .in("status", ["confirmed", "completed"])
       .order("last_name");
 
-    if (!regs || !items) {
+    console.log("Registrations query:", { courseId, regs: regs?.length, error: regsError?.message });
+
+    if (!regs || regs.length === 0 || !items) {
       setStudents([]);
       setLoading(false);
       return;
@@ -80,10 +82,10 @@ export default function CalificacionesPage() {
         registrationId: r.id,
         name: `${r.first_name} ${r.last_name}`,
         email: r.email,
-        company: r.company,
+        company: r.organization || null,
         grades: gradeMap[r.id] || {},
-        finalScore: r.final_score,
-        gradeStatus: r.grade_status,
+        finalScore: null,
+        gradeStatus: "pending",
       }))
     );
 
@@ -149,10 +151,15 @@ export default function CalificacionesPage() {
             : "failed"
           : "pending";
 
-      await supabase
+      // Try to update final_score/grade_status, ignore if columns don't exist
+      const { error: updateErr } = await supabase
         .from("registrations")
         .update({ final_score: finalScore, grade_status: gradeStatus })
         .eq("id", student.registrationId);
+
+      if (updateErr) {
+        console.warn("Could not update final_score/grade_status:", updateErr.message);
+      }
 
       student.finalScore = finalScore;
       student.gradeStatus = gradeStatus;
