@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
 
 type Program = {
   id: string;
@@ -53,12 +52,19 @@ export default function AdminProgramasPage() {
   }, []);
 
   async function loadData() {
-    const [programsRes, coursesRes] = await Promise.all([
-      supabase.from("programs").select("*").order("sort_order"),
-      supabase.from("courses").select("id, title, code").eq("is_active", true).order("title"),
-    ]);
-    if (programsRes.data) setPrograms(programsRes.data as Program[]);
-    if (coursesRes.data) setCourses(coursesRes.data as CourseOption[]);
+    try {
+      const res = await fetch("/api/admin/programas");
+      if (!res.ok) {
+        console.error("Error loading programas:", res.status);
+        setLoading(false);
+        return;
+      }
+      const json = await res.json();
+      setPrograms(json.programs || []);
+      setCourses(json.courses || []);
+    } catch (err) {
+      console.error("Error loading programas:", err);
+    }
     setLoading(false);
   }
 
@@ -99,32 +105,39 @@ export default function AdminProgramasPage() {
       is_active: editing.is_active,
     };
 
-    if ("id" in editing && editing.id) {
-      const { error } = await supabase.from("programs").update(data).eq("id", editing.id);
-      if (error) {
-        setMessage("Error: " + error.message);
+    const isUpdate = "id" in editing && editing.id;
+    try {
+      const res = await fetch("/api/admin/programas", {
+        method: isUpdate ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(isUpdate ? { id: editing.id, ...data } : data),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) {
+        setMessage("Error: " + (json.error || "Error desconocido"));
       } else {
-        setMessage("Programa actualizado correctamente");
+        setMessage(isUpdate ? "Programa actualizado correctamente" : "Programa creado correctamente");
         setEditing(null);
         await loadData();
       }
-    } else {
-      const { error } = await supabase.from("programs").insert(data);
-      if (error) {
-        setMessage("Error: " + error.message);
-      } else {
-        setMessage("Programa creado correctamente");
-        setEditing(null);
-        await loadData();
-      }
+    } catch (err) {
+      setMessage("Error de conexion: " + (err instanceof Error ? err.message : "desconocido"));
     }
     setSaving(false);
   }
 
   async function handleDelete(id: string) {
     if (!confirm("¿Eliminar este programa?")) return;
-    await supabase.from("programs").delete().eq("id", id);
-    await loadData();
+    try {
+      await fetch("/api/admin/programas", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      await loadData();
+    } catch (err) {
+      console.error("Error deleting program:", err);
+    }
   }
 
   function toggleCourse(courseId: string) {
