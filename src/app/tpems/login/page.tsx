@@ -23,7 +23,7 @@ export default function TpemsLoginPage() {
     setResetLoading(true);
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(
       email,
-      { redirectTo: `${window.location.origin}/tpems/restablecer-clave` }
+      { redirectTo: `${window.location.origin}/auth/callback?next=/tpems/restablecer-clave` }
     );
     if (resetError) {
       setError(resetError.message);

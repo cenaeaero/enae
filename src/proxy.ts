@@ -15,6 +15,7 @@ export async function proxy(request: NextRequest) {
   const isAdminLogin = pathname === "/admin/login";
   const isTpemsRoute = pathname.startsWith("/tpems");
   const isTpemsLogin = pathname === "/tpems/login";
+  const isTpemsPublic = pathname === "/tpems/login" || pathname === "/tpems/restablecer-clave";
 
   // Admin routes
   if (isAdminRoute && !isAdminLogin && !user) {
@@ -25,7 +26,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // TPEMS routes
-  if (isTpemsRoute && !isTpemsLogin && !user) {
+  if (isTpemsRoute && !isTpemsPublic && !user) {
     return NextResponse.redirect(new URL("/tpems/login", request.url));
   }
   if (isTpemsLogin && user) {

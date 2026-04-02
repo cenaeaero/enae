@@ -27,30 +27,41 @@ function RestablecerClaveContent() {
   const canSubmit = isMinLength && passwordsMatch && !saving;
 
   useEffect(() => {
-    // Handle PKCE flow: exchange code from URL for session
+    // Listen for auth state changes (covers both PKCE auto-detection and implicit flow)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session && (event === "SIGNED_IN" || event === "PASSWORD_RECOVERY" || event === "INITIAL_SESSION")) {
+        setSessionReady(true);
+      }
+    });
+
+    // Handle PKCE flow: try exchanging code from URL.
+    // createBrowserClient (detectSessionInUrl: true) may have already consumed
+    // the code automatically, so if our manual exchange fails we fall back to
+    // checking for an existing session.
     const code = searchParams.get("code");
     if (code) {
       supabase.auth.exchangeCodeForSession(code).then(({ error: codeError }) => {
         if (!codeError) {
           setSessionReady(true);
         } else {
-          setError("El enlace ha expirado o es invalido. Solicita uno nuevo.");
+          // Auto-detection may have already exchanged the code — check session
+          supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session) {
+              setSessionReady(true);
+            } else {
+              setError("El enlace ha expirado o es invalido. Solicita uno nuevo.");
+            }
+          });
         }
       });
-      return;
+    } else {
+      // No code in URL — check if already in a session
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) setSessionReady(true);
+      });
     }
 
-    // Handle implicit flow (hash tokens) as fallback
-    supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
-        setSessionReady(true);
-      }
-    });
-
-    // Also check if already in a session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setSessionReady(true);
-    });
+    return () => subscription.unsubscribe();
   }, [searchParams]);
 
   async function handleSubmit(e: React.FormEvent) {
