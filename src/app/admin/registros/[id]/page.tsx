@@ -140,19 +140,25 @@ export default function RegistroDetailPage() {
       if (prof) setProfileId(prof.id);
     }
 
-    // Load DGAC procedure
-    try {
-      const res = await fetch(`/api/admin/dgac?registration_id=${id}`);
-      if (res.ok) {
-        const json = await res.json();
-        if (json.procedure) {
-          setProcedure(json.procedure);
-          setSelectedType(json.procedure.procedure_type);
-        }
-        setHistory(json.history || []);
-      }
-    } catch (err) {
-      console.error("Error loading DGAC:", err);
+    // Load DGAC procedure directly from Supabase
+    const { data: procData } = await supabase
+      .from("dgac_procedures")
+      .select("*")
+      .eq("registration_id", id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (procData) {
+      setProcedure(procData as DgacProcedure);
+      setSelectedType(procData.procedure_type);
+
+      const { data: histData } = await supabase
+        .from("dgac_procedure_history")
+        .select("*")
+        .eq("procedure_id", procData.id)
+        .order("changed_at", { ascending: false });
+      setHistory((histData || []) as HistoryEntry[]);
     }
 
     setLoading(false);
@@ -218,17 +224,24 @@ export default function RegistroDetailPage() {
     setSaving("create");
     setDgacError("");
     try {
-      const res = await fetch("/api/admin/dgac", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ registration_id: id, procedure_type: selectedType }),
-      });
-      const json = await res.json();
-      if (res.ok && json.procedure) {
-        setProcedure(json.procedure);
+      const { data, error } = await supabase
+        .from("dgac_procedures")
+        .insert({ registration_id: id, procedure_type: selectedType })
+        .select()
+        .single();
+
+      if (error) {
+        setDgacError(error.message);
+      } else if (data) {
+        // Log creation in history
+        await supabase.from("dgac_procedure_history").insert({
+          procedure_id: data.id,
+          field_name: "procedure_type",
+          old_value: null,
+          new_value: selectedType,
+        });
+        setProcedure(data as DgacProcedure);
         await loadData();
-      } else {
-        setDgacError(json.error || "Error al crear tramite");
       }
     } catch (err) {
       setDgacError("Error de conexion al crear tramite");
@@ -240,18 +253,33 @@ export default function RegistroDetailPage() {
     if (!procedure) return;
     setSaving(field);
     try {
-      const res = await fetch("/api/admin/dgac", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: procedure.id, field, value }),
-      });
-      if (res.ok) {
+      // Get current value for history
+      const oldValue = String((procedure as any)[field] ?? "");
+      const newValue = String(value ?? "");
+
+      const { error } = await supabase
+        .from("dgac_procedures")
+        .update({ [field]: value, updated_at: new Date().toISOString() })
+        .eq("id", procedure.id);
+
+      if (!error) {
         setProcedure((prev) => (prev ? { ...prev, [field]: value } : null));
-        const hRes = await fetch(`/api/admin/dgac?registration_id=${id}`);
-        if (hRes.ok) {
-          const json = await hRes.json();
-          setHistory(json.history || []);
-        }
+
+        // Log change in history
+        await supabase.from("dgac_procedure_history").insert({
+          procedure_id: procedure.id,
+          field_name: field,
+          old_value: oldValue,
+          new_value: newValue,
+        });
+
+        // Reload history
+        const { data: histData } = await supabase
+          .from("dgac_procedure_history")
+          .select("*")
+          .eq("procedure_id", procedure.id)
+          .order("changed_at", { ascending: false });
+        setHistory((histData || []) as HistoryEntry[]);
       }
     } catch (err) {
       console.error("Error updating DGAC field:", err);
