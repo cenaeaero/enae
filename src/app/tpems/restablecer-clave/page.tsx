@@ -1,10 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import Image from "next/image";
 
 export default function RestablecerClavePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#ECEFF1] flex items-center justify-center text-gray-400">Cargando...</div>}>
+      <RestablecerClaveContent />
+    </Suspense>
+  );
+}
+
+function RestablecerClaveContent() {
+  const searchParams = useSearchParams();
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
@@ -16,18 +26,32 @@ export default function RestablecerClavePage() {
   const passwordsMatch = confirmPassword.length > 0 && newPassword === confirmPassword;
   const canSubmit = isMinLength && passwordsMatch && !saving;
 
-  // Supabase handles the token from the URL hash automatically
   useEffect(() => {
+    // Handle PKCE flow: exchange code from URL for session
+    const code = searchParams.get("code");
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code).then(({ error: codeError }) => {
+        if (!codeError) {
+          setSessionReady(true);
+        } else {
+          setError("El enlace ha expirado o es invalido. Solicita uno nuevo.");
+        }
+      });
+      return;
+    }
+
+    // Handle implicit flow (hash tokens) as fallback
     supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") {
         setSessionReady(true);
       }
     });
+
     // Also check if already in a session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) setSessionReady(true);
     });
-  }, []);
+  }, [searchParams]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
