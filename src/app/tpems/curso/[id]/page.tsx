@@ -5,6 +5,8 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import KalturaPlayer from "@/components/KalturaPlayer";
+import ExamPlayer from "@/components/ExamPlayer";
+import DiscussionPanel from "@/components/DiscussionPanel";
 import { jsPDF } from "jspdf";
 import QRCode from "qrcode";
 
@@ -61,20 +63,38 @@ type GradeItemRow = { id: string; name: string; weight: number };
 type GradeRow = { grade_item_id: string; score: number | null };
 type DiplomaRow = { verification_code: string; final_score: number | null; status: string; issued_date: string };
 
-const activityIcons: Record<string, string> = {
-  task: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4",
-  exam: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253",
-  discussion: "M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z",
-  zoom: "M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z",
-  reading: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253",
+type LessonData = {
+  id: string;
+  sort_order: number;
+  type: string;
+  title: string;
+  description: string | null;
+  module_id: string;
 };
 
-const activityLabels: Record<string, string> = {
+type ActivityProgress = {
+  activity_id: string;
+  status: "not_started" | "in_progress" | "completed";
+};
+
+const lessonIcons: Record<string, string> = {
+  video: "🎬",
+  task: "📝",
+  exam: "📋",
+  discussion: "💬",
+  zoom: "🎥",
+  reading: "📖",
+  html: "🌐",
+};
+
+const lessonLabels: Record<string, string> = {
+  video: "Video",
   task: "Tarea",
   exam: "Examen",
-  discussion: "Discusión",
-  zoom: "Sesión Zoom",
+  discussion: "Discusion",
+  zoom: "Session Zoom",
   reading: "Lectura",
+  html: "Contenido",
 };
 
 export default function TpemsCourseDetail() {
@@ -94,6 +114,9 @@ export default function TpemsCourseDetail() {
   const [newMessage, setNewMessage] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
   const [updatingProgress, setUpdatingProgress] = useState(false);
+  const [lessons, setLessons] = useState<LessonData[]>([]);
+  const [activityProgress, setActivityProgress] = useState<ActivityProgress[]>([]);
+  const [expandedLessonId, setExpandedLessonId] = useState<string | null>(null);
   const [gradeItems, setGradeItems] = useState<GradeItemRow[]>([]);
   const [studentGrades, setStudentGrades] = useState<GradeRow[]>([]);
   const [diploma, setDiploma] = useState<DiplomaRow | null>(null);
@@ -392,6 +415,26 @@ export default function TpemsCourseDetail() {
             setProgress(progressData as ModuleProgress[]);
           }
 
+          // Load lessons (module_activities) for all modules
+          const modIds = modulesData.map((m: any) => m.id);
+          const { data: lessonsData } = await supabase
+            .from("module_activities")
+            .select("*")
+            .in("module_id", modIds)
+            .order("sort_order");
+          if (lessonsData) setLessons(lessonsData as LessonData[]);
+
+          // Load activity progress
+          const lessonIds = (lessonsData || []).map((l: any) => l.id);
+          if (lessonIds.length > 0) {
+            const { data: actProg } = await supabase
+              .from("activity_progress")
+              .select("activity_id, status")
+              .eq("registration_id", r.id)
+              .in("activity_id", lessonIds);
+            if (actProg) setActivityProgress(actProg as ActivityProgress[]);
+          }
+
           // Auto-select last in-progress or first module
           const inProgressMod = progressData?.find(
             (p: any) => p.status === "in_progress"
@@ -669,11 +712,56 @@ export default function TpemsCourseDetail() {
         )}
 
         {/* ============ MODULES TAB ============ */}
-        {activeTab === "modules" && modules.length > 0 && (
+        {activeTab === "modules" && modules.length > 0 && (() => {
+          const moduleLessons = selectedModuleId ? lessons.filter((l) => l.module_id === selectedModuleId) : [];
+
+          function getLessonStatus(lessonId: string) {
+            return activityProgress.find((p) => p.activity_id === lessonId)?.status || "not_started";
+          }
+
+          function isLessonUnlocked(lessonIdx: number) {
+            if (lessonIdx === 0) return true;
+            const prevLesson = moduleLessons[lessonIdx - 1];
+            return prevLesson ? getLessonStatus(prevLesson.id) === "completed" : true;
+          }
+
+          async function completeLesson(lessonId: string) {
+            setUpdatingProgress(true);
+            await fetch("/api/actividades/progreso", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ registration_id: registrationId, activity_id: lessonId, status: "completed" }),
+            });
+            setActivityProgress((prev) => {
+              const exists = prev.find((p) => p.activity_id === lessonId);
+              if (exists) return prev.map((p) => p.activity_id === lessonId ? { ...p, status: "completed" as const } : p);
+              return [...prev, { activity_id: lessonId, status: "completed" as const }];
+            });
+            // Refresh module progress
+            const { data: mp } = await supabase.from("module_progress").select("module_id, status").eq("registration_id", registrationId);
+            if (mp) setProgress(mp as ModuleProgress[]);
+            setUpdatingProgress(false);
+          }
+
+          function parseLessonData(les: LessonData) {
+            let desc = les.description || "";
+            let entryId = "";
+            let zoomUrl = "";
+            let zoomDatetime = "";
+            if ((les.type === "video" || les.type === "zoom") && desc.startsWith("{")) {
+              try {
+                const p = JSON.parse(desc);
+                if (les.type === "video") { desc = p.text || ""; entryId = p.entry_id || ""; }
+                if (les.type === "zoom") { zoomUrl = p.url || ""; zoomDatetime = p.datetime || ""; desc = ""; }
+              } catch {}
+            }
+            return { desc, entryId, zoomUrl, zoomDatetime };
+          }
+
+          return (
           <div className="flex gap-6">
             {/* Module sidebar */}
             <div className="w-72 shrink-0 hidden lg:block">
-              {/* Progress bar */}
               <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-medium text-gray-600">Progreso del curso</span>
@@ -682,44 +770,26 @@ export default function TpemsCourseDetail() {
                 <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
                   <div className="h-full bg-[#0072CE] rounded-full transition-all duration-500" style={{ width: `${progressPercent}%` }} />
                 </div>
-                <p className="text-xs text-gray-400 mt-1">{completedCount} de {totalModules} módulos</p>
+                <p className="text-xs text-gray-400 mt-1">{completedCount} de {totalModules} modulos</p>
               </div>
 
-              {/* Module list */}
               <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                 {modules.map((mod, idx) => {
                   const status = getModuleStatus(mod.id);
                   const isSelected = mod.id === selectedModuleId;
+                  const modLessons = lessons.filter((l) => l.module_id === mod.id);
+                  const completedLessons = modLessons.filter((l) => getLessonStatus(l.id) === "completed").length;
                   return (
-                    <button
-                      key={mod.id}
-                      onClick={() => setSelectedModuleId(mod.id)}
-                      className={`w-full text-left px-4 py-3 flex items-start gap-3 transition border-b border-gray-50 last:border-0 ${
-                        isSelected ? "bg-blue-50" : "hover:bg-gray-50"
-                      }`}
-                    >
-                      {/* Status indicator */}
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                        status === "completed" ? "bg-green-500" :
-                        status === "in_progress" ? "bg-[#F57C00]" :
-                        "bg-gray-200"
-                      }`}>
+                    <button key={mod.id} onClick={() => { setSelectedModuleId(mod.id); setExpandedLessonId(null); }}
+                      className={`w-full text-left px-4 py-3 flex items-start gap-3 transition border-b border-gray-50 last:border-0 ${isSelected ? "bg-blue-50" : "hover:bg-gray-50"}`}>
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${status === "completed" ? "bg-green-500" : status === "in_progress" ? "bg-[#F57C00]" : "bg-gray-200"}`}>
                         {status === "completed" ? (
                           <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                        ) : (
-                          <span className="text-xs font-bold text-white">{idx + 1}</span>
-                        )}
+                        ) : (<span className="text-xs font-bold text-white">{idx + 1}</span>)}
                       </div>
                       <div>
-                        <p className={`text-sm leading-tight ${isSelected ? "font-semibold text-[#003366]" : "text-gray-700"}`}>
-                          {mod.title}
-                        </p>
-                        {mod.video_entry_id && (
-                          <span className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
-                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                            Video
-                          </span>
-                        )}
+                        <p className={`text-sm leading-tight ${isSelected ? "font-semibold text-[#003366]" : "text-gray-700"}`}>{mod.title}</p>
+                        <span className="text-xs text-gray-400">{completedLessons}/{modLessons.length} lecciones</span>
                       </div>
                     </button>
                   );
@@ -729,114 +799,184 @@ export default function TpemsCourseDetail() {
 
             {/* Module content */}
             <div className="flex-1 min-w-0">
-              {/* Mobile module selector */}
               <div className="lg:hidden mb-4">
-                <select
-                  value={selectedModuleId || ""}
-                  onChange={(e) => setSelectedModuleId(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                >
-                  {modules.map((mod, idx) => (
-                    <option key={mod.id} value={mod.id}>
-                      {idx + 1}. {mod.title} {getModuleStatus(mod.id) === "completed" ? "✓" : ""}
-                    </option>
-                  ))}
+                <select value={selectedModuleId || ""} onChange={(e) => setSelectedModuleId(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                  {modules.map((mod, idx) => (<option key={mod.id} value={mod.id}>{idx + 1}. {mod.title} {getModuleStatus(mod.id) === "completed" ? "✓" : ""}</option>))}
                 </select>
               </div>
 
               {selectedModule && (
                 <div className="space-y-4">
-                  {/* Module title */}
                   <div className="bg-white rounded-lg border border-gray-200 p-5">
                     <h2 className="text-lg font-semibold text-gray-800">{selectedModule.title}</h2>
-                    {selectedModule.description && (
-                      <p className="text-sm text-gray-500 mt-1">{selectedModule.description}</p>
-                    )}
+                    {selectedModule.description && <p className="text-sm text-gray-500 mt-1">{selectedModule.description}</p>}
                   </div>
 
-                  {/* Video */}
-                  {selectedModule.video_entry_id && (
-                    <div className="bg-white rounded-lg border border-gray-200 p-4">
-                      <h3 className="text-sm font-medium text-gray-700 mb-3">
-                        {selectedModule.video_title || "Video del módulo"}
-                      </h3>
-                      <KalturaPlayer entryId={selectedModule.video_entry_id} />
-                    </div>
-                  )}
+                  {/* Lessons list */}
+                  <div className="bg-white rounded-lg border border-gray-200 p-5">
+                    <h3 className="text-sm font-semibold text-gray-800 mb-3">Lecciones</h3>
+                    <div className="space-y-3">
+                      {moduleLessons.map((les, idx) => {
+                        const status = getLessonStatus(les.id);
+                        const unlocked = isLessonUnlocked(idx);
+                        const expanded = expandedLessonId === les.id;
+                        const { desc, entryId, zoomUrl, zoomDatetime } = parseLessonData(les);
 
-                  {/* Activities */}
-                  {selectedModule.activities && selectedModule.activities.length > 0 && (
-                    <div className="bg-white rounded-lg border border-gray-200 p-5">
-                      <h3 className="text-sm font-semibold text-gray-800 mb-3">Actividades</h3>
-                      <div className="space-y-3">
-                        {selectedModule.activities.map((act, idx) => (
-                          <div key={idx} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                            <div className="w-8 h-8 rounded-lg bg-[#0072CE]/10 flex items-center justify-center shrink-0">
-                              <svg className="w-4 h-4 text-[#0072CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={activityIcons[act.type] || activityIcons.task} />
-                              </svg>
-                            </div>
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-medium text-[#0072CE] uppercase">{activityLabels[act.type] || act.type}</span>
+                        return (
+                          <div key={les.id} className={`rounded-lg border transition ${!unlocked ? "border-gray-100 bg-gray-50 opacity-60" : status === "completed" ? "border-green-200 bg-green-50/30" : "border-gray-200 bg-white"}`}>
+                            {/* Lesson header */}
+                            <button
+                              onClick={() => unlocked && setExpandedLessonId(expanded ? null : les.id)}
+                              disabled={!unlocked}
+                              className="w-full text-left px-4 py-3 flex items-center gap-3"
+                            >
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-sm ${status === "completed" ? "bg-green-500 text-white" : unlocked ? "bg-[#0072CE] text-white" : "bg-gray-200 text-gray-400"}`}>
+                                {status === "completed" ? "✓" : lessonIcons[les.type] || "•"}
                               </div>
-                              <p className="text-sm font-medium text-gray-800">{act.title}</p>
-                              {act.description && <p className="text-xs text-gray-500 mt-0.5">{act.description}</p>}
-                              {act.url && (
-                                <a href={act.url} target="_blank" rel="noopener noreferrer" className="text-xs text-[#0072CE] hover:underline mt-1 inline-flex items-center gap-1">
-                                  Abrir enlace <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                                </a>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-gray-800">{les.title}</p>
+                                <span className="text-xs text-gray-400">{lessonLabels[les.type] || les.type}</span>
+                              </div>
+                              {!unlocked && <span className="text-xs text-gray-400">🔒</span>}
+                              {unlocked && <span className="text-gray-400 text-xs">{expanded ? "▲" : "▼"}</span>}
+                            </button>
 
-                  {/* Module actions */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex gap-2">
-                      {getModuleStatus(selectedModule.id) !== "completed" && (
-                        <>
-                          {getModuleStatus(selectedModule.id) === "not_started" && (
-                            <button
-                              onClick={() => updateModuleProgress(selectedModule.id, "in_progress")}
-                              disabled={updatingProgress}
-                              className="bg-[#F57C00] hover:bg-[#E65100] disabled:bg-orange-300 text-white text-sm font-medium px-4 py-2 rounded-lg transition"
-                            >
-                              Iniciar módulo
-                            </button>
-                          )}
-                          {getModuleStatus(selectedModule.id) === "in_progress" && (
-                            <button
-                              onClick={() => updateModuleProgress(selectedModule.id, "completed")}
-                              disabled={updatingProgress}
-                              className="bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white text-sm font-medium px-4 py-2 rounded-lg transition"
-                            >
-                              {updatingProgress ? "Guardando..." : "Marcar como completado"}
-                            </button>
-                          )}
-                        </>
-                      )}
-                      {getModuleStatus(selectedModule.id) === "completed" && (
-                        <span className="inline-flex items-center gap-1 text-sm text-green-600 font-medium">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                          Módulo completado
-                        </span>
+                            {/* Lesson expanded content */}
+                            {expanded && unlocked && (
+                              <div className="px-4 pb-4 border-t border-gray-100 pt-3">
+                                {/* Video lesson */}
+                                {les.type === "video" && (
+                                  <div>
+                                    {desc && <p className="text-sm text-gray-600 mb-3">{desc}</p>}
+                                    {entryId && <KalturaPlayer entryId={entryId} />}
+                                    {status !== "completed" && (
+                                      <button onClick={() => completeLesson(les.id)} disabled={updatingProgress} className="mt-3 bg-green-600 hover:bg-green-700 text-white text-sm px-4 py-2 rounded-lg transition disabled:opacity-50">
+                                        {updatingProgress ? "Guardando..." : "Marcar como completado"}
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Task lesson */}
+                                {les.type === "task" && (
+                                  <div>
+                                    {desc && <p className="text-sm text-gray-600 mb-3">{desc}</p>}
+                                    {status !== "completed" && (
+                                      <button onClick={() => completeLesson(les.id)} disabled={updatingProgress} className="bg-green-600 hover:bg-green-700 text-white text-sm px-4 py-2 rounded-lg transition disabled:opacity-50">
+                                        {updatingProgress ? "Guardando..." : "Marcar tarea como completada"}
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Exam lesson */}
+                                {les.type === "exam" && (
+                                  <ExamPlayer
+                                    examId={les.id}
+                                    registrationId={registrationId}
+                                    onComplete={(score, passed) => {
+                                      if (passed) completeLesson(les.id);
+                                    }}
+                                  />
+                                )}
+
+                                {/* Discussion lesson */}
+                                {les.type === "discussion" && (
+                                  <div>
+                                    {desc && <p className="text-sm text-gray-600 mb-3">{desc}</p>}
+                                    <DiscussionPanel
+                                      activityId={les.id}
+                                      registrationId={registrationId}
+                                      onPostSubmitted={() => {
+                                        if (status !== "completed") completeLesson(les.id);
+                                      }}
+                                    />
+                                  </div>
+                                )}
+
+                                {/* Zoom lesson */}
+                                {les.type === "zoom" && (
+                                  <div>
+                                    {zoomDatetime && (
+                                      <p className="text-sm text-gray-600 mb-2">
+                                        📅 {new Date(zoomDatetime).toLocaleString("es-CL", { weekday: "long", day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                      </p>
+                                    )}
+                                    {zoomUrl && (
+                                      <a href={zoomUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition">
+                                        🎥 Unirse a la sesion Zoom
+                                      </a>
+                                    )}
+                                    {status !== "completed" && (
+                                      <button onClick={() => completeLesson(les.id)} disabled={updatingProgress} className="ml-3 bg-green-600 hover:bg-green-700 text-white text-sm px-4 py-2 rounded-lg transition disabled:opacity-50">
+                                        Marcar como completado
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Reading lesson */}
+                                {les.type === "reading" && (
+                                  <div>
+                                    {desc && desc.split("\n").filter(Boolean).map((url, i) => (
+                                      <a key={i} href={url.trim()} target="_blank" rel="noopener noreferrer" className="block text-sm text-[#0072CE] hover:underline mb-2">
+                                        📄 {url.trim().split("/").pop() || `Documento ${i + 1}`}
+                                      </a>
+                                    ))}
+                                    {status !== "completed" && (
+                                      <button onClick={() => completeLesson(les.id)} disabled={updatingProgress} className="mt-2 bg-green-600 hover:bg-green-700 text-white text-sm px-4 py-2 rounded-lg transition disabled:opacity-50">
+                                        Marcar lectura como completada
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* HTML content lesson */}
+                                {les.type === "html" && (
+                                  <div>
+                                    {desc && (
+                                      <div className="prose prose-sm max-w-none mb-3" dangerouslySetInnerHTML={{ __html: desc }} />
+                                    )}
+                                    {status !== "completed" && (
+                                      <button onClick={() => completeLesson(les.id)} disabled={updatingProgress} className="bg-green-600 hover:bg-green-700 text-white text-sm px-4 py-2 rounded-lg transition disabled:opacity-50">
+                                        {updatingProgress ? "Guardando..." : "Marcar como completado"}
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {moduleLessons.length === 0 && (
+                        <p className="text-center text-gray-400 text-sm py-6">Este modulo aun no tiene lecciones configuradas.</p>
                       )}
                     </div>
-                    {course.moodle_url && (
-                      <a href={course.moodle_url} target="_blank" rel="noopener noreferrer" className="text-xs text-[#F57C00] hover:underline flex items-center gap-1">
-                        Ir a Moodle <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                      </a>
+                  </div>
+
+                  {/* Module status */}
+                  <div className="flex items-center justify-between">
+                    {getModuleStatus(selectedModule.id) === "not_started" && moduleLessons.length > 0 && (
+                      <button onClick={() => updateModuleProgress(selectedModule.id, "in_progress")} disabled={updatingProgress}
+                        className="bg-[#F57C00] hover:bg-[#E65100] text-white text-sm font-medium px-4 py-2 rounded-lg transition disabled:opacity-50">
+                        Iniciar modulo
+                      </button>
+                    )}
+                    {getModuleStatus(selectedModule.id) === "completed" && (
+                      <span className="inline-flex items-center gap-1 text-sm text-green-600 font-medium">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        Modulo completado
+                      </span>
                     )}
                   </div>
                 </div>
               )}
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* ============ GRADES TAB ============ */}
         {activeTab === "grades" && (

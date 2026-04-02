@@ -36,6 +36,7 @@ const lessonTypes = [
   { value: "discussion", label: "Discusion", icon: "💬" },
   { value: "zoom", label: "Session Zoom", icon: "🎥" },
   { value: "reading", label: "Lectura", icon: "📖" },
+  { value: "html", label: "Contenido HTML", icon: "🌐" },
 ];
 
 export default function AdminModulosPage({ params }: { params: Promise<{ id: string }> }) {
@@ -323,6 +324,19 @@ export default function AdminModulosPage({ params }: { params: Promise<{ id: str
                             <div>
                               <textarea value={les.description || ""} onChange={(e) => updateLesson(mi, li, "description", e.target.value)} placeholder="URLs de los PDFs (una por linea)" rows={3} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
                               <p className="text-xs text-gray-400 mt-1">Ingresa las URLs de los archivos PDF separadas por linea</p>
+                            </div>
+                          )}
+
+                          {les.type === "html" && (
+                            <div>
+                              <textarea value={les.description || ""} onChange={(e) => updateLesson(mi, li, "description", e.target.value)} placeholder="<h2>Titulo</h2><p>Contenido HTML...</p>" rows={8} className="w-full border border-gray-200 rounded px-3 py-2 text-sm font-mono text-xs" />
+                              <p className="text-xs text-gray-400 mt-1">Ingresa codigo HTML. Se renderizara tal cual en la vista del alumno.</p>
+                              {les.description && (
+                                <div className="mt-2 border border-gray-200 rounded-lg p-3 bg-white">
+                                  <p className="text-xs text-gray-400 mb-1">Vista previa:</p>
+                                  <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: les.description }} />
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
