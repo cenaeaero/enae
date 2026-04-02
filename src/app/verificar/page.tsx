@@ -249,16 +249,9 @@ function VerificarContent() {
                   )}
                 </div>
 
-                {/* Signatures */}
+                {/* Authorized signatories (without signature images for security) */}
                 <div className="mt-8 pt-6 border-t border-gray-100 grid grid-cols-2 gap-8">
                   <div className="text-center">
-                    <Image
-                      src="/img/Firma Vivian García.png"
-                      alt="Firma Directora Academica"
-                      width={120}
-                      height={50}
-                      className="object-contain mx-auto mb-1"
-                    />
                     <div className="border-t border-gray-300 pt-1 mx-4">
                       <p className="text-xs font-semibold text-gray-700">Vivian Garcia Lopera</p>
                       <p className="text-[10px] text-gray-500">Directora Academica</p>
@@ -266,13 +259,6 @@ function VerificarContent() {
                     </div>
                   </div>
                   <div className="text-center">
-                    <Image
-                      src="/img/Firma Ivan Araos.png"
-                      alt="Firma Director ENAE"
-                      width={120}
-                      height={50}
-                      className="object-contain mx-auto mb-1"
-                    />
                     <div className="border-t border-gray-300 pt-1 mx-4">
                       <p className="text-xs font-semibold text-gray-700">Ivan Araos Mancilla</p>
                       <p className="text-[10px] text-gray-500">Director</p>

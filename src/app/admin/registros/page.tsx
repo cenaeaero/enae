@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import Link from "next/link";
 
 type Registration = {
   id: string;
@@ -43,6 +44,7 @@ export default function AdminRegistrosPage() {
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [filter, setFilter] = useState("all");
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     loadRegistrations();
@@ -137,10 +139,18 @@ export default function AdminRegistrosPage() {
     setUpdatingId(null);
   }
 
-  const filtered =
-    filter === "all"
-      ? registrations
-      : registrations.filter((r) => r.status === filter);
+  const filtered = registrations.filter((r) => {
+    const matchesFilter = filter === "all" || r.status === filter;
+    if (!matchesFilter) return false;
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      r.first_name.toLowerCase().includes(q) ||
+      r.last_name.toLowerCase().includes(q) ||
+      r.email.toLowerCase().includes(q) ||
+      (r.course_title || "").toLowerCase().includes(q)
+    );
+  });
 
   function formatDate(dateStr: string) {
     return new Date(dateStr).toLocaleDateString("es-CL", {
@@ -159,6 +169,17 @@ export default function AdminRegistrosPage() {
         <span className="text-sm text-gray-400">
           {filtered.length} registro{filtered.length !== 1 ? "s" : ""}
         </span>
+      </div>
+
+      {/* Search */}
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Buscar por nombre, email o curso..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full md:w-96 border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0072CE] focus:border-transparent"
+        />
       </div>
 
       {/* Filter tabs */}
@@ -220,8 +241,13 @@ export default function AdminRegistrosPage() {
                   key={reg.id}
                   className="border-t border-gray-100 hover:bg-gray-50"
                 >
-                  <td className="px-4 py-3 text-sm font-medium text-gray-800">
-                    {reg.first_name} {reg.last_name}
+                  <td className="px-4 py-3 text-sm font-medium">
+                    <Link
+                      href={`/admin/registros/${reg.id}`}
+                      className="text-[#0072CE] hover:text-[#003366] hover:underline"
+                    >
+                      {reg.first_name} {reg.last_name}
+                    </Link>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600">
                     {reg.email}

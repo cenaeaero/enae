@@ -17,6 +17,16 @@ type Stats = {
   totalDiplomas: number;
 };
 
+type ActiveStudent = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  course: string;
+  status: string;
+  created_at: string;
+};
+
 type RecentItem = {
   id: string;
   name: string;
@@ -44,6 +54,8 @@ export default function AdminDashboard() {
   const [recentRegistrations, setRecentRegistrations] = useState<RecentItem[]>([]);
   const [recentPayments, setRecentPayments] = useState<RecentItem[]>([]);
   const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
+  const [activeStudents, setActiveStudents] = useState<ActiveStudent[]>([]);
+  const [updatingStudentId, setUpdatingStudentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -185,10 +197,54 @@ export default function AdminDashboard() {
       }
 
       setPendingActions(actions);
+
+      // Active students (pending + confirmed only)
+      const { data: activeRegs } = await supabase
+        .from("registrations")
+        .select("id, first_name, last_name, email, status, created_at, courses(title)")
+        .in("status", ["pending", "confirmed"])
+        .order("created_at", { ascending: false });
+
+      if (activeRegs) {
+        setActiveStudents(
+          activeRegs.map((r: any) => ({
+            id: r.id,
+            first_name: r.first_name,
+            last_name: r.last_name,
+            email: r.email,
+            course: r.courses?.title || "",
+            status: r.status,
+            created_at: r.created_at,
+          }))
+        );
+      }
+
       setLoading(false);
     }
     load();
   }, []);
+
+  async function updateStudentStatus(id: string, newStatus: string) {
+    setUpdatingStudentId(id);
+    try {
+      const res = await fetch("/api/admin/registros", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status: newStatus }),
+      });
+      if (res.ok) {
+        // Remove from active list if no longer pending/confirmed
+        if (newStatus !== "pending" && newStatus !== "confirmed") {
+          setActiveStudents((prev) => prev.filter((s) => s.id !== id));
+        } else {
+          setActiveStudents((prev) =>
+            prev.map((s) => (s.id === id ? { ...s, status: newStatus } : s))
+          );
+        }
+      }
+    } catch {}
+    setUpdatingStudentId(null);
+  }
 
   function formatTimeAgo(dateStr: string) {
     const diff = Date.now() - new Date(dateStr).getTime();
@@ -255,6 +311,68 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+
+      {/* Active students table */}
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden mb-6">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="font-semibold text-gray-800">
+            Alumnos Activos
+            <span className="ml-2 text-xs font-normal text-gray-400">
+              Pendientes y Confirmados ({activeStudents.length})
+            </span>
+          </h2>
+          <Link href="/admin/registros" className="text-xs text-[#0072CE] hover:underline">Ver todos</Link>
+        </div>
+        {activeStudents.length === 0 ? (
+          <div className="p-6 text-center text-gray-400 text-sm">No hay alumnos activos</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-50 text-left text-xs text-gray-500">
+                  <th className="px-4 py-2.5 font-medium">Nombre</th>
+                  <th className="px-4 py-2.5 font-medium hidden md:table-cell">Email</th>
+                  <th className="px-4 py-2.5 font-medium hidden sm:table-cell">Curso</th>
+                  <th className="px-4 py-2.5 font-medium">Estado</th>
+                  <th className="px-4 py-2.5 font-medium">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeStudents.map((s) => (
+                  <tr key={s.id} className="border-t border-gray-50 hover:bg-gray-50">
+                    <td className="px-4 py-2.5 text-sm">
+                      <Link href={`/admin/registros/${s.id}`} className="text-[#0072CE] hover:underline font-medium">
+                        {s.first_name} {s.last_name}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-2.5 text-sm text-gray-500 hidden md:table-cell">{s.email}</td>
+                    <td className="px-4 py-2.5 text-sm text-gray-500 hidden sm:table-cell max-w-[200px] truncate">{s.course}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded ${statusColors[s.status] || "bg-gray-100 text-gray-600"}`}>
+                        {s.status === "pending" ? "Pendiente" : "Confirmado"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <select
+                        value={s.status}
+                        onChange={(e) => updateStudentStatus(s.id, e.target.value)}
+                        disabled={updatingStudentId === s.id}
+                        className="text-xs border border-gray-200 rounded px-2 py-1 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#0072CE] disabled:opacity-50"
+                      >
+                        <option value="pending">Pendiente</option>
+                        <option value="confirmed">Confirmado</option>
+                        <option value="completed">Completado</option>
+                        <option value="rejected">Rechazado</option>
+                        <option value="cancelled">Cancelado</option>
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Recent registrations */}
