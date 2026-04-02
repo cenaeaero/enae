@@ -46,8 +46,20 @@ export default function AdminInscripcionPage() {
       .select("id, title, code")
       .eq("is_active", true)
       .order("title")
-      .then(({ data }) => {
-        if (data) setCourses(data as CourseOption[]);
+      .then(({ data, error }) => {
+        if (error) console.error("Error loading courses:", error.message);
+        if (data && data.length > 0) {
+          setCourses(data as CourseOption[]);
+        } else {
+          // Fallback: load all courses without is_active filter
+          supabase
+            .from("courses")
+            .select("id, title, code")
+            .order("title")
+            .then(({ data: allData }) => {
+              if (allData) setCourses(allData as CourseOption[]);
+            });
+        }
       });
   }, []);
 
@@ -58,8 +70,20 @@ export default function AdminInscripcionPage() {
       .select("id, dates, location")
       .eq("course_id", selectedCourse)
       .eq("is_active", true)
-      .then(({ data }) => {
-        if (data) setSessions(data as SessionOption[]);
+      .then(({ data, error }) => {
+        if (error) console.error("Error loading sessions:", error.message);
+        if (data && data.length > 0) {
+          setSessions(data as SessionOption[]);
+        } else {
+          // Fallback: load sessions without is_active filter
+          supabase
+            .from("sessions")
+            .select("id, dates, location")
+            .eq("course_id", selectedCourse)
+            .then(({ data: allData }) => {
+              if (allData) setSessions(allData as SessionOption[]);
+            });
+        }
       });
   }, [selectedCourse]);
 
