@@ -11,11 +11,9 @@ type Lesson = {
   title: string;
   description?: string;
   video_entry_id?: string;
-  video_title?: string;
+  zoom_url?: string;
+  zoom_datetime?: string;
   is_new?: boolean;
-  zoom_topic?: string;
-  zoom_start_time?: string;
-  zoom_duration?: number;
 };
 
 type Material = { title: string; url: string };
@@ -32,6 +30,7 @@ type Module = {
 };
 
 const lessonTypes = [
+  { value: "video", label: "Video", icon: "🎬" },
   { value: "task", label: "Tarea", icon: "📝" },
   { value: "exam", label: "Examen", icon: "📋" },
   { value: "discussion", label: "Discusion", icon: "💬" },
@@ -93,7 +92,21 @@ export default function AdminModulosPage({ params }: { params: Promise<{ id: str
           materials: existing.materials || [],
           lessons: dbLessons
             .filter((l: any) => l.module_id === existing.id)
-            .map((l: any) => ({ id: l.id, sort_order: l.sort_order, type: l.type, title: l.title, description: l.description || "", video_entry_id: l.video_entry_id || "", video_title: l.video_title || "" })),
+            .map((l: any) => {
+              let desc = l.description || "";
+              let videoEntryId = "";
+              let zoomUrl = "";
+              let zoomDatetime = "";
+              // Decode JSON description for video/zoom types
+              if ((l.type === "video" || l.type === "zoom") && desc.startsWith("{")) {
+                try {
+                  const parsed = JSON.parse(desc);
+                  if (l.type === "video") { desc = parsed.text || ""; videoEntryId = parsed.entry_id || ""; }
+                  if (l.type === "zoom") { zoomUrl = parsed.url || ""; zoomDatetime = parsed.datetime || ""; desc = ""; }
+                } catch {}
+              }
+              return { id: l.id, sort_order: l.sort_order, type: l.type, title: l.title, description: desc, video_entry_id: videoEntryId, zoom_url: zoomUrl, zoom_datetime: zoomDatetime };
+            }),
           synced: true,
         };
       }
@@ -144,17 +157,19 @@ export default function AdminModulosPage({ params }: { params: Promise<{ id: str
 
         for (let j = 0; j < m.lessons.length; j++) {
           const l = m.lessons[j];
+          // Encode extra data into description for video/zoom types
+          let desc = l.description || null;
+          if (l.type === "video") desc = JSON.stringify({ text: l.description || "", entry_id: l.video_entry_id || "" });
+          if (l.type === "zoom") desc = JSON.stringify({ url: l.zoom_url || "", datetime: l.zoom_datetime || "" });
+
           if (l.is_new || !l.id) {
-            const { data: lData, error: lErr } = await supabase.from("module_activities").insert({ module_id: moduleId, sort_order: j, type: l.type, title: l.title, description: l.description || null }).select().single();
+            const { data: lData, error: lErr } = await supabase.from("module_activities").insert({ module_id: moduleId, sort_order: j, type: l.type, title: l.title, description: desc }).select().single();
             if (lErr) throw new Error(lErr.message);
 
             if (l.type === "discussion" && l.title) await supabase.from("discussion_threads").upsert({ activity_id: lData.id, topic: l.title }, { onConflict: "activity_id" });
             if (l.type === "exam") await supabase.from("exams").upsert({ activity_id: lData.id }, { onConflict: "activity_id" });
-            if (l.type === "zoom" && l.zoom_topic && l.zoom_start_time) {
-              try { await fetch("/api/admin/zoom", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ activity_id: lData.id, topic: l.zoom_topic || l.title, start_time: l.zoom_start_time, duration_minutes: l.zoom_duration || 60 }) }); } catch {}
-            }
           } else {
-            await supabase.from("module_activities").update({ sort_order: j, title: l.title, description: l.description || null }).eq("id", l.id);
+            await supabase.from("module_activities").update({ sort_order: j, title: l.title, description: desc }).eq("id", l.id);
           }
         }
       }
@@ -266,13 +281,14 @@ export default function AdminModulosPage({ params }: { params: Promise<{ id: str
 
                           <input value={les.title} onChange={(e) => updateLesson(mi, li, "title", e.target.value)} placeholder="Titulo de la leccion" className="w-full border border-gray-200 rounded px-3 py-2 text-sm mb-2" />
 
-                          {/* Kaltura Video — available for all lesson types */}
-                          <div className="grid grid-cols-2 gap-2 mb-2">
-                            <input value={les.video_entry_id || ""} onChange={(e) => updateLesson(mi, li, "video_entry_id", e.target.value)} placeholder="Kaltura Entry ID (ej: 1_abc123)" className="border border-gray-200 rounded px-3 py-2 text-sm" />
-                            <input value={les.video_title || ""} onChange={(e) => updateLesson(mi, li, "video_title", e.target.value)} placeholder="Titulo del video" className="border border-gray-200 rounded px-3 py-2 text-sm" />
-                          </div>
-
                           {/* Type-specific fields */}
+                          {les.type === "video" && (
+                            <div className="space-y-2">
+                              <textarea value={les.description || ""} onChange={(e) => updateLesson(mi, li, "description", e.target.value)} placeholder="Descripcion del video..." rows={2} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
+                              <input value={les.video_entry_id || ""} onChange={(e) => updateLesson(mi, li, "video_entry_id", e.target.value)} placeholder="Kaltura Entry ID (ej: 1_abc123)" className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
+                            </div>
+                          )}
+
                           {les.type === "task" && (
                             <div>
                               <textarea value={les.description || ""} onChange={(e) => updateLesson(mi, li, "description", e.target.value)} placeholder="Descripcion de la tarea..." rows={3} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
@@ -296,10 +312,10 @@ export default function AdminModulosPage({ params }: { params: Promise<{ id: str
                           )}
 
                           {les.type === "zoom" && (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                              <input value={les.zoom_topic || les.title} onChange={(e) => updateLesson(mi, li, "zoom_topic", e.target.value)} placeholder="Tema de la reunion" className="border border-gray-200 rounded px-3 py-2 text-sm" />
-                              <input type="datetime-local" value={les.zoom_start_time || ""} onChange={(e) => updateLesson(mi, li, "zoom_start_time", e.target.value)} className="border border-gray-200 rounded px-3 py-2 text-sm" />
-                              <input type="number" value={les.zoom_duration || 60} onChange={(e) => updateLesson(mi, li, "zoom_duration", parseInt(e.target.value))} placeholder="Duracion (min)" className="border border-gray-200 rounded px-3 py-2 text-sm" />
+                            <div className="space-y-2">
+                              <input value={les.zoom_url || ""} onChange={(e) => updateLesson(mi, li, "zoom_url", e.target.value)} placeholder="Link de Zoom (ej: https://zoom.us/j/123456)" className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
+                              <input type="datetime-local" value={les.zoom_datetime || ""} onChange={(e) => updateLesson(mi, li, "zoom_datetime", e.target.value)} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
+                              <p className="text-xs text-gray-400">El alumno vera el link de Zoom y la fecha/hora para conectarse</p>
                             </div>
                           )}
 
