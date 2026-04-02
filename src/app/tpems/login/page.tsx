@@ -3,7 +3,18 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
 import Image from "next/image";
+
+// Separate client using implicit flow for password reset emails.
+// The default createBrowserClient forces PKCE, which requires a code verifier
+// cookie that is often unavailable when the user clicks the email link
+// (different browser, cleared cookies, etc). Implicit flow avoids this issue.
+const resetClient = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  { auth: { flowType: "implicit", persistSession: false, autoRefreshToken: false } }
+);
 
 export default function TpemsLoginPage() {
   const router = useRouter();
@@ -21,9 +32,9 @@ export default function TpemsLoginPage() {
     }
     setError("");
     setResetLoading(true);
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+    const { error: resetError } = await resetClient.auth.resetPasswordForEmail(
       email,
-      { redirectTo: `${window.location.origin}/auth/callback?next=/tpems/restablecer-clave` }
+      { redirectTo: `${window.location.origin}/tpems/restablecer-clave` }
     );
     if (resetError) {
       setError(resetError.message);

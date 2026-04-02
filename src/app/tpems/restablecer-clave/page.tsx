@@ -27,24 +27,24 @@ function RestablecerClaveContent() {
   const canSubmit = isMinLength && passwordsMatch && !saving;
 
   useEffect(() => {
-    // Listen for auth state changes (covers both PKCE auto-detection and implicit flow)
+    // The password reset email uses implicit flow (not PKCE), so the redirect
+    // arrives with hash fragments: #access_token=xxx&type=recovery
+    // createBrowserClient (detectSessionInUrl: true) automatically processes
+    // hash fragments and fires auth events.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session && (event === "SIGNED_IN" || event === "PASSWORD_RECOVERY" || event === "INITIAL_SESSION")) {
+      if (session && (event === "SIGNED_IN" || event === "PASSWORD_RECOVERY" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION")) {
         setSessionReady(true);
       }
     });
 
-    // Handle PKCE flow: try exchanging code from URL.
-    // createBrowserClient (detectSessionInUrl: true) may have already consumed
-    // the code automatically, so if our manual exchange fails we fall back to
-    // checking for an existing session.
+    // Also handle PKCE code flow as fallback (e.g. if email was sent before
+    // switching to implicit flow)
     const code = searchParams.get("code");
     if (code) {
       supabase.auth.exchangeCodeForSession(code).then(({ error: codeError }) => {
         if (!codeError) {
           setSessionReady(true);
         } else {
-          // Auto-detection may have already exchanged the code — check session
           supabase.auth.getSession().then(({ data: { session } }) => {
             if (session) {
               setSessionReady(true);
@@ -55,10 +55,17 @@ function RestablecerClaveContent() {
         }
       });
     } else {
-      // No code in URL — check if already in a session
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session) setSessionReady(true);
-      });
+      // No code — check hash fragments were processed or existing session
+      // Give detectSessionInUrl a moment to process hash fragments
+      setTimeout(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session) {
+            setSessionReady(true);
+          } else if (!window.location.hash) {
+            setError("El enlace ha expirado o es invalido. Solicita uno nuevo.");
+          }
+        });
+      }, 1000);
     }
 
     return () => subscription.unsubscribe();
