@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-service";
-import { sendStudentCredentials } from "@/lib/email";
+import { sendStudentCredentials, sendReturningStudentWelcome } from "@/lib/email";
 import crypto from "crypto";
 
 export async function POST(request: Request) {
@@ -20,36 +20,67 @@ export async function POST(request: Request) {
     for (const student of students) {
       try {
         const { firstName, lastName, email, rut, company } = student;
-        const password = crypto.randomBytes(4).toString("hex");
+        let isReturningStudent = false;
 
-        // Create or get auth user
+        // Check if student already exists
         let userId: string | undefined;
-        const { data: authData, error: authError } =
-          await supabaseAdmin.auth.admin.createUser({
-            email,
-            password,
-            email_confirm: true,
-            user_metadata: { full_name: `${firstName} ${lastName}` },
-          });
+        const { data: existingProfile } = await supabaseAdmin
+          .from("profiles")
+          .select("user_id")
+          .eq("email", email)
+          .single();
 
-        userId = authData?.user?.id;
+        if (existingProfile?.user_id) {
+          // Returning student — DO NOT reset password
+          userId = existingProfile.user_id;
+          isReturningStudent = true;
+        } else {
+          // New student — create auth user with temporary password
+          const password = crypto.randomBytes(4).toString("hex");
 
-        if (authError) {
-          if (authError.message.includes("already been registered")) {
-            const { data: users } =
-              await supabaseAdmin.auth.admin.listUsers();
-            const existing = users?.users?.find(
-              (u: any) => u.email === email
-            );
-            if (existing) {
-              userId = existing.id;
-              await supabaseAdmin.auth.admin.updateUserById(existing.id, {
-                password,
-              });
+          const { data: authData, error: authError } =
+            await supabaseAdmin.auth.admin.createUser({
+              email,
+              password,
+              email_confirm: true,
+              user_metadata: { full_name: `${firstName} ${lastName}` },
+            });
+
+          userId = authData?.user?.id;
+
+          if (authError) {
+            if (authError.message.includes("already been registered")) {
+              const { data: users } =
+                await supabaseAdmin.auth.admin.listUsers();
+              const existing = users?.users?.find(
+                (u: any) => u.email === email
+              );
+              if (existing) {
+                userId = existing.id;
+                isReturningStudent = true;
+              }
+            } else {
+              results.push({ email, success: false, error: authError.message });
+              continue;
             }
-          } else {
-            results.push({ email, success: false, error: authError.message });
-            continue;
+          }
+
+          // Only send credentials email for NEW students
+          if (!isReturningStudent) {
+            const { data: courseData } = await supabaseAdmin
+              .from("courses")
+              .select("title")
+              .eq("id", courseId)
+              .single();
+
+            try {
+              await sendStudentCredentials(
+                email,
+                password,
+                `${firstName} ${lastName}`,
+                courseData?.title || "Curso ENAE"
+              );
+            } catch {}
           }
         }
 
@@ -99,23 +130,21 @@ export async function POST(request: Request) {
           continue;
         }
 
-        // Get course name for email
-        const { data: course } = await supabaseAdmin
-          .from("courses")
-          .select("title")
-          .eq("id", courseId)
-          .single();
+        // Send welcome-back email for returning students
+        if (isReturningStudent) {
+          const { data: courseData } = await supabaseAdmin
+            .from("courses")
+            .select("title")
+            .eq("id", courseId)
+            .single();
 
-        // Send credentials
-        try {
-          await sendStudentCredentials(
-            email,
-            password,
-            `${firstName} ${lastName}`,
-            course?.title || "Curso ENAE"
-          );
-        } catch {
-          // Don't fail if email fails
+          try {
+            await sendReturningStudentWelcome(
+              email,
+              `${firstName} ${lastName}`,
+              courseData?.title || "Curso ENAE"
+            );
+          } catch {}
         }
 
         results.push({ email, success: true });

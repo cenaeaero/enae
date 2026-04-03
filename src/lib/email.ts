@@ -50,6 +50,40 @@ export async function sendStudentCredentials(
   });
 }
 
+export async function sendReturningStudentWelcome(
+  email: string,
+  studentName: string,
+  courseName: string
+) {
+  await transporter.sendMail({
+    from: `"ENAE Training" <${FROM}>`,
+    to: email,
+    subject: `Bienvenido de vuelta a ENAE - Nuevo curso: ${courseName}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #003366; padding: 20px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">ENAE TPEMS</h1>
+          <p style="color: #93C5FD; margin: 5px 0 0; font-size: 12px;">Training Programme Electronic Management System</p>
+        </div>
+        <div style="padding: 30px; background: #f8f9fa;">
+          <h2 style="color: #003366;">Hola ${studentName},</h2>
+          <p>Nos alegra que vuelvas a nuestras aulas. Te damos la mas cordial bienvenida a tu nuevo curso:</p>
+          <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
+            <h3 style="color: #003366; margin: 0 0 5px;">${courseName}</h3>
+            <p style="color: #6b7280; margin: 0; font-size: 14px;">Este curso ha sido agregado a tu portal de alumnos</p>
+          </div>
+          <p>Accede con tus credenciales habituales — tu contrasena no ha cambiado:</p>
+          <a href="${SITE_URL}/tpems" style="display: inline-block; background: #0072CE; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">Acceder al Portal</a>
+          <p style="margin-top: 20px; color: #6b7280; font-size: 14px;">Si tienes dudas, contactanos en <a href="mailto:${ADMIN_EMAIL}">${ADMIN_EMAIL}</a></p>
+        </div>
+        <div style="background: #001d3d; padding: 15px; text-align: center;">
+          <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegacion Aerea | AOC 1521 DGAC</p>
+        </div>
+      </div>
+    `,
+  });
+}
+
 export async function sendAdminRegistrationNotification(
   studentName: string,
   studentEmail: string,

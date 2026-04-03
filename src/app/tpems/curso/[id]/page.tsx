@@ -590,7 +590,7 @@ export default function TpemsCourseDetail() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "info", label: "Info" },
-    ...(modules.length > 0 ? [{ key: "modules" as Tab, label: `Módulos (${totalModules})` }] : []),
+    ...(modules.length > 0 && lessons.length > 0 ? [{ key: "modules" as Tab, label: `Módulos (${totalModules})` }] : []),
     { key: "grades", label: "Calificaciones" },
     { key: "evaluation", label: "Evaluation" },
     { key: "messages", label: "Mensajes" },
@@ -779,17 +779,22 @@ export default function TpemsCourseDetail() {
                   const isSelected = mod.id === selectedModuleId;
                   const modLessons = lessons.filter((l) => l.module_id === mod.id);
                   const completedLessons = modLessons.filter((l) => getLessonStatus(l.id) === "completed").length;
+                  // Module is locked if previous module is not completed (except first)
+                  const prevModuleCompleted = idx === 0 || getModuleStatus(modules[idx - 1].id) === "completed";
+                  const isModuleLocked = !prevModuleCompleted;
                   return (
-                    <button key={mod.id} onClick={() => { setSelectedModuleId(mod.id); setExpandedLessonId(null); }}
-                      className={`w-full text-left px-4 py-3 flex items-start gap-3 transition border-b border-gray-50 last:border-0 ${isSelected ? "bg-blue-50" : "hover:bg-gray-50"}`}>
+                    <button key={mod.id}
+                      onClick={() => { if (!isModuleLocked) { setSelectedModuleId(mod.id); setExpandedLessonId(null); } }}
+                      disabled={isModuleLocked}
+                      className={`w-full text-left px-4 py-3 flex items-start gap-3 transition border-b border-gray-50 last:border-0 ${isSelected ? "bg-blue-50" : isModuleLocked ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-50"}`}>
                       <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${status === "completed" ? "bg-green-500" : status === "in_progress" ? "bg-[#F57C00]" : "bg-gray-200"}`}>
                         {status === "completed" ? (
                           <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                        ) : (<span className="text-xs font-bold text-white">{idx + 1}</span>)}
+                        ) : isModuleLocked ? (<span className="text-xs">🔒</span>) : (<span className="text-xs font-bold text-white">{idx + 1}</span>)}
                       </div>
                       <div>
-                        <p className={`text-sm leading-tight ${isSelected ? "font-semibold text-[#003366]" : "text-gray-700"}`}>{mod.title}</p>
-                        <span className="text-xs text-gray-400">{completedLessons}/{modLessons.length} lecciones</span>
+                        <p className={`text-sm leading-tight ${isSelected ? "font-semibold text-[#003366]" : isModuleLocked ? "text-gray-400" : "text-gray-700"}`}>{mod.title}</p>
+                        <span className="text-xs text-gray-400">{isModuleLocked ? "Completa el modulo anterior" : `${completedLessons}/${modLessons.length} lecciones`}</span>
                       </div>
                     </button>
                   );
