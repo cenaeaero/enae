@@ -375,9 +375,21 @@ export default function AdminModulosPage({ params }: { params: Promise<{ id: str
                                 <textarea value={les.description || ""} onChange={(e) => updateLesson(mi, li, "description", e.target.value)} placeholder="<h2>Titulo</h2><p>Contenido HTML...</p>" rows={8} className="w-full border border-gray-200 rounded px-3 py-2 text-sm font-mono text-xs" />
                                 <p className="text-xs text-gray-400 mt-1">Ingresa codigo HTML. Se renderizara tal cual en la vista del alumno.</p>
                                 {les.description && (
-                                  <div className="mt-2 border border-gray-200 rounded-lg p-3 bg-white">
-                                    <p className="text-xs text-gray-400 mb-1">Vista previa:</p>
-                                    <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: les.description }} />
+                                  <div className="mt-2 border border-gray-200 rounded-lg overflow-hidden bg-white">
+                                    <p className="text-xs text-gray-400 px-3 pt-2">Vista previa:</p>
+                                    <iframe
+                                      srcDoc={les.description}
+                                      className="w-full border-0"
+                                      style={{ minHeight: "400px" }}
+                                      sandbox="allow-scripts"
+                                      onLoad={(e) => {
+                                        const iframe = e.target as HTMLIFrameElement;
+                                        try {
+                                          const h = iframe.contentDocument?.documentElement?.scrollHeight;
+                                          if (h) iframe.style.height = `${h + 20}px`;
+                                        } catch {}
+                                      }}
+                                    />
                                   </div>
                                 )}
                               </div>
@@ -393,7 +405,7 @@ export default function AdminModulosPage({ params }: { params: Promise<{ id: str
                                 {les.description && les.description.startsWith("http") && (
                                   <div className="mt-2 border border-gray-200 rounded-lg overflow-hidden bg-white">
                                     <p className="text-xs text-gray-400 px-3 pt-2">Vista previa:</p>
-                                    <iframe src={les.description.trim()} className="w-full border-0" style={{ height: "400px" }} sandbox="allow-scripts allow-same-origin" />
+                                    <iframe src={les.description.trim()} className="w-full border-0" style={{ height: "400px" }} sandbox="allow-scripts allow-popups allow-forms" />
                                   </div>
                                 )}
                               </div>
