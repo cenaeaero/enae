@@ -3,6 +3,7 @@
 import { use, useEffect, useState, useCallback } from "react";
 import { areas } from "@/data/courses";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 import {
   getCourse,
   updateCourse,
@@ -131,6 +132,26 @@ export default function EditCoursePage({
         prerequisites: prerequisites.filter((p) => p.trim()),
         is_active: isActive,
       });
+
+      // Sync module names with course_modules table (LMS)
+      const cleanModules = modules.filter((m) => m.trim());
+      const { data: existingCM } = await supabase
+        .from("course_modules")
+        .select("id, title, sort_order")
+        .eq("course_id", id)
+        .order("sort_order");
+
+      if (existingCM) {
+        for (let i = 0; i < existingCM.length; i++) {
+          const cm = existingCM[i];
+          if (i < cleanModules.length && cm.title !== cleanModules[i]) {
+            await supabase
+              .from("course_modules")
+              .update({ title: cleanModules[i], sort_order: i })
+              .eq("id", cm.id);
+          }
+        }
+      }
 
       // Save sessions
       for (const session of sessions) {
