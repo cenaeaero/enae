@@ -21,16 +21,23 @@ export async function POST(request: Request) {
     if (action === "start") {
       const { exam_id, registration_id } = body;
 
+      // Find exam by id or by activity_id
+      let { data: exam } = await supabaseAdmin.from("exams").select("*").eq("id", exam_id).maybeSingle();
+      if (!exam) {
+        const { data: byActivity } = await supabaseAdmin.from("exams").select("*").eq("activity_id", exam_id).maybeSingle();
+        exam = byActivity;
+      }
+      if (!exam) return NextResponse.json({ error: "Examen no encontrado" }, { status: 404 });
+
+      const realExamId = exam.id;
+
       // Count existing attempts
       const { count } = await supabaseAdmin
         .from("exam_attempts")
         .select("id", { count: "exact", head: true })
-        .eq("exam_id", exam_id)
+        .eq("exam_id", realExamId)
         .eq("registration_id", registration_id)
         .eq("status", "completed");
-
-      const { data: exam } = await supabaseAdmin.from("exams").select("*").eq("id", exam_id).single();
-      if (!exam) return NextResponse.json({ error: "Examen no encontrado" }, { status: 404 });
 
       if ((count || 0) >= exam.max_attempts) {
         return NextResponse.json({ error: "Intentos maximos alcanzados" }, { status: 400 });
@@ -39,7 +46,7 @@ export async function POST(request: Request) {
       // Create attempt
       const { data: attempt, error: attemptErr } = await supabaseAdmin
         .from("exam_attempts")
-        .insert({ exam_id, registration_id, attempt_number: (count || 0) + 1 })
+        .insert({ exam_id: realExamId, registration_id, attempt_number: (count || 0) + 1 })
         .select()
         .single();
 
@@ -49,7 +56,7 @@ export async function POST(request: Request) {
       let { data: questions } = await supabaseAdmin
         .from("exam_questions")
         .select("id, sort_order, question_type, question_text, options, points")
-        .eq("exam_id", exam_id)
+        .eq("exam_id", realExamId)
         .order("sort_order");
 
       if (exam.shuffle_questions && questions) {
