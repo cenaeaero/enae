@@ -1029,22 +1029,32 @@ export default function TpemsCourseDetail() {
                                   </div>
                                 )}
 
-                                {/* HTML content lesson — protected */}
+                                {/* HTML content lesson — protected via sandboxed iframe */}
                                 {les.type === "html" && (
-                                  <div
-                                    style={{ userSelect: "none", WebkitUserSelect: "none" }}
-                                    onContextMenu={(e) => e.preventDefault()}
-                                    onCopy={(e) => e.preventDefault()}
-                                    onCut={(e) => e.preventDefault()}
-                                    onDragStart={(e) => e.preventDefault()}
-                                    onSelectStart={(e) => e.preventDefault()}
-                                  >
-                                    {desc && (
-                                      <div
-                                        className="prose prose-sm max-w-none mb-3 [&_img]:pointer-events-none [&_img]:select-none"
-                                        dangerouslySetInnerHTML={{ __html: desc }}
-                                      />
-                                    )}
+                                  <div>
+                                    {desc && (() => {
+                                      const protectionCSS = `<style>body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}img{pointer-events:none;-webkit-user-drag:none;}@media print{body{display:none !important;}}</style>`;
+                                      const protectionJS = `<script>document.addEventListener('contextmenu',e=>e.preventDefault());document.addEventListener('copy',e=>e.preventDefault());document.addEventListener('cut',e=>e.preventDefault());document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&(e.key==='p'||e.key==='u'||e.key==='s'))e.preventDefault();});</script>`;
+                                      const isFullDoc = desc.trim().toLowerCase().startsWith("<!doctype") || desc.trim().toLowerCase().startsWith("<html");
+                                      const srcDoc = isFullDoc
+                                        ? desc.replace(/<\/head>/i, `${protectionCSS}</head>`).replace(/<\/body>/i, `${protectionJS}</body>`)
+                                        : `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">${protectionCSS}</head><body>${desc}${protectionJS}</body></html>`;
+                                      return (
+                                        <iframe
+                                          srcDoc={srcDoc}
+                                          className="w-full border-0 rounded-lg mb-3"
+                                          style={{ minHeight: "500px" }}
+                                          sandbox="allow-scripts"
+                                          onLoad={(e) => {
+                                            const iframe = e.target as HTMLIFrameElement;
+                                            try {
+                                              const h = iframe.contentDocument?.documentElement?.scrollHeight;
+                                              if (h) iframe.style.height = `${h + 20}px`;
+                                            } catch {}
+                                          }}
+                                        />
+                                      );
+                                    })()}
                                     {status !== "completed" && (
                                       <button onClick={() => completeLesson(les.id)} disabled={updatingProgress} className="bg-green-600 hover:bg-green-700 text-white text-sm px-4 py-2 rounded-lg transition disabled:opacity-50">
                                         {updatingProgress ? "Guardando..." : "Marcar como completado"}
