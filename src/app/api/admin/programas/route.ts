@@ -4,18 +4,13 @@ import { createSupabaseServer } from "@/lib/supabase-server";
 
 async function verifyAdmin() {
   const supabase = await createSupabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user?.email) return null;
-
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user?.id) return null;
   const { data: profile } = await supabaseAdmin
     .from("profiles")
     .select("role")
-    .eq("email", user.email)
-    .single();
-
+    .eq("user_id", user.id)
+    .maybeSingle();
   return profile?.role === "admin" ? user : null;
 }
 
