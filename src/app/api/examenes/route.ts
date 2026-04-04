@@ -148,11 +148,32 @@ export async function POST(request: Request) {
         }, { onConflict: "registration_id,grade_item_id" });
       }
 
+      // Build review data with correct answers
+      const { data: fullQuestions } = await supabaseAdmin
+        .from("exam_questions")
+        .select("id, question_text, question_type, options, correct_answer, points")
+        .eq("exam_id", attempt.exam_id)
+        .order("sort_order");
+
+      const review = (fullQuestions || []).map((q: any) => {
+        const studentAns = (answers || []).find((a: any) => a.question_id === q.id);
+        return {
+          id: q.id,
+          question_text: q.question_text,
+          question_type: q.question_type,
+          options: q.options,
+          correct_answer: q.correct_answer,
+          selected_answer: studentAns?.selected_answer || null,
+          is_correct: studentAns?.selected_answer === q.correct_answer,
+        };
+      });
+
       return NextResponse.json({
         score,
         total_points: totalPoints,
         earned_points: earnedPoints,
         passed: score >= (exam?.passing_score || 80),
+        review,
       });
     }
 
