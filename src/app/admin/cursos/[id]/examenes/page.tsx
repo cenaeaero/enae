@@ -177,14 +177,17 @@ function ExamEditorContent({ courseId }: { courseId: string }) {
   async function saveExamSettings() {
     if (!exam) return;
     setSaving(true);
+    setError("");
     try {
-      await fetch("/api/admin/examenes", {
+      const res = await fetch("/api/admin/examenes", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(exam),
       });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
       setSuccess("Configuracion guardada");
-    } catch { setError("Error al guardar configuracion"); }
+    } catch (err: any) { setError(err.message || "Error al guardar configuracion"); }
     setSaving(false);
   }
 

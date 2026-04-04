@@ -4,10 +4,29 @@ import { createSupabaseServer } from "@/lib/supabase-server";
 
 async function verifyAdmin() {
   const supabase = await createSupabaseServer();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user?.email) return null;
-  const { data: profile } = await supabaseAdmin.from("profiles").select("role").eq("email", user.email).single();
-  return profile?.role === "admin" ? user : null;
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError) {
+    console.error("[verifyAdmin] auth error:", authError.message);
+    return null;
+  }
+  if (!user?.email) {
+    console.error("[verifyAdmin] no user or no email");
+    return null;
+  }
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from("profiles")
+    .select("role")
+    .eq("email", user.email)
+    .single();
+  if (profileError) {
+    console.error("[verifyAdmin] profile lookup error:", profileError.message);
+    return null;
+  }
+  if (profile?.role !== "admin") {
+    console.error("[verifyAdmin] user role is:", profile?.role, "for email:", user.email);
+    return null;
+  }
+  return user;
 }
 
 // GET: Load exam + questions
