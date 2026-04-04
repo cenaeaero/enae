@@ -85,6 +85,7 @@ const lessonIcons: Record<string, string> = {
   zoom: "🎥",
   reading: "📖",
   html: "🌐",
+  h5p: "🎮",
 };
 
 const lessonLabels: Record<string, string> = {
@@ -95,6 +96,7 @@ const lessonLabels: Record<string, string> = {
   zoom: "Session Zoom",
   reading: "Lectura",
   html: "Contenido",
+  h5p: "Interactivo",
 };
 
 export default function TpemsCourseDetail() {
@@ -930,11 +932,40 @@ export default function TpemsCourseDetail() {
                                   </div>
                                 )}
 
-                                {/* HTML content lesson */}
+                                {/* HTML content lesson — protected */}
                                 {les.type === "html" && (
                                   <div>
                                     {desc && (
-                                      <div className="prose prose-sm max-w-none mb-3" dangerouslySetInnerHTML={{ __html: desc }} />
+                                      <div
+                                        className="prose prose-sm max-w-none mb-3"
+                                        style={{ userSelect: "none", WebkitUserSelect: "none" }}
+                                        onContextMenu={(e) => e.preventDefault()}
+                                        onCopy={(e) => e.preventDefault()}
+                                        onCut={(e) => e.preventDefault()}
+                                        dangerouslySetInnerHTML={{ __html: desc }}
+                                      />
+                                    )}
+                                    {status !== "completed" && (
+                                      <button onClick={() => completeLesson(les.id)} disabled={updatingProgress} className="bg-green-600 hover:bg-green-700 text-white text-sm px-4 py-2 rounded-lg transition disabled:opacity-50">
+                                        {updatingProgress ? "Guardando..." : "Marcar como completado"}
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* HTML5 interactive content */}
+                                {les.type === "h5p" && (
+                                  <div>
+                                    {desc && desc.startsWith("http") && (
+                                      <div className="rounded-lg overflow-hidden border border-gray-200 mb-3">
+                                        <iframe
+                                          src={desc.trim()}
+                                          className="w-full border-0"
+                                          style={{ height: "500px" }}
+                                          sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+                                          allowFullScreen
+                                        />
+                                      </div>
                                     )}
                                     {status !== "completed" && (
                                       <button onClick={() => completeLesson(les.id)} disabled={updatingProgress} className="bg-green-600 hover:bg-green-700 text-white text-sm px-4 py-2 rounded-lg transition disabled:opacity-50">

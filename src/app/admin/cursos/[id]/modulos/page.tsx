@@ -37,6 +37,7 @@ const lessonTypes = [
   { value: "zoom", label: "Session Zoom", icon: "🎥" },
   { value: "reading", label: "Lectura", icon: "📖" },
   { value: "html", label: "Contenido HTML", icon: "🌐" },
+  { value: "h5p", label: "HTML5 Interactivo", icon: "🎮" },
 ];
 
 export default function AdminModulosPage({ params }: { params: Promise<{ id: string }> }) {
@@ -377,6 +378,22 @@ export default function AdminModulosPage({ params }: { params: Promise<{ id: str
                                   <div className="mt-2 border border-gray-200 rounded-lg p-3 bg-white">
                                     <p className="text-xs text-gray-400 mb-1">Vista previa:</p>
                                     <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: les.description }} />
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {les.type === "h5p" && (
+                              <div className="space-y-2">
+                                <textarea value={les.description || ""} onChange={(e) => updateLesson(mi, li, "description", e.target.value)} placeholder="URL del contenido HTML5 interactivo (ej: https://supabase.co/storage/.../actividad.html)" rows={2} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
+                                <div className="bg-purple-50 rounded p-3">
+                                  <p className="text-xs text-purple-700 mb-1">Ingresa la URL de un archivo HTML5 interactivo alojado en Supabase Storage u otro servicio.</p>
+                                  <p className="text-xs text-purple-600">El contenido se mostrara en un iframe dentro de la leccion del alumno.</p>
+                                </div>
+                                {les.description && les.description.startsWith("http") && (
+                                  <div className="mt-2 border border-gray-200 rounded-lg overflow-hidden bg-white">
+                                    <p className="text-xs text-gray-400 px-3 pt-2">Vista previa:</p>
+                                    <iframe src={les.description.trim()} className="w-full border-0" style={{ height: "400px" }} sandbox="allow-scripts allow-same-origin" />
                                   </div>
                                 )}
                               </div>
