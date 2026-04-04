@@ -694,12 +694,6 @@ export default function TpemsCourseDetail() {
                   <p><span className="font-medium text-gray-700">Modalidad:</span> <span className="text-gray-600">{course.session_modality}</span></p>
                   <p><span className="font-medium text-gray-700">Instructor:</span> <span className="text-gray-600">{course.instructor_name || "Por confirmar"}</span></p>
                 </div>
-                {course.moodle_url && (
-                  <a href={course.moodle_url} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex items-center gap-2 bg-[#F57C00] hover:bg-[#E65100] text-white text-sm font-medium px-4 py-2 rounded-lg transition">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                    Abrir en Moodle
-                  </a>
-                )}
                 {modules.length > 0 && (
                   <button onClick={() => setActiveTab("modules")} className="mt-4 ml-2 inline-flex items-center gap-2 bg-[#0072CE] hover:bg-[#005BA1] text-white text-sm font-medium px-4 py-2 rounded-lg transition">
                     {completedCount > 0 ? "Continuar Curso" : "Iniciar Curso"}

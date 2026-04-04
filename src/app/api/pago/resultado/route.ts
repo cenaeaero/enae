@@ -2,9 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { confirmTransaction } from "@/lib/transbank";
 import { supabaseAdmin } from "@/lib/supabase-service";
-import { sendAdminPaymentNotification, sendStudentPaymentReceipt } from "@/lib/email";
-import { enrollStudentInMoodleByCode } from "@/lib/moodle";
-import { sendStudentMoodleAccess } from "@/lib/email";
+import { sendAdminPaymentNotification, sendStudentPaymentReceipt, sendStudentCourseAccess } from "@/lib/email";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
@@ -12,18 +10,14 @@ async function handlePaymentResult(token: string | null) {
   const successUrl = `${SITE_URL}/tpems/pago/exito`;
   const errorUrl = `${SITE_URL}/tpems/pago/error`;
 
-  // No token = user cancelled
   if (!token) {
     return NextResponse.redirect(errorUrl, { status: 303 });
   }
 
   try {
-    // Confirm transaction with Transbank
     const result = await confirmTransaction(token);
-
     console.log("Transbank result:", JSON.stringify(result));
 
-    // Find payment by token
     const { data: payment, error: paymentErr } = await supabaseAdmin
       .from("payments")
       .select("id, registration_id, amount")
@@ -49,12 +43,11 @@ async function handlePaymentResult(token: string | null) {
         .update({ status: "confirmed" })
         .eq("id", payment.registration_id);
 
-      // Send emails + Moodle enrollment
-      let moodleResult: { success: boolean; moodleUserId?: number; moodleCourseId?: number; moodleUsername?: string; error?: string } | null = null;
+      // Send emails
       try {
         const { data: reg } = await supabaseAdmin
           .from("registrations")
-          .select("first_name, last_name, email, courses (title, code, moodle_url)")
+          .select("first_name, last_name, email, courses (title)")
           .eq("id", payment.registration_id)
           .single();
 
@@ -62,61 +55,22 @@ async function handlePaymentResult(token: string | null) {
           const r = reg as any;
           const studentName = r.first_name + " " + r.last_name;
           const courseName = r.courses?.title || "Curso";
-          const courseCode = r.courses?.code || null;
-          const moodleUrl = r.courses?.moodle_url || null;
 
           // Admin notification
-          await sendAdminPaymentNotification(
-            studentName,
-            r.email,
-            courseName,
-            payment.amount
-          );
+          await sendAdminPaymentNotification(studentName, r.email, courseName, payment.amount);
 
           // Student receipt
-          await sendStudentPaymentReceipt(
-            r.email,
-            studentName,
-            courseName,
-            {
-              buyOrder: result.buyOrder || "",
-              amount: result.amount || payment.amount,
-              cardNumber: result.cardNumber || "",
-              authorizationCode: result.authorizationCode || "",
-              installments: result.installmentsNumber || 0,
-              date: result.transactionDate || new Date().toISOString(),
-            }
-          );
+          await sendStudentPaymentReceipt(r.email, studentName, courseName, {
+            buyOrder: result.buyOrder || "",
+            amount: result.amount || payment.amount,
+            cardNumber: result.cardNumber || "",
+            authorizationCode: result.authorizationCode || "",
+            installments: result.installmentsNumber || 0,
+            date: result.transactionDate || new Date().toISOString(),
+          });
 
-          // Moodle enrollment — try by course code first, then by URL
-          moodleResult = await enrollStudentInMoodleByCode(
-            r.email,
-            r.first_name,
-            r.last_name,
-            courseCode,
-            moodleUrl
-          );
-
-          console.log(
-            "Moodle enrollment:",
-            moodleResult.success
-              ? `OK (user=${moodleResult.moodleUserId}, course=${moodleResult.moodleCourseId})`
-              : moodleResult.error
-          );
-
-          // Send Moodle access email to student
-          if (moodleResult.success && moodleResult.moodleUsername) {
-            try {
-              await sendStudentMoodleAccess(
-                r.email,
-                studentName,
-                courseName,
-                moodleResult.moodleUsername
-              );
-            } catch (e) {
-              console.error("Failed to send Moodle access email:", e);
-            }
-          }
+          // Course access email (LMS interno)
+          await sendStudentCourseAccess(r.email, studentName, courseName);
         }
       } catch (e) {
         console.error("Email notification failed:", e);
@@ -130,11 +84,9 @@ async function handlePaymentResult(token: string | null) {
         date: result.transactionDate || new Date().toISOString(),
         installments: String(result.installmentsNumber || 0),
         regId: payment.registration_id,
-        moodle: moodleResult?.success ? "1" : "0",
       });
       return NextResponse.redirect(`${successUrl}?${params.toString()}`, { status: 303 });
     } else {
-      // Payment rejected
       console.log("Payment rejected, responseCode:", result.responseCode);
       await supabaseAdmin
         .from("payments")
@@ -149,22 +101,17 @@ async function handlePaymentResult(token: string | null) {
   }
 }
 
-// Transbank sends POST with token_ws in form data
 export async function POST(request: NextRequest) {
   let token: string | null = null;
-
   try {
     const formData = await request.formData();
     token = formData.get("token_ws") as string;
   } catch {
-    // If formData fails, try URL params
     token = request.nextUrl.searchParams.get("token_ws");
   }
-
   return handlePaymentResult(token);
 }
 
-// Transbank may also redirect via GET
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token_ws");
   return handlePaymentResult(token);

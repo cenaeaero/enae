@@ -50,7 +50,7 @@ export default function AdminModulosPage({ params }: { params: Promise<{ id: str
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
   const [instructorName, setInstructorName] = useState("");
   const [instructorWhatsapp, setInstructorWhatsapp] = useState("");
-  const [moodleUrl, setMoodleUrl] = useState("");
+  const [moodleUrl, setMoodleUrl] = useState(""); // kept for backward compat
 
   const loadData = useCallback(async () => {
     const { data: course } = await supabase
@@ -204,7 +204,6 @@ export default function AdminModulosPage({ params }: { params: Promise<{ id: str
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div><label className="block text-xs text-gray-500 mb-1">Instructor</label><input value={instructorName} onChange={(e) => setInstructorName(e.target.value)} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" placeholder="Nombre del instructor" /></div>
           <div><label className="block text-xs text-gray-500 mb-1">WhatsApp Instructor</label><input value={instructorWhatsapp} onChange={(e) => setInstructorWhatsapp(e.target.value)} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" placeholder="+56912345678" /></div>
-          <div><label className="block text-xs text-gray-500 mb-1">URL Moodle</label><input value={moodleUrl} onChange={(e) => setMoodleUrl(e.target.value)} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" placeholder="https://cursos.enae.cl/..." /></div>
         </div>
       </div>
 

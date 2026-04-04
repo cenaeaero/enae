@@ -31,14 +31,9 @@ export default function Header() {
             <Link href="/tpems/login" className="hover:text-white transition">
               Portal Alumno
             </Link>
-            <a
-              href="https://cursos.enae.cl"
-              target="_blank"
-              rel="noopener"
-              className="hover:text-white transition"
-            >
-              Plataforma
-            </a>
+            <Link href="/tpems" className="hover:text-white transition">
+              Plataforma LMS
+            </Link>
           </div>
         </div>
       </div>
@@ -220,12 +215,10 @@ export default function Header() {
                 Admisión
               </Link>
               <a
-                href="https://cursos.enae.cl"
-                target="_blank"
-                rel="noopener"
+                href="/tpems"
                 className="block px-3 py-2.5 text-sm hover:bg-[#004B87] rounded-md text-blue-200"
               >
-                Plataforma LMS ↗
+                Plataforma LMS
               </a>
             </div>
           </div>

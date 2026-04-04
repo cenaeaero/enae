@@ -86,14 +86,12 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <a
-                  href="https://cursos.enae.cl"
-                  target="_blank"
-                  rel="noopener"
+                <Link
+                  href="/tpems"
                   className="text-blue-200 hover:text-white transition"
                 >
                   Plataforma LMS
-                </a>
+                </Link>
               </li>
               <li>
                 <a
