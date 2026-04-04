@@ -134,6 +134,7 @@ export default function EditCoursePage({
       });
 
       // Sync module names with course_modules table (LMS)
+      // Match by title to preserve activities when modules are reordered/deleted
       const cleanModules = modules.filter((m) => m.trim());
       const { data: existingCM } = await supabase
         .from("course_modules")
@@ -142,13 +143,26 @@ export default function EditCoursePage({
         .order("sort_order");
 
       if (existingCM) {
-        for (let i = 0; i < existingCM.length; i++) {
-          const cm = existingCM[i];
-          if (i < cleanModules.length && cm.title !== cleanModules[i]) {
-            await supabase
-              .from("course_modules")
-              .update({ title: cleanModules[i], sort_order: i })
-              .eq("id", cm.id);
+        const matched = new Set<string>();
+
+        // Update existing modules that still exist (match by title)
+        for (let i = 0; i < cleanModules.length; i++) {
+          const existing = existingCM.find((cm) => cm.title === cleanModules[i] && !matched.has(cm.id));
+          if (existing) {
+            matched.add(existing.id);
+            if (existing.sort_order !== i) {
+              await supabase.from("course_modules").update({ sort_order: i }).eq("id", existing.id);
+            }
+          }
+        }
+
+        // Delete course_modules that are no longer in the list
+        // CASCADE will delete their module_activities too
+        const toDelete = existingCM.filter((cm) => !matched.has(cm.id));
+        for (const cm of toDelete) {
+          // Only delete if the title is NOT in the new list
+          if (!cleanModules.includes(cm.title)) {
+            await supabase.from("course_modules").delete().eq("id", cm.id);
           }
         }
       }
