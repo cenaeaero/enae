@@ -48,6 +48,7 @@ export default function AdminModulosPage({ params }: { params: Promise<{ id: str
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+  const [deletedLessonIds, setDeletedLessonIds] = useState<string[]>([]);
   const [instructorName, setInstructorName] = useState("");
   const [instructorWhatsapp, setInstructorWhatsapp] = useState("");
   const [moodleUrl, setMoodleUrl] = useState(""); // kept for backward compat
@@ -132,17 +133,42 @@ export default function AdminModulosPage({ params }: { params: Promise<{ id: str
   function removeMaterial(mi: number, matI: number) { updateModule(mi, "materials", modules[mi].materials.filter((_, i) => i !== matI)); }
 
   function addLesson(mi: number, type: string) {
-    updateModule(mi, "lessons", [...modules[mi].lessons, { sort_order: modules[mi].lessons.length, type, title: "", description: "", video_entry_id: "", video_title: "", is_new: true }]);
+    updateModule(mi, "lessons", [...modules[mi].lessons, { sort_order: modules[mi].lessons.length, type, title: "", description: "", video_entry_id: "", is_new: true }]);
   }
   function updateLesson(mi: number, li: number, field: string, value: any) {
     const ls = [...modules[mi].lessons]; ls[li] = { ...ls[li], [field]: value }; updateModule(mi, "lessons", ls);
   }
-  function removeLesson(mi: number, li: number) { updateModule(mi, "lessons", modules[mi].lessons.filter((_, i) => i !== li)); }
+  function removeLesson(mi: number, li: number) {
+    const lesson = modules[mi].lessons[li];
+    // Track deleted lessons that exist in DB for deletion on save
+    if (lesson.id) {
+      setDeletedLessonIds((prev) => [...prev, lesson.id!]);
+    }
+    updateModule(mi, "lessons", modules[mi].lessons.filter((_, i) => i !== li));
+  }
+  function moveLessonUp(mi: number, li: number) {
+    if (li === 0) return;
+    const ls = [...modules[mi].lessons];
+    [ls[li - 1], ls[li]] = [ls[li], ls[li - 1]];
+    updateModule(mi, "lessons", ls);
+  }
+  function moveLessonDown(mi: number, li: number) {
+    const ls = [...modules[mi].lessons];
+    if (li >= ls.length - 1) return;
+    [ls[li], ls[li + 1]] = [ls[li + 1], ls[li]];
+    updateModule(mi, "lessons", ls);
+  }
 
   async function saveAll() {
     setSaving(true); setError(""); setSuccess("");
     try {
-      await supabase.from("courses").update({ instructor_name: instructorName, instructor_whatsapp: instructorWhatsapp, moodle_url: moodleUrl }).eq("id", courseId);
+      await supabase.from("courses").update({ instructor_name: instructorName, instructor_whatsapp: instructorWhatsapp }).eq("id", courseId);
+
+      // Delete removed lessons from DB (CASCADE deletes exams, discussions, etc.)
+      if (deletedLessonIds.length > 0) {
+        await supabase.from("module_activities").delete().in("id", deletedLessonIds);
+        setDeletedLessonIds([]);
+      }
 
       for (let i = 0; i < modules.length; i++) {
         const m = modules[i];
@@ -276,7 +302,11 @@ export default function AdminModulosPage({ params }: { params: Promise<{ id: str
                             <span className="text-xs font-medium text-gray-500">
                               {lessonTypes.find((t) => t.value === les.type)?.icon} Leccion {li + 1}: {lessonTypes.find((t) => t.value === les.type)?.label}
                             </span>
-                            <button onClick={() => removeLesson(mi, li)} className="text-xs text-red-500 hover:underline">Eliminar</button>
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => moveLessonUp(mi, li)} disabled={li === 0} className="text-xs text-gray-400 hover:text-gray-700 disabled:opacity-30" title="Mover arriba">▲</button>
+                              <button onClick={() => moveLessonDown(mi, li)} disabled={li === mod.lessons.length - 1} className="text-xs text-gray-400 hover:text-gray-700 disabled:opacity-30" title="Mover abajo">▼</button>
+                              <button onClick={() => removeLesson(mi, li)} className="text-xs text-red-500 hover:underline">Eliminar</button>
+                            </div>
                           </div>
 
                           <input value={les.title} onChange={(e) => updateLesson(mi, li, "title", e.target.value)} placeholder="Titulo de la leccion" className="w-full border border-gray-200 rounded px-3 py-2 text-sm mb-2" />
