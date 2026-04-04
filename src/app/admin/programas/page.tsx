@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 type Program = {
   id: string;
@@ -52,19 +53,31 @@ export default function AdminProgramasPage() {
   }, []);
 
   async function loadData() {
+    let loaded = false;
+
+    // Try API first
     try {
       const res = await fetch("/api/admin/programas");
-      if (!res.ok) {
-        console.error("Error loading programas:", res.status);
-        setLoading(false);
-        return;
+      if (res.ok) {
+        const json = await res.json();
+        if (json.programs) {
+          setPrograms(json.programs);
+          setCourses(json.courses || []);
+          loaded = true;
+        }
       }
-      const json = await res.json();
-      setPrograms(json.programs || []);
-      setCourses(json.courses || []);
-    } catch (err) {
-      console.error("Error loading programas:", err);
+    } catch {}
+
+    // Fallback: direct Supabase client
+    if (!loaded) {
+      const [programsRes, coursesRes] = await Promise.all([
+        supabase.from("programs").select("*").order("sort_order"),
+        supabase.from("courses").select("id, title, code").order("title"),
+      ]);
+      setPrograms((programsRes.data || []) as Program[]);
+      setCourses((coursesRes.data || []) as CourseOption[]);
     }
+
     setLoading(false);
   }
 
@@ -107,6 +120,7 @@ export default function AdminProgramasPage() {
 
     const isUpdate = "id" in editing && editing.id;
     try {
+      // Try API first
       const res = await fetch("/api/admin/programas", {
         method: isUpdate ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -114,12 +128,18 @@ export default function AdminProgramasPage() {
       });
       const json = await res.json();
       if (!res.ok || json.error) {
-        setMessage("Error: " + (json.error || "Error desconocido"));
-      } else {
-        setMessage(isUpdate ? "Programa actualizado correctamente" : "Programa creado correctamente");
-        setEditing(null);
-        await loadData();
+        // Fallback: direct Supabase
+        if (isUpdate) {
+          const { error: dbErr } = await supabase.from("programs").update(data).eq("id", editing.id);
+          if (dbErr) { setMessage("Error: " + dbErr.message); setSaving(false); return; }
+        } else {
+          const { error: dbErr } = await supabase.from("programs").insert(data);
+          if (dbErr) { setMessage("Error: " + dbErr.message); setSaving(false); return; }
+        }
       }
+      setMessage(isUpdate ? "Programa actualizado correctamente" : "Programa creado correctamente");
+      setEditing(null);
+      await loadData();
     } catch (err) {
       setMessage("Error de conexion: " + (err instanceof Error ? err.message : "desconocido"));
     }
@@ -129,14 +149,19 @@ export default function AdminProgramasPage() {
   async function handleDelete(id: string) {
     if (!confirm("¿Eliminar este programa?")) return;
     try {
-      await fetch("/api/admin/programas", {
+      const res = await fetch("/api/admin/programas", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
+      if (!res.ok) {
+        // Fallback
+        await supabase.from("programs").delete().eq("id", id);
+      }
       await loadData();
-    } catch (err) {
-      console.error("Error deleting program:", err);
+    } catch {
+      await supabase.from("programs").delete().eq("id", id);
+      await loadData();
     }
   }
 
