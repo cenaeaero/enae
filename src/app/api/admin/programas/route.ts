@@ -6,11 +6,22 @@ async function verifyAdmin() {
   const supabase = await createSupabaseServer();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user?.id) return null;
-  const { data: profile } = await supabaseAdmin
+  let { data: profile } = await supabaseAdmin
     .from("profiles")
     .select("role")
     .eq("user_id", user.id)
     .maybeSingle();
+  if (!profile && user.email) {
+    const { data: byEmail } = await supabaseAdmin
+      .from("profiles")
+      .select("role, id")
+      .eq("email", user.email)
+      .limit(1);
+    if (byEmail?.[0]) {
+      profile = byEmail[0];
+      await supabaseAdmin.from("profiles").update({ user_id: user.id }).eq("id", byEmail[0].id);
+    }
+  }
   return profile?.role === "admin" ? user : null;
 }
 
