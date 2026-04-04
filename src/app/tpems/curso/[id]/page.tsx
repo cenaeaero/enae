@@ -125,6 +125,29 @@ export default function TpemsCourseDetail() {
 
   const registrationId = params.id as string;
 
+  // Content protection: block print, Ctrl+U (view source), Ctrl+S (save)
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && (e.key === "p" || e.key === "u" || e.key === "s")) {
+        e.preventDefault();
+      }
+    }
+    function handleBeforePrint() {
+      document.body.style.visibility = "hidden";
+    }
+    function handleAfterPrint() {
+      document.body.style.visibility = "visible";
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("beforeprint", handleBeforePrint);
+    window.addEventListener("afterprint", handleAfterPrint);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("beforeprint", handleBeforePrint);
+      window.removeEventListener("afterprint", handleAfterPrint);
+    };
+  }, []);
+
   function downloadGradesPDF() {
     if (!course || gradeItems.length === 0) return;
     const doc = new jsPDF();
@@ -1008,14 +1031,17 @@ export default function TpemsCourseDetail() {
 
                                 {/* HTML content lesson — protected */}
                                 {les.type === "html" && (
-                                  <div>
+                                  <div
+                                    style={{ userSelect: "none", WebkitUserSelect: "none" }}
+                                    onContextMenu={(e) => e.preventDefault()}
+                                    onCopy={(e) => e.preventDefault()}
+                                    onCut={(e) => e.preventDefault()}
+                                    onDragStart={(e) => e.preventDefault()}
+                                    onSelectStart={(e) => e.preventDefault()}
+                                  >
                                     {desc && (
                                       <div
-                                        className="prose prose-sm max-w-none mb-3"
-                                        style={{ userSelect: "none", WebkitUserSelect: "none" }}
-                                        onContextMenu={(e) => e.preventDefault()}
-                                        onCopy={(e) => e.preventDefault()}
-                                        onCut={(e) => e.preventDefault()}
+                                        className="prose prose-sm max-w-none mb-3 [&_img]:pointer-events-none [&_img]:select-none"
                                         dangerouslySetInnerHTML={{ __html: desc }}
                                       />
                                     )}
@@ -1036,7 +1062,7 @@ export default function TpemsCourseDetail() {
                                           src={desc.trim()}
                                           className="w-full border-0"
                                           style={{ height: "500px" }}
-                                          sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+                                          sandbox="allow-scripts allow-popups allow-forms"
                                           allowFullScreen
                                         />
                                       </div>

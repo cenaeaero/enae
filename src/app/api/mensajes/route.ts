@@ -22,18 +22,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
 
-    // Get profile
+    // Verify registration belongs to user (students) or allow admins/instructors
     const { data: profile } = await supabaseAdmin
       .from("profiles")
-      .select("id")
+      .select("id, role")
       .eq("user_id", user.id)
-      .single();
+      .maybeSingle();
 
     if (!profile) {
       return NextResponse.json(
         { error: "Perfil no encontrado" },
         { status: 404 }
       );
+    }
+
+    if (profile.role === "student") {
+      const { data: reg } = await supabaseAdmin
+        .from("registrations")
+        .select("id, email")
+        .eq("id", registrationId)
+        .single();
+      if (!reg || reg.email !== user.email) {
+        return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+      }
     }
 
     const { data, error } = await supabaseAdmin
@@ -81,6 +92,24 @@ export async function GET(request: Request) {
 
     if (!user) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    }
+
+    // Verify registration belongs to user or user is admin/instructor
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("role")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (profile?.role === "student") {
+      const { data: reg } = await supabaseAdmin
+        .from("registrations")
+        .select("id, email")
+        .eq("id", registrationId)
+        .single();
+      if (!reg || reg.email !== user.email) {
+        return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+      }
     }
 
     const { data, error } = await supabaseAdmin

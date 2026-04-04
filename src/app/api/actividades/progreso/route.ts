@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-service";
+import { createSupabaseServer } from "@/lib/supabase-server";
 
 // POST: Update activity progress + auto-complete module
 export async function POST(request: Request) {
@@ -8,6 +9,23 @@ export async function POST(request: Request) {
 
     if (!registration_id || !activity_id || !status) {
       return NextResponse.json({ error: "registration_id, activity_id y status requeridos" }, { status: 400 });
+    }
+
+    // Verify authenticated user
+    const supabase = await createSupabaseServer();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    }
+
+    // Verify registration belongs to user
+    const { data: registration } = await supabaseAdmin
+      .from("registrations")
+      .select("id, email")
+      .eq("id", registration_id)
+      .single();
+    if (!registration || registration.email !== user.email) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
     const now = new Date().toISOString();
