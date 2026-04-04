@@ -621,33 +621,49 @@ export default function TpemsCourseDetail() {
     return items;
   }
 
+  const tabIcons: Record<Tab, string> = {
+    info: "ℹ️",
+    modules: "📚",
+    grades: "📊",
+    evaluation: "📋",
+    messages: "💬",
+  };
+
   return (
     <>
       {/* Course header */}
-      <div className="bg-[#4FC3F7] text-white">
-        <div className="max-w-6xl mx-auto px-4 py-4">
+      <div className="bg-gradient-to-r from-[#003366] via-[#004B87] to-[#0072CE] text-white">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5">
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.push("/tpems")}
-              className="w-9 h-9 rounded-full border-2 border-white/40 flex items-center justify-center hover:bg-white/10 transition shrink-0"
+              className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center hover:bg-white/20 transition shrink-0"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <div className="flex-1">
-              <h1 className="text-base font-semibold leading-tight">{course.course_title}</h1>
-              <p className="text-white/70 text-xs mt-0.5">
-                {course.course_code} | {course.session_dates} | {course.session_location}
-              </p>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-lg font-bold leading-tight truncate">{course.course_title}</h1>
+              <div className="flex items-center gap-2 mt-1 text-white/60 text-xs">
+                <span className="bg-white/10 px-2 py-0.5 rounded">{course.course_code}</span>
+                <span className="hidden sm:inline">{course.session_dates}</span>
+                <span className="hidden sm:inline">·</span>
+                <span className="hidden sm:inline">{course.session_location}</span>
+              </div>
             </div>
-            {/* Progress badge */}
             {modules.length > 0 && (
-              <div className="hidden sm:flex items-center gap-2 bg-white/20 rounded-full px-3 py-1">
-                <div className="w-20 h-1.5 bg-white/30 rounded-full overflow-hidden">
-                  <div className="h-full bg-white rounded-full transition-all" style={{ width: `${progressPercent}%` }} />
+              <div className="hidden sm:flex items-center gap-3 bg-white/10 backdrop-blur rounded-xl px-4 py-2.5">
+                <div className="text-right">
+                  <p className="text-[10px] uppercase tracking-wider text-white/50 font-medium">Progreso</p>
+                  <p className="text-lg font-bold leading-none">{progressPercent}%</p>
                 </div>
-                <span className="text-xs font-medium">{progressPercent}%</span>
+                <div className="w-16 h-16 relative">
+                  <svg className="w-16 h-16 -rotate-90" viewBox="0 0 36 36">
+                    <path d="M18 2.0845a 15.9155 15.9155 0 0 1 0 31.831a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="3" />
+                    <path d="M18 2.0845a 15.9155 15.9155 0 0 1 0 31.831a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="white" strokeWidth="3" strokeDasharray={`${progressPercent}, 100`} strokeLinecap="round" />
+                  </svg>
+                </div>
               </div>
             )}
           </div>
@@ -655,54 +671,77 @@ export default function TpemsCourseDetail() {
       </div>
 
       {/* Tabs */}
-      <div className="max-w-6xl mx-auto px-4">
-        <div className="flex gap-0 border-b border-gray-200">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`px-4 py-3 text-sm font-medium transition ${
-                activeTab === tab.key
-                  ? "text-gray-800 border-b-2 border-[#F57C00]"
-                  : "text-gray-400 hover:text-gray-600"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="flex gap-1 overflow-x-auto scrollbar-hide -mb-px">
+            {tabs.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex items-center gap-1.5 px-4 py-3.5 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
+                  activeTab === tab.key
+                    ? "text-[#003366] border-[#F57C00]"
+                    : "text-gray-400 border-transparent hover:text-gray-600 hover:border-gray-300"
+                }`}
+              >
+                <span className="text-xs">{tabIcons[tab.key]}</span>
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
         {/* ============ INFO TAB ============ */}
         {activeTab === "info" && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex flex-col sm:flex-row gap-6">
-              <div className="sm:w-40 shrink-0">
-                <div className="bg-gradient-to-br from-[#003366] to-[#004B87] rounded-lg aspect-[3/4] flex items-center justify-center">
-                  <div className="text-center text-white p-4">
-                    <svg className="w-10 h-10 mx-auto mb-2 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                    </svg>
-                    <p className="text-xs text-white/60">ENAE</p>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="bg-gradient-to-r from-[#003366] to-[#004B87] px-6 py-8 sm:py-10">
+              <div className="flex flex-col sm:flex-row items-start gap-5">
+                <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center shrink-0">
+                  <svg className="w-8 h-8 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">{course.course_title}</h2>
+                  <p className="text-white/50 text-sm mt-1">{course.course_code}</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3">
+                  <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 text-sm">⏱</div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Duración</p>
+                    <p className="text-sm font-semibold text-gray-800">{course.course_duration}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3">
+                  <div className="w-9 h-9 rounded-lg bg-purple-100 flex items-center justify-center text-purple-600 text-sm">🎓</div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Modalidad</p>
+                    <p className="text-sm font-semibold text-gray-800">{course.session_modality}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3">
+                  <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600 text-sm">👨‍🏫</div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Instructor</p>
+                    <p className="text-sm font-semibold text-gray-800">{course.instructor_name || "Por confirmar"}</p>
                   </div>
                 </div>
               </div>
-              <div className="flex-1">
-                <h2 className="text-lg font-medium text-gray-800 mb-1">{course.course_title}</h2>
-                <p className="text-sm text-gray-400 mb-4">{course.course_code}</p>
-                <div className="space-y-2 text-sm">
-                  <p><span className="font-medium text-gray-700">Duración:</span> <span className="text-gray-600">{course.course_duration}</span></p>
-                  <p><span className="font-medium text-gray-700">Modalidad:</span> <span className="text-gray-600">{course.session_modality}</span></p>
-                  <p><span className="font-medium text-gray-700">Instructor:</span> <span className="text-gray-600">{course.instructor_name || "Por confirmar"}</span></p>
-                </div>
-                {modules.length > 0 && (
-                  <button onClick={() => setActiveTab("modules")} className="mt-4 ml-2 inline-flex items-center gap-2 bg-[#0072CE] hover:bg-[#005BA1] text-white text-sm font-medium px-4 py-2 rounded-lg transition">
-                    {completedCount > 0 ? "Continuar Curso" : "Iniciar Curso"}
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-                  </button>
-                )}
-              </div>
+              {course.course_description && (
+                <p className="text-sm text-gray-600 leading-relaxed mb-6">{course.course_description}</p>
+              )}
+              {modules.length > 0 && (
+                <button onClick={() => setActiveTab("modules")} className="inline-flex items-center gap-2 bg-gradient-to-r from-[#0072CE] to-[#005BA1] hover:from-[#005BA1] hover:to-[#003366] text-white text-sm font-semibold px-6 py-3 rounded-xl transition shadow-sm shadow-blue-200">
+                  {completedCount > 0 ? "Continuar Curso" : "Iniciar Curso"}
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -758,39 +797,51 @@ export default function TpemsCourseDetail() {
           <div className="flex gap-6">
             {/* Module sidebar */}
             <div className="w-72 shrink-0 hidden lg:block">
-              <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-medium text-gray-600">Progreso del curso</span>
-                  <span className="text-xs font-bold text-[#0072CE]">{progressPercent}%</span>
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Progreso</span>
+                  <span className="text-sm font-bold text-[#0072CE]">{progressPercent}%</span>
                 </div>
-                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-[#0072CE] rounded-full transition-all duration-500" style={{ width: `${progressPercent}%` }} />
+                <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-[#0072CE] to-[#4FC3F7] rounded-full transition-all duration-500" style={{ width: `${progressPercent}%` }} />
                 </div>
-                <p className="text-xs text-gray-400 mt-1">{completedCount} de {totalModules} modulos</p>
+                <p className="text-xs text-gray-400 mt-2">{completedCount} de {totalModules} modulos completados</p>
               </div>
 
-              <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Contenido del curso</h3>
+                </div>
                 {modules.map((mod, idx) => {
                   const status = getModuleStatus(mod.id);
                   const isSelected = mod.id === selectedModuleId;
                   const modLessons = lessons.filter((l) => l.module_id === mod.id);
                   const completedLessons = modLessons.filter((l) => getLessonStatus(l.id) === "completed").length;
-                  // Module is locked if previous module is not completed (except first)
                   const prevModuleCompleted = idx === 0 || getModuleStatus(modules[idx - 1].id) === "completed";
                   const isModuleLocked = !prevModuleCompleted;
+                  const lessonPercent = modLessons.length > 0 ? Math.round((completedLessons / modLessons.length) * 100) : 0;
                   return (
                     <button key={mod.id}
                       onClick={() => { if (!isModuleLocked) { setSelectedModuleId(mod.id); setExpandedLessonId(null); } }}
                       disabled={isModuleLocked}
-                      className={`w-full text-left px-4 py-3 flex items-start gap-3 transition border-b border-gray-50 last:border-0 ${isSelected ? "bg-blue-50" : isModuleLocked ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-50"}`}>
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${status === "completed" ? "bg-green-500" : status === "in_progress" ? "bg-[#F57C00]" : "bg-gray-200"}`}>
+                      className={`w-full text-left px-4 py-3.5 flex items-start gap-3 transition border-b border-gray-50 last:border-0 ${isSelected ? "bg-blue-50/80 border-l-[3px] border-l-[#0072CE]" : isModuleLocked ? "opacity-40 cursor-not-allowed" : "hover:bg-gray-50"}`}>
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold ${status === "completed" ? "bg-green-500 text-white" : status === "in_progress" ? "bg-[#F57C00] text-white" : "bg-gray-100 text-gray-400"}`}>
                         {status === "completed" ? (
-                          <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                        ) : isModuleLocked ? (<span className="text-xs">🔒</span>) : (<span className="text-xs font-bold text-white">{idx + 1}</span>)}
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                        ) : isModuleLocked ? "🔒" : (idx + 1)}
                       </div>
-                      <div>
-                        <p className={`text-sm leading-tight ${isSelected ? "font-semibold text-[#003366]" : isModuleLocked ? "text-gray-400" : "text-gray-700"}`}>{mod.title}</p>
-                        <span className="text-xs text-gray-400">{isModuleLocked ? "Completa el modulo anterior" : `${completedLessons}/${modLessons.length} lecciones`}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm leading-tight truncate ${isSelected ? "font-semibold text-[#003366]" : isModuleLocked ? "text-gray-400" : "text-gray-700"}`}>{mod.title}</p>
+                        {isModuleLocked ? (
+                          <span className="text-[11px] text-gray-400">Completa el modulo anterior</span>
+                        ) : (
+                          <div className="flex items-center gap-2 mt-1.5">
+                            <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
+                              <div className={`h-full rounded-full transition-all ${status === "completed" ? "bg-green-400" : "bg-[#0072CE]"}`} style={{ width: `${lessonPercent}%` }} />
+                            </div>
+                            <span className="text-[11px] text-gray-400 shrink-0">{completedLessons}/{modLessons.length}</span>
+                          </div>
+                        )}
                       </div>
                     </button>
                   );
@@ -801,22 +852,39 @@ export default function TpemsCourseDetail() {
             {/* Module content */}
             <div className="flex-1 min-w-0">
               <div className="lg:hidden mb-4">
-                <select value={selectedModuleId || ""} onChange={(e) => setSelectedModuleId(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                <select value={selectedModuleId || ""} onChange={(e) => setSelectedModuleId(e.target.value)} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium bg-white shadow-sm">
                   {modules.map((mod, idx) => (<option key={mod.id} value={mod.id}>{idx + 1}. {mod.title} {getModuleStatus(mod.id) === "completed" ? "✓" : ""}</option>))}
                 </select>
               </div>
 
               {selectedModule && (
-                <div className="space-y-4">
-                  <div className="bg-white rounded-lg border border-gray-200 p-5">
-                    <h2 className="text-lg font-semibold text-gray-800">{selectedModule.title}</h2>
-                    {selectedModule.description && <p className="text-sm text-gray-500 mt-1">{selectedModule.description}</p>}
+                <div className="space-y-5">
+                  <div className="bg-gradient-to-r from-[#003366] to-[#004B87] rounded-2xl p-6 text-white">
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0 text-lg font-bold">
+                        {modules.findIndex(m => m.id === selectedModuleId) + 1}
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-bold">{selectedModule.title}</h2>
+                        {selectedModule.description && <p className="text-sm text-white/60 mt-1 leading-relaxed">{selectedModule.description}</p>}
+                        <div className="flex items-center gap-4 mt-3">
+                          <span className="text-xs text-white/40">{moduleLessons.length} lecciones</span>
+                          <span className="text-xs text-white/40">·</span>
+                          <span className="text-xs text-white/40">{moduleLessons.filter(l => getLessonStatus(l.id) === "completed").length} completadas</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Lessons list */}
-                  <div className="bg-white rounded-lg border border-gray-200 p-5">
-                    <h3 className="text-sm font-semibold text-gray-800 mb-3">Lecciones</h3>
-                    <div className="space-y-3">
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-gray-800">Lecciones</h3>
+                      <span className="text-xs text-gray-400 bg-gray-50 px-2.5 py-1 rounded-full">
+                        {moduleLessons.filter(l => getLessonStatus(l.id) === "completed").length}/{moduleLessons.length}
+                      </span>
+                    </div>
+                    <div className="divide-y divide-gray-50">
                       {moduleLessons.map((les, idx) => {
                         const status = getLessonStatus(les.id);
                         const unlocked = isLessonUnlocked(idx);
@@ -824,27 +892,33 @@ export default function TpemsCourseDetail() {
                         const { desc, entryId, zoomUrl, zoomDatetime } = parseLessonData(les);
 
                         return (
-                          <div key={les.id} className={`rounded-lg border transition ${!unlocked ? "border-gray-100 bg-gray-50 opacity-60" : status === "completed" ? "border-green-200 bg-green-50/30" : "border-gray-200 bg-white"}`}>
+                          <div key={les.id} className={`transition ${!unlocked ? "opacity-50" : ""}`}>
                             {/* Lesson header */}
                             <button
                               onClick={() => unlocked && setExpandedLessonId(expanded ? null : les.id)}
                               disabled={!unlocked}
-                              className="w-full text-left px-4 py-3 flex items-center gap-3"
+                              className={`w-full text-left px-5 py-4 flex items-center gap-4 transition ${unlocked && !expanded ? "hover:bg-gray-50" : ""} ${expanded ? "bg-blue-50/50" : ""}`}
                             >
-                              <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-sm ${status === "completed" ? "bg-green-500 text-white" : unlocked ? "bg-[#0072CE] text-white" : "bg-gray-200 text-gray-400"}`}>
-                                {status === "completed" ? "✓" : lessonIcons[les.type] || "•"}
+                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-sm ${status === "completed" ? "bg-green-100 text-green-600" : unlocked ? "bg-blue-100 text-[#0072CE]" : "bg-gray-100 text-gray-300"}`}>
+                                {status === "completed" ? (
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                                ) : lessonIcons[les.type] || "•"}
                               </div>
-                              <div className="flex-1">
-                                <p className="text-sm font-medium text-gray-800">{les.title}</p>
-                                <span className="text-xs text-gray-400">{lessonLabels[les.type] || les.type}</span>
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-sm font-medium ${status === "completed" ? "text-green-700" : "text-gray-800"}`}>{les.title}</p>
+                                <span className={`text-xs ${status === "completed" ? "text-green-500" : "text-gray-400"}`}>{lessonLabels[les.type] || les.type}</span>
                               </div>
-                              {!unlocked && <span className="text-xs text-gray-400">🔒</span>}
-                              {unlocked && <span className="text-gray-400 text-xs">{expanded ? "▲" : "▼"}</span>}
+                              {!unlocked && <span className="text-xs text-gray-300">🔒</span>}
+                              {unlocked && (
+                                <svg className={`w-4 h-4 text-gray-300 transition-transform ${expanded ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              )}
                             </button>
 
                             {/* Lesson expanded content */}
                             {expanded && unlocked && (
-                              <div className="px-4 pb-4 border-t border-gray-100 pt-3">
+                              <div className="px-5 pb-5 pt-1 bg-gray-50/50">
                                 {/* Video lesson */}
                                 {les.type === "video" && (
                                   <div>
@@ -981,7 +1055,9 @@ export default function TpemsCourseDetail() {
                       })}
 
                       {moduleLessons.length === 0 && (
-                        <p className="text-center text-gray-400 text-sm py-6">Este modulo aun no tiene lecciones configuradas.</p>
+                        <div className="px-5 py-8 text-center">
+                          <p className="text-gray-400 text-sm">Este modulo aun no tiene lecciones configuradas.</p>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -990,15 +1066,15 @@ export default function TpemsCourseDetail() {
                   <div className="flex items-center justify-between">
                     {getModuleStatus(selectedModule.id) === "not_started" && moduleLessons.length > 0 && (
                       <button onClick={() => updateModuleProgress(selectedModule.id, "in_progress")} disabled={updatingProgress}
-                        className="bg-[#F57C00] hover:bg-[#E65100] text-white text-sm font-medium px-4 py-2 rounded-lg transition disabled:opacity-50">
+                        className="bg-gradient-to-r from-[#F57C00] to-[#E65100] hover:from-[#E65100] hover:to-[#BF360C] text-white text-sm font-semibold px-6 py-3 rounded-xl transition disabled:opacity-50 shadow-sm shadow-orange-200">
                         Iniciar modulo
                       </button>
                     )}
                     {getModuleStatus(selectedModule.id) === "completed" && (
-                      <span className="inline-flex items-center gap-1 text-sm text-green-600 font-medium">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      <div className="inline-flex items-center gap-2 bg-green-50 text-green-700 text-sm font-semibold px-4 py-2.5 rounded-xl border border-green-200">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         Modulo completado
-                      </span>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1011,14 +1087,15 @@ export default function TpemsCourseDetail() {
         {/* ============ GRADES TAB ============ */}
         {activeTab === "grades" && (
           <div className="space-y-6">
-            {/* Grades table */}
             {gradeItems.length === 0 ? (
-              <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-                <p className="text-gray-500">Las calificaciones estarán disponibles una vez que el instructor las registre.</p>
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center">
+                <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl">📊</div>
+                <p className="text-gray-500 font-medium">Las calificaciones estarán disponibles una vez que el instructor las registre.</p>
               </div>
             ) : (
-              <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100">
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-sm">📊</div>
                   <h3 className="font-semibold text-gray-800">Mis Calificaciones</h3>
                 </div>
                 <table className="w-full text-sm">
@@ -1096,7 +1173,7 @@ export default function TpemsCourseDetail() {
 
             {/* Diploma */}
             {diploma && (
-              <div className="bg-white rounded-lg border border-green-200 overflow-hidden">
+              <div className="bg-white rounded-2xl border border-green-200 shadow-sm overflow-hidden">
                 <div className="bg-green-50 px-6 py-4 flex items-center gap-3">
                   <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
@@ -1155,15 +1232,13 @@ export default function TpemsCourseDetail() {
         {activeTab === "evaluation" && (
           <>
             {course.status !== "completed" ? (
-              <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-                <svg className="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-                <p className="text-gray-500 font-medium">Los cuestionarios estarán disponibles al finalizar el curso</p>
-                <p className="text-sm text-gray-400 mt-1">Una vez que el curso sea marcado como completado, podrás responder las encuestas de evaluación.</p>
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center">
+                <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl">🔒</div>
+                <p className="text-gray-700 font-semibold">Los cuestionarios estarán disponibles al finalizar el curso</p>
+                <p className="text-sm text-gray-400 mt-2 max-w-md mx-auto">Una vez que el curso sea marcado como completado, podrás responder las encuestas de evaluación.</p>
               </div>
             ) : (
-              <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100">
@@ -1199,7 +1274,7 @@ export default function TpemsCourseDetail() {
 
         {/* ============ MESSAGES TAB ============ */}
         {activeTab === "messages" && (
-          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             {/* Instructor contact */}
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
               <div>
