@@ -48,6 +48,7 @@ export default function AdminModulosPage({ params }: { params: Promise<{ id: str
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+  const [expandedLessonKey, setExpandedLessonKey] = useState<string | null>(null);
   const [deletedLessonIds, setDeletedLessonIds] = useState<string[]>([]);
   const [instructorName, setInstructorName] = useState("");
   const [instructorWhatsapp, setInstructorWhatsapp] = useState("");
@@ -295,81 +296,96 @@ export default function AdminModulosPage({ params }: { params: Promise<{ id: str
                       </div>
                     </div>
 
-                    <div className="space-y-3">
-                      {mod.lessons.map((les, li) => (
-                        <div key={li} className="bg-gray-50 rounded-lg border border-gray-100 p-4">
-                          <div className="flex items-center justify-between mb-3">
-                            <span className="text-xs font-medium text-gray-500">
-                              {lessonTypes.find((t) => t.value === les.type)?.icon} Leccion {li + 1}: {lessonTypes.find((t) => t.value === les.type)?.label}
-                            </span>
+                    <div className="space-y-2">
+                      {mod.lessons.map((les, li) => {
+                        const lesKey = `${mi}-${li}`;
+                        const isLessonOpen = expandedLessonKey === lesKey;
+                        return (
+                        <div key={li} className="bg-gray-50 rounded-lg border border-gray-100 overflow-hidden">
+                          {/* Lesson header — always visible */}
+                          <div
+                            className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-100 transition"
+                            onClick={() => setExpandedLessonKey(isLessonOpen ? null : lesKey)}
+                          >
                             <div className="flex items-center gap-2">
-                              <button onClick={() => moveLessonUp(mi, li)} disabled={li === 0} className="text-xs text-gray-400 hover:text-gray-700 disabled:opacity-30" title="Mover arriba">▲</button>
-                              <button onClick={() => moveLessonDown(mi, li)} disabled={li === mod.lessons.length - 1} className="text-xs text-gray-400 hover:text-gray-700 disabled:opacity-30" title="Mover abajo">▼</button>
+                              <span className="text-sm">{lessonTypes.find((t) => t.value === les.type)?.icon}</span>
+                              <span className="text-sm font-medium text-gray-700">{les.title || "Sin titulo"}</span>
+                              <span className="text-xs text-gray-400">({lessonTypes.find((t) => t.value === les.type)?.label})</span>
+                            </div>
+                            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                              <button onClick={() => moveLessonUp(mi, li)} disabled={li === 0} className="text-xs text-gray-400 hover:text-gray-700 disabled:opacity-30 px-1" title="Mover arriba">▲</button>
+                              <button onClick={() => moveLessonDown(mi, li)} disabled={li === mod.lessons.length - 1} className="text-xs text-gray-400 hover:text-gray-700 disabled:opacity-30 px-1" title="Mover abajo">▼</button>
                               <button onClick={() => removeLesson(mi, li)} className="text-xs text-red-500 hover:underline">Eliminar</button>
+                              <span className="text-gray-400 text-xs ml-1">{isLessonOpen ? "▲" : "▼"}</span>
                             </div>
                           </div>
 
-                          <input value={les.title} onChange={(e) => updateLesson(mi, li, "title", e.target.value)} placeholder="Titulo de la leccion" className="w-full border border-gray-200 rounded px-3 py-2 text-sm mb-2" />
+                          {/* Lesson content — collapsible */}
+                          {isLessonOpen && (
+                          <div className="px-4 pb-4 border-t border-gray-100 pt-3 space-y-2">
+                            <input value={les.title} onChange={(e) => updateLesson(mi, li, "title", e.target.value)} placeholder="Titulo de la leccion" className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
 
-                          {/* Type-specific fields */}
-                          {les.type === "video" && (
-                            <div className="space-y-2">
-                              <textarea value={les.description || ""} onChange={(e) => updateLesson(mi, li, "description", e.target.value)} placeholder="Descripcion del video..." rows={2} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
-                              <input value={les.video_entry_id || ""} onChange={(e) => updateLesson(mi, li, "video_entry_id", e.target.value)} placeholder="Kaltura Entry ID (ej: 1_abc123)" className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
-                            </div>
-                          )}
+                            {les.type === "video" && (
+                              <div className="space-y-2">
+                                <textarea value={les.description || ""} onChange={(e) => updateLesson(mi, li, "description", e.target.value)} placeholder="Descripcion del video..." rows={2} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
+                                <input value={les.video_entry_id || ""} onChange={(e) => updateLesson(mi, li, "video_entry_id", e.target.value)} placeholder="Kaltura Entry ID (ej: 1_abc123)" className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
+                              </div>
+                            )}
 
-                          {les.type === "task" && (
-                            <div>
-                              <textarea value={les.description || ""} onChange={(e) => updateLesson(mi, li, "description", e.target.value)} placeholder="Descripcion de la tarea..." rows={3} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
-                              <p className="text-xs text-gray-400 mt-1">Plazo de entrega: 2 dias desde la apertura del modulo</p>
-                            </div>
-                          )}
+                            {les.type === "task" && (
+                              <div>
+                                <textarea value={les.description || ""} onChange={(e) => updateLesson(mi, li, "description", e.target.value)} placeholder="Descripcion de la tarea..." rows={3} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
+                                <p className="text-xs text-gray-400 mt-1">Plazo de entrega: 2 dias desde la apertura del modulo</p>
+                              </div>
+                            )}
 
-                          {les.type === "exam" && (
-                            <div className="bg-blue-50 rounded p-3">
-                              <p className="text-xs text-blue-700 mb-1">Nota de aprobacion: 80%. Configura las preguntas despues de guardar.</p>
-                              {les.id && (
-                                <Link href={`/admin/cursos/${courseId}/examenes?activity_id=${les.id}`} className="text-xs text-[#0072CE] hover:underline font-medium">
-                                  Editar preguntas del examen →
-                                </Link>
-                              )}
-                            </div>
-                          )}
+                            {les.type === "exam" && (
+                              <div className="bg-blue-50 rounded p-3">
+                                <p className="text-xs text-blue-700 mb-1">Nota de aprobacion: 80%. Configura las preguntas despues de guardar.</p>
+                                {les.id && (
+                                  <Link href={`/admin/cursos/${courseId}/examenes?activity_id=${les.id}`} className="text-xs text-[#0072CE] hover:underline font-medium">
+                                    Editar preguntas del examen →
+                                  </Link>
+                                )}
+                              </div>
+                            )}
 
-                          {les.type === "discussion" && (
-                            <textarea value={les.description || ""} onChange={(e) => updateLesson(mi, li, "description", e.target.value)} placeholder="Tema de discusion para los alumnos..." rows={3} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
-                          )}
+                            {les.type === "discussion" && (
+                              <textarea value={les.description || ""} onChange={(e) => updateLesson(mi, li, "description", e.target.value)} placeholder="Tema de discusion para los alumnos..." rows={3} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
+                            )}
 
-                          {les.type === "zoom" && (
-                            <div className="space-y-2">
-                              <input value={les.zoom_url || ""} onChange={(e) => updateLesson(mi, li, "zoom_url", e.target.value)} placeholder="Link de Zoom (ej: https://zoom.us/j/123456)" className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
-                              <input type="datetime-local" value={les.zoom_datetime || ""} onChange={(e) => updateLesson(mi, li, "zoom_datetime", e.target.value)} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
-                              <p className="text-xs text-gray-400">El alumno vera el link de Zoom y la fecha/hora para conectarse</p>
-                            </div>
-                          )}
+                            {les.type === "zoom" && (
+                              <div className="space-y-2">
+                                <input value={les.zoom_url || ""} onChange={(e) => updateLesson(mi, li, "zoom_url", e.target.value)} placeholder="Link de Zoom (ej: https://zoom.us/j/123456)" className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
+                                <input type="datetime-local" value={les.zoom_datetime || ""} onChange={(e) => updateLesson(mi, li, "zoom_datetime", e.target.value)} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
+                                <p className="text-xs text-gray-400">El alumno vera el link de Zoom y la fecha/hora para conectarse</p>
+                              </div>
+                            )}
 
-                          {les.type === "reading" && (
-                            <div>
-                              <textarea value={les.description || ""} onChange={(e) => updateLesson(mi, li, "description", e.target.value)} placeholder="URLs de los PDFs (una por linea)" rows={3} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
-                              <p className="text-xs text-gray-400 mt-1">Ingresa las URLs de los archivos PDF separadas por linea</p>
-                            </div>
-                          )}
+                            {les.type === "reading" && (
+                              <div>
+                                <textarea value={les.description || ""} onChange={(e) => updateLesson(mi, li, "description", e.target.value)} placeholder="URLs de los PDFs (una por linea)" rows={3} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
+                                <p className="text-xs text-gray-400 mt-1">Ingresa las URLs de los archivos PDF separadas por linea</p>
+                              </div>
+                            )}
 
-                          {les.type === "html" && (
-                            <div>
-                              <textarea value={les.description || ""} onChange={(e) => updateLesson(mi, li, "description", e.target.value)} placeholder="<h2>Titulo</h2><p>Contenido HTML...</p>" rows={8} className="w-full border border-gray-200 rounded px-3 py-2 text-sm font-mono text-xs" />
-                              <p className="text-xs text-gray-400 mt-1">Ingresa codigo HTML. Se renderizara tal cual en la vista del alumno.</p>
-                              {les.description && (
-                                <div className="mt-2 border border-gray-200 rounded-lg p-3 bg-white">
-                                  <p className="text-xs text-gray-400 mb-1">Vista previa:</p>
-                                  <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: les.description }} />
-                                </div>
-                              )}
-                            </div>
+                            {les.type === "html" && (
+                              <div>
+                                <textarea value={les.description || ""} onChange={(e) => updateLesson(mi, li, "description", e.target.value)} placeholder="<h2>Titulo</h2><p>Contenido HTML...</p>" rows={8} className="w-full border border-gray-200 rounded px-3 py-2 text-sm font-mono text-xs" />
+                                <p className="text-xs text-gray-400 mt-1">Ingresa codigo HTML. Se renderizara tal cual en la vista del alumno.</p>
+                                {les.description && (
+                                  <div className="mt-2 border border-gray-200 rounded-lg p-3 bg-white">
+                                    <p className="text-xs text-gray-400 mb-1">Vista previa:</p>
+                                    <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: les.description }} />
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
                           )}
                         </div>
-                      ))}
+                        );
+                      })}
 
                       {mod.lessons.length === 0 && (
                         <div className="text-center py-6 text-gray-400 text-sm border-2 border-dashed border-gray-200 rounded-lg">
