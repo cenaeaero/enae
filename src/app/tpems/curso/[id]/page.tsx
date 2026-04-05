@@ -262,42 +262,54 @@ export default function TpemsCourseDetail() {
     // ── Table ──
     const tableX = mx;
     const tableRight = pw - mx;
-    const tipoCenterX = 122;
-    const notaCenterX = 150;
+    const tipoCenterX = 118;
+    const notaCenterX = 148;
     const estadoCenterX = 175;
-    const rowH = 9;
+    const rowH = 10;
     let y = infoY + 40;
 
+    // Section label
+    doc.setFontSize(9);
+    doc.setTextColor(0, 51, 102);
+    doc.text("DETALLE DE MODULOS", tableX, y);
+    y += 5;
+
     // Table header
+    const headerH = 12;
     doc.setFillColor(0, 51, 102);
-    doc.roundedRect(tableX, y, contentW, 10, 1, 1, "F");
-    doc.setFontSize(7.5);
+    doc.roundedRect(tableX, y, contentW, headerH, 2, 2, "F");
+    doc.setFontSize(8);
     doc.setTextColor(255, 255, 255);
-    doc.text("MODULO", tableX + 5, y + 7);
-    doc.text("TIPO", tipoCenterX, y + 7, { align: "center" });
-    doc.text("NOTA", notaCenterX, y + 7, { align: "center" });
-    doc.text("ESTADO", estadoCenterX, y + 7, { align: "center" });
-    y += 12;
+    doc.text("Modulo", tableX + 6, y + 8);
+    doc.text("Tipo", tipoCenterX, y + 8, { align: "center" });
+    doc.text("Nota", notaCenterX, y + 8, { align: "center" });
+    doc.text("Estado", estadoCenterX, y + 8, { align: "center" });
+    y += headerH + 3;
 
     // Table rows
     rows.forEach((row, i) => {
       // Alternating background
       if (i % 2 === 0) {
-        doc.setFillColor(248, 250, 252);
-        doc.rect(tableX, y - 5, contentW, rowH, "F");
+        doc.setFillColor(247, 249, 252);
+        doc.rect(tableX, y - 6, contentW, rowH, "F");
       }
+      // Row border bottom
+      doc.setDrawColor(235, 238, 241);
+      doc.setLineWidth(0.2);
+      doc.line(tableX, y + rowH - 6, tableRight, y + rowH - 6);
+
       // Left border accent for exam rows
       if (row.hasExam) {
         doc.setFillColor(0, 114, 206);
-        doc.rect(tableX, y - 5, 1.5, rowH, "F");
+        doc.rect(tableX, y - 6, 2, rowH, "F");
       }
 
       // Module name
       doc.setFontSize(8.5);
       doc.setTextColor(40, 40, 40);
-      const maxLen = 42;
+      const maxLen = 38;
       const name = row.name.length > maxLen ? row.name.substring(0, maxLen) + "..." : row.name;
-      doc.text(name, tableX + 5, y);
+      doc.text(name, tableX + 6, y);
 
       // Tipo badge (centered)
       doc.setFontSize(7);
