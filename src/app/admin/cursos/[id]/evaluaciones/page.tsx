@@ -46,7 +46,7 @@ export default function EvaluacionesPage({
           id: g.id, name: g.name, weight: g.weight, sort_order: g.sort_order,
         })));
       } else {
-        // Auto-generate from course_modules + Evaluacion Practica + Simulador DGAC
+        // Auto-generate from course_modules only (admin adds extras manually if needed)
         const { data: modules } = await supabase
           .from("course_modules")
           .select("id, title, sort_order")
@@ -54,34 +54,17 @@ export default function EvaluacionesPage({
           .order("sort_order");
 
         if (modules && modules.length > 0) {
-          const totalItems = modules.length + 2; // modules + practica + simulador
-          const moduleWeight = Math.floor((70 / modules.length) * 100) / 100; // 70% for modules
-          const practicaWeight = 20; // 20% evaluacion practica
-          const simuladorWeight = Math.round((100 - moduleWeight * modules.length - practicaWeight) * 100) / 100; // rest for simulator
+          const moduleWeight = Math.floor((100 / modules.length) * 100) / 100;
 
-          const generated: GradeItem[] = [
-            ...modules.map((mod: any, idx: number) => ({
-              name: `Modulo ${idx + 1}: ${mod.title}`,
-              weight: idx === modules.length - 1
-                ? Math.round((70 - moduleWeight * (modules.length - 1)) * 100) / 100
-                : moduleWeight,
-              sort_order: idx,
-              is_new: true,
-              is_auto: true,
-            })),
-            {
-              name: "Simulador Examen DGAC",
-              weight: 10,
-              sort_order: modules.length,
-              is_new: true,
-            },
-            {
-              name: "Evaluacion Practica de Vuelo",
-              weight: 20,
-              sort_order: modules.length + 1,
-              is_new: true,
-            },
-          ];
+          const generated: GradeItem[] = modules.map((mod: any, idx: number) => ({
+            name: `Modulo ${idx + 1}: ${mod.title}`,
+            weight: idx === modules.length - 1
+              ? Math.round((100 - moduleWeight * (modules.length - 1)) * 100) / 100
+              : moduleWeight,
+            sort_order: idx,
+            is_new: true,
+            is_auto: true,
+          }));
           setItems(generated);
         }
       }
@@ -132,33 +115,19 @@ export default function EvaluacionesPage({
       return;
     }
 
-    const moduleWeight = Math.floor((70 / modules.length) * 100) / 100;
+    const moduleWeight = Math.floor((100 / modules.length) * 100) / 100;
 
-    const generated: GradeItem[] = [
-      ...modules.map((mod: any, idx: number) => ({
-        name: `Modulo ${idx + 1}: ${mod.title}`,
-        weight: idx === modules.length - 1
-          ? Math.round((70 - moduleWeight * (modules.length - 1)) * 100) / 100
-          : moduleWeight,
-        sort_order: idx,
-        is_new: true,
-        is_auto: true,
-      })),
-      {
-        name: "Simulador Examen DGAC",
-        weight: 10,
-        sort_order: modules.length,
-        is_new: true,
-      },
-      {
-        name: "Evaluacion Practica de Vuelo",
-        weight: 20,
-        sort_order: modules.length + 1,
-        is_new: true,
-      },
-    ];
+    const generated: GradeItem[] = modules.map((mod: any, idx: number) => ({
+      name: `Modulo ${idx + 1}: ${mod.title}`,
+      weight: idx === modules.length - 1
+        ? Math.round((100 - moduleWeight * (modules.length - 1)) * 100) / 100
+        : moduleWeight,
+      sort_order: idx,
+      is_new: true,
+      is_auto: true,
+    }));
     setItems(generated);
-    setMessage("Evaluaciones regeneradas desde modulos. Recuerda guardar.");
+    setMessage("Evaluaciones regeneradas desde modulos. Agrega evaluaciones adicionales si es necesario. Recuerda guardar.");
   }
 
   const totalWeight = items.reduce((sum, item) => sum + (item.weight || 0), 0);
@@ -235,8 +204,7 @@ export default function EvaluacionesPage({
       <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
         <p className="text-xs text-blue-800">
           <strong>Estructura de evaluacion:</strong> Cada modulo del LMS genera una nota automatica basada en sus examenes (aprobacion 80%).
-          El <strong>Simulador DGAC</strong> consta de 100 preguntas con nota de aprobacion de 75%.
-          La <strong>Evaluacion Practica</strong> es ingresada manualmente por el instructor al final del curso.
+          Usa <strong>+ Agregar evaluacion</strong> para incluir evaluaciones adicionales como simuladores o practicas si el curso lo requiere.
         </p>
       </div>
 
