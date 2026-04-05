@@ -151,49 +151,78 @@ export default function TpemsCourseDetail() {
   async function downloadGradesPDF() {
     if (!course) return;
     const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
+    const pw = doc.internal.pageSize.getWidth();
+    const ph = doc.internal.pageSize.getHeight();
+    const mx = 25; // margin x
+    const contentW = pw - mx * 2;
 
-    // Load logo
-    let logoLoaded = false;
-    try {
-      const logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+    // Helper to load images
+    function loadImg(src: string): Promise<HTMLImageElement> {
+      return new Promise((resolve, reject) => {
         const img = new window.Image();
         img.crossOrigin = "anonymous";
         img.onload = () => resolve(img);
         img.onerror = () => reject();
-        img.src = "/img/logo-enae.png";
+        img.src = src;
       });
-      const logoW = 40;
-      const logoH = (logoImg.height / logoImg.width) * logoW;
-      doc.addImage(logoImg, "PNG", (pageWidth - logoW) / 2, 8, logoW, logoH);
-      logoLoaded = true;
-    } catch { /* continue without logo */ }
+    }
 
-    const headerY = logoLoaded ? 38 : 25;
+    // ── Top accent bar ──
+    doc.setFillColor(0, 51, 102);
+    doc.rect(0, 0, pw, 4, "F");
 
-    // Header
-    doc.setFontSize(16);
-    doc.setTextColor(0, 51, 102);
-    doc.text("ENAE - Escuela de Navegacion Aerea", pageWidth / 2, headerY, { align: "center" });
+    // ── Logo (left) + Title (right of logo) ──
+    let headerBottom = 30;
+    try {
+      const logoImg = await loadImg("/img/logo-enae.png");
+      const logoH = 22;
+      const logoW = (logoImg.width / logoImg.height) * logoH;
+      doc.addImage(logoImg, "PNG", mx, 12, logoW, logoH);
+
+      const textX = mx + logoW + 8;
+      doc.setFontSize(14);
+      doc.setTextColor(0, 51, 102);
+      doc.text("Escuela de Navegacion Aerea", textX, 22);
+      doc.setFontSize(9);
+      doc.setTextColor(120, 120, 120);
+      doc.text("Centro de formacion aeronautica", textX, 28);
+      headerBottom = 38;
+    } catch {
+      doc.setFontSize(16);
+      doc.setTextColor(0, 51, 102);
+      doc.text("ENAE - Escuela de Navegacion Aerea", pw / 2, 20, { align: "center" });
+      headerBottom = 28;
+    }
+
+    // ── Title ──
+    doc.setFillColor(240, 244, 248);
+    doc.roundedRect(mx, headerBottom, contentW, 14, 2, 2, "F");
     doc.setFontSize(13);
-    doc.setTextColor(60, 60, 60);
-    doc.text("Certificado de Calificaciones", pageWidth / 2, headerY + 8, { align: "center" });
+    doc.setTextColor(0, 51, 102);
+    doc.text("CERTIFICADO DE CALIFICACIONES", pw / 2, headerBottom + 9, { align: "center" });
 
-    // Divider line
-    doc.setDrawColor(0, 51, 102);
-    doc.setLineWidth(0.5);
-    doc.line(20, headerY + 12, pageWidth - 20, headerY + 12);
+    // ── Student info card ──
+    const infoY = headerBottom + 22;
+    doc.setDrawColor(220, 225, 230);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(mx, infoY, contentW, 28, 2, 2, "S");
 
-    // Student and course info
-    const infoY = headerY + 20;
+    doc.setFontSize(8);
+    doc.setTextColor(140, 140, 140);
+    doc.text("ALUMNO", mx + 5, infoY + 6);
+    doc.text("CURSO", mx + 5, infoY + 17);
+    doc.text("CODIGO", pw / 2 + 5, infoY + 17);
+    doc.text("FECHA", pw - mx - 38, infoY + 6);
+
     doc.setFontSize(10);
-    doc.setTextColor(100, 100, 100);
-    doc.text(`Alumno: ${course.student_name}`, 20, infoY);
-    doc.text(`Curso: ${course.course_title}`, 20, infoY + 7);
-    doc.text(`Codigo: ${course.course_code || ""}`, 20, infoY + 14);
-    doc.text(`Fecha: ${new Date().toLocaleDateString("es-CL")}`, 20, infoY + 21);
+    doc.setTextColor(30, 30, 30);
+    doc.text(course.student_name, mx + 5, infoY + 11);
+    doc.setFontSize(9);
+    doc.text(course.course_title, mx + 5, infoY + 23);
+    doc.text(course.course_code || "", pw / 2 + 5, infoY + 23);
+    doc.text(new Date().toLocaleDateString("es-CL"), pw - mx - 38, infoY + 11);
 
-    // Build rows: all modules, marking which have exams
+    // ── Build module data ──
     type PdfRow = { name: string; hasExam: boolean; score: number | null; weight: number };
     const rows: PdfRow[] = [];
     const examGradeItems: { weight: number; score: number | null }[] = [];
@@ -201,79 +230,110 @@ export default function TpemsCourseDetail() {
     modules.forEach((mod, idx) => {
       const modLessons = lessons.filter((l) => l.module_id === mod.id);
       const hasExam = modLessons.some((l) => l.type === "exam");
-
-      // Find matching grade item for this module
       const gradeItem = gradeItems.find((gi) =>
         gi.name.toLowerCase().includes(mod.title.toLowerCase()) ||
         gi.name.toLowerCase().includes(`modulo ${idx + 1}`) ||
         gi.name.toLowerCase().includes(`módulo ${idx + 1}`)
       );
       const grade = gradeItem ? studentGrades.find((g) => g.grade_item_id === gradeItem.id) : null;
-
-      rows.push({
-        name: `Modulo ${idx + 1}: ${mod.title}`,
-        hasExam,
-        score: hasExam && grade ? grade.score : null,
-        weight: gradeItem?.weight || 0,
-      });
-
-      if (hasExam && gradeItem) {
-        examGradeItems.push({ weight: gradeItem.weight, score: grade?.score ?? null });
-      }
+      rows.push({ name: `${idx + 1}. ${mod.title}`, hasExam, score: hasExam && grade ? grade.score : null, weight: gradeItem?.weight || 0 });
+      if (hasExam && gradeItem) examGradeItems.push({ weight: gradeItem.weight, score: grade?.score ?? null });
     });
+
+    // ── Table ──
+    const colX = { modulo: mx + 4, tipo: 120, nota: 148, estado: 168 };
+    const rowH = 9;
+    let y = infoY + 36;
 
     // Table header
-    let y = infoY + 33;
     doc.setFillColor(0, 51, 102);
-    doc.rect(20, y - 5, pageWidth - 40, 10, "F");
+    doc.roundedRect(mx, y, contentW, 10, 1, 1, "F");
+    doc.setFontSize(8);
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(9);
-    doc.text("Modulo", 25, y + 1);
-    doc.text("Tipo", 115, y + 1);
-    doc.text("Nota", 145, y + 1);
-    doc.text("Estado", 168, y + 1);
+    doc.text("MODULO", colX.modulo, y + 7);
+    doc.text("TIPO", colX.tipo, y + 7);
+    doc.text("NOTA", colX.nota, y + 7);
+    doc.text("ESTADO", colX.estado, y + 7);
+    y += 12;
 
     // Table rows
-    y += 12;
-    rows.forEach((row) => {
-      // Alternate row background
-      if (rows.indexOf(row) % 2 === 0) {
-        doc.setFillColor(245, 247, 250);
-        doc.rect(20, y - 5, pageWidth - 40, 8, "F");
+    rows.forEach((row, i) => {
+      // Alternating background
+      if (i % 2 === 0) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(mx, y - 5, contentW, rowH, "F");
       }
-      doc.setTextColor(50, 50, 50);
-      doc.setFontSize(8.5);
-
-      // Truncate long names
-      const maxNameLen = 50;
-      const displayName = row.name.length > maxNameLen ? row.name.substring(0, maxNameLen) + "..." : row.name;
-      doc.text(displayName, 25, y);
-
-      doc.text(row.hasExam ? "Examen" : "Contenido", 115, y);
-
+      // Left border accent for exam rows
       if (row.hasExam) {
-        doc.text(row.score != null ? `${row.score}%` : "-", 145, y);
+        doc.setFillColor(0, 114, 206);
+        doc.rect(mx, y - 5, 1.5, rowH, "F");
+      }
+
+      doc.setFontSize(8.5);
+      doc.setTextColor(40, 40, 40);
+
+      const maxLen = 48;
+      const name = row.name.length > maxLen ? row.name.substring(0, maxLen) + "..." : row.name;
+      doc.text(name, colX.modulo, y);
+
+      // Tipo badge
+      doc.setFontSize(7.5);
+      if (row.hasExam) {
+        doc.setFillColor(219, 234, 254);
+        doc.roundedRect(colX.tipo - 1, y - 4, 18, 6, 1, 1, "F");
+        doc.setTextColor(30, 64, 175);
+        doc.text("Examen", colX.tipo + 1, y);
+      } else {
+        doc.setFillColor(229, 231, 235);
+        doc.roundedRect(colX.tipo - 1, y - 4, 22, 6, 1, 1, "F");
+        doc.setTextColor(75, 85, 99);
+        doc.text("Contenido", colX.tipo + 1, y);
+      }
+
+      // Nota
+      doc.setFontSize(9);
+      if (row.hasExam && row.score != null) {
+        doc.setTextColor(row.score >= 80 ? 22 : 220, row.score >= 80 ? 163 : 38, row.score >= 80 ? 74 : 38);
+        doc.text(`${row.score}%`, colX.nota, y);
+      } else {
+        doc.setTextColor(180, 180, 180);
+        doc.text("—", colX.nota + 2, y);
+      }
+
+      // Estado
+      doc.setFontSize(7.5);
+      if (row.hasExam) {
         if (row.score != null) {
-          doc.setTextColor(row.score >= 80 ? 22 : 220, row.score >= 80 ? 163 : 38, row.score >= 80 ? 74 : 38);
-          doc.text(row.score >= 80 ? "Aprobado" : "Reprobado", 168, y);
+          if (row.score >= 80) {
+            doc.setFillColor(220, 252, 231);
+            doc.roundedRect(colX.estado - 1, y - 4, 20, 6, 1, 1, "F");
+            doc.setTextColor(22, 101, 52);
+          } else {
+            doc.setFillColor(254, 226, 226);
+            doc.roundedRect(colX.estado - 1, y - 4, 22, 6, 1, 1, "F");
+            doc.setTextColor(153, 27, 27);
+          }
+          doc.text(row.score >= 80 ? "Aprobado" : "Reprobado", colX.estado + 1, y);
         } else {
           doc.setTextColor(150, 150, 150);
-          doc.text("Pendiente", 168, y);
+          doc.text("Pendiente", colX.estado + 1, y);
         }
       } else {
-        doc.setTextColor(22, 163, 74);
-        doc.text("-", 145, y);
-        doc.text("Aprobado", 168, y);
+        doc.setFillColor(220, 252, 231);
+        doc.roundedRect(colX.estado - 1, y - 4, 20, 6, 1, 1, "F");
+        doc.setTextColor(22, 101, 52);
+        doc.text("Aprobado", colX.estado + 1, y);
       }
-      y += 8;
+
+      y += rowH;
     });
 
-    // Final score section
-    y += 4;
-    doc.setDrawColor(0, 51, 102);
-    doc.setLineWidth(0.5);
-    doc.line(20, y - 2, pageWidth - 20, y - 2);
+    // Table bottom border
+    doc.setDrawColor(200, 205, 210);
+    doc.setLineWidth(0.3);
+    doc.line(mx, y - 4, mx + contentW, y - 4);
 
+    // ── Final score box ──
     if (examGradeItems.length > 0) {
       const scoredExams = examGradeItems.filter((e) => e.score !== null);
       if (scoredExams.length > 0) {
@@ -282,30 +342,51 @@ export default function TpemsCourseDetail() {
           finalScore = scoredExams[0].score!;
         } else {
           let wSum = 0, totalW = 0;
-          scoredExams.forEach((e) => {
-            wSum += e.score! * e.weight;
-            totalW += e.weight;
-          });
+          scoredExams.forEach((e) => { wSum += e.score! * e.weight; totalW += e.weight; });
           finalScore = totalW > 0 ? Math.round((wSum / totalW) * 100) / 100 : 0;
         }
 
-        y += 6;
-        doc.setFontSize(11);
-        doc.setTextColor(0, 51, 102);
-        doc.text(scoredExams.length > 1 ? "Nota Final (Promedio Ponderado):" : "Nota Final:", 25, y);
-        doc.text(`${finalScore}%`, 145, y);
-        doc.setTextColor(finalScore >= 80 ? 22 : 220, finalScore >= 80 ? 163 : 38, finalScore >= 80 ? 74 : 38);
+        y += 4;
+        const boxH = 16;
+        const passed = finalScore >= 80;
+        doc.setFillColor(passed ? 240 : 254, passed ? 253 : 242, passed ? 244 : 242);
+        doc.roundedRect(mx, y, contentW, boxH, 2, 2, "F");
+        doc.setDrawColor(passed ? 34 : 239, passed ? 197 : 68, passed ? 94 : 68);
+        doc.setLineWidth(0.5);
+        doc.roundedRect(mx, y, contentW, boxH, 2, 2, "S");
+
+        // Left accent
+        doc.setFillColor(passed ? 34 : 239, passed ? 197 : 68, passed ? 94 : 68);
+        doc.rect(mx, y + 1, 3, boxH - 2, "F");
+
         doc.setFontSize(10);
-        doc.text(finalScore >= 80 ? "APROBADO" : "REPROBADO", 168, y);
+        doc.setTextColor(0, 51, 102);
+        doc.text(scoredExams.length > 1 ? "NOTA FINAL (Promedio Ponderado)" : "NOTA FINAL", mx + 8, y + 10);
+
+        doc.setFontSize(14);
+        doc.setTextColor(passed ? 22 : 185, passed ? 101 : 28, passed ? 52 : 28);
+        doc.text(`${finalScore}%`, colX.nota - 2, y + 11);
+
+        doc.setFontSize(9);
+        doc.text(passed ? "APROBADO" : "REPROBADO", colX.estado, y + 11);
 
         if (scoredExams.length > 1) {
-          y += 7;
-          doc.setFontSize(8);
-          doc.setTextColor(130, 130, 130);
-          doc.text(`Ponderacion: ${examGradeItems.map((e, i) => `Examen ${i + 1}: ${e.weight}%`).join("  |  ")}`, 25, y);
+          y += boxH + 3;
+          doc.setFontSize(7);
+          doc.setTextColor(150, 150, 150);
+          doc.text(`Ponderacion: ${examGradeItems.map((e, i) => `Examen ${i + 1}: ${e.weight}%`).join("  |  ")}`, mx + 4, y);
         }
       }
     }
+
+    // ── Footer ──
+    doc.setDrawColor(0, 51, 102);
+    doc.setLineWidth(0.3);
+    doc.line(mx, ph - 18, pw - mx, ph - 18);
+    doc.setFontSize(7);
+    doc.setTextColor(160, 160, 160);
+    doc.text("ENAE - Escuela de Navegacion Aerea  |  www.enae.cl", pw / 2, ph - 13, { align: "center" });
+    doc.text("Documento generado automaticamente por el sistema TPEMS", pw / 2, ph - 9, { align: "center" });
 
     doc.save(`Calificaciones_${course.course_code || "curso"}.pdf`);
   }
