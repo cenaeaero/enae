@@ -125,11 +125,28 @@ export default function TpemsCourseDetail() {
 
   const registrationId = params.id as string;
 
-  // Content protection: block print, Ctrl+U (view source), Ctrl+S (save)
+  // Content protection: block print, view source, save, copy, devtools
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      // Block Ctrl+P (print), Ctrl+U (source), Ctrl+S (save), Ctrl+Shift+I (devtools), F12
       if ((e.ctrlKey || e.metaKey) && (e.key === "p" || e.key === "u" || e.key === "s")) {
         e.preventDefault();
+        e.stopPropagation();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "I" || e.key === "i" || e.key === "J" || e.key === "j" || e.key === "C" || e.key === "c")) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      if (e.key === "F12") {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      // Block Ctrl+A (select all) in lesson area
+      if ((e.ctrlKey || e.metaKey) && e.key === "a") {
+        const target = e.target as HTMLElement;
+        if (!target.closest("input") && !target.closest("textarea")) {
+          e.preventDefault();
+        }
       }
     }
     function handleBeforePrint() {
@@ -138,11 +155,27 @@ export default function TpemsCourseDetail() {
     function handleAfterPrint() {
       document.body.style.visibility = "visible";
     }
-    document.addEventListener("keydown", handleKeyDown);
+    function handleCopy(e: ClipboardEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.closest("input") && !target.closest("textarea")) {
+        e.preventDefault();
+      }
+    }
+    function handleContextMenu(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.closest("input") && !target.closest("textarea")) {
+        e.preventDefault();
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown, true);
+    document.addEventListener("copy", handleCopy, true);
+    document.addEventListener("contextmenu", handleContextMenu, true);
     window.addEventListener("beforeprint", handleBeforePrint);
     window.addEventListener("afterprint", handleAfterPrint);
     return () => {
-      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("keydown", handleKeyDown, true);
+      document.removeEventListener("copy", handleCopy, true);
+      document.removeEventListener("contextmenu", handleContextMenu, true);
       window.removeEventListener("beforeprint", handleBeforePrint);
       window.removeEventListener("afterprint", handleAfterPrint);
     };
@@ -1237,24 +1270,65 @@ export default function TpemsCourseDetail() {
                                 {les.type === "html" && (
                                   <div>
                                     {desc && (() => {
-                                      const protectionCSS = `<style>body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}img{pointer-events:none;-webkit-user-drag:none;}@media print{body{display:none !important;}}</style>`;
-                                      const protectionJS = `<script>document.addEventListener('contextmenu',e=>e.preventDefault());document.addEventListener('copy',e=>e.preventDefault());document.addEventListener('cut',e=>e.preventDefault());document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&(e.key==='p'||e.key==='u'||e.key==='s'))e.preventDefault();});</script>`;
+                                      const protectionCSS = `<style>
+*{-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;}
+img,video,canvas,svg{pointer-events:none!important;-webkit-user-drag:none!important;}
+iframe{pointer-events:auto!important;}
+@media print{html,body{display:none!important;visibility:hidden!important;}}
+::selection{background:transparent!important;color:inherit!important;}
+::-moz-selection{background:transparent!important;color:inherit!important;}
+</style>`;
+                                      const protectionJS = `<script>(function(){
+var d=document;
+d.addEventListener('contextmenu',function(e){e.preventDefault();},true);
+d.addEventListener('copy',function(e){e.preventDefault();},true);
+d.addEventListener('cut',function(e){e.preventDefault();},true);
+d.addEventListener('selectstart',function(e){e.preventDefault();},true);
+d.addEventListener('dragstart',function(e){e.preventDefault();},true);
+d.addEventListener('keydown',function(e){
+  var k=e.key,c=e.ctrlKey||e.metaKey;
+  if(c&&(k==='p'||k==='u'||k==='s'||k==='a'||k==='c'))e.preventDefault();
+  if(c&&e.shiftKey&&(k==='I'||k==='i'||k==='J'||k==='j'||k==='C'||k==='c'))e.preventDefault();
+  if(k==='F12')e.preventDefault();
+},true);
+d.addEventListener('mousedown',function(e){if(e.detail>1)e.preventDefault();},true);
+})();</script>`;
                                       const isFullDoc = desc.trim().toLowerCase().startsWith("<!doctype") || desc.trim().toLowerCase().startsWith("<html");
-                                      const srcDoc = isFullDoc
-                                        ? desc.replace(/<\/head>/i, `${protectionCSS}</head>`).replace(/<\/body>/i, `${protectionJS}</body>`)
-                                        : `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">${protectionCSS}</head><body>${desc}${protectionJS}</body></html>`;
+                                      // Auto-resize script that posts height to parent
+                                      const resizeJS = `<script>
+(function r(){
+  var h=document.documentElement.scrollHeight;
+  window.parent.postMessage({type:'iframe-height',height:h,id:'${les.id}'},'*');
+  setTimeout(r,1000);
+})();
+</script>`;
+                                      const fullProtectionJS = protectionJS + resizeJS;
+                                      const htmlDoc = isFullDoc
+                                        ? desc.replace(/<\/head>/i, `${protectionCSS}</head>`).replace(/<\/body>/i, `${fullProtectionJS}</body>`)
+                                        : `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">${protectionCSS}</head><body>${desc}${fullProtectionJS}</body></html>`;
+                                      // Use Blob URL for cross-origin isolation (prevents parent from reading iframe content)
+                                      const blob = new Blob([htmlDoc], { type: "text/html" });
+                                      const blobUrl = URL.createObjectURL(blob);
                                       return (
                                         <iframe
-                                          srcDoc={srcDoc}
+                                          src={blobUrl}
                                           className="w-full border-0 rounded-lg mb-3"
                                           style={{ minHeight: "500px" }}
                                           sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-presentation"
-                                          onLoad={(e) => {
-                                            const iframe = e.target as HTMLIFrameElement;
-                                            try {
-                                              const h = iframe.contentDocument?.documentElement?.scrollHeight;
-                                              if (h) iframe.style.height = `${h + 20}px`;
-                                            } catch {}
+                                          allow="autoplay; fullscreen; encrypted-media"
+                                          ref={(el) => {
+                                            if (!el) return;
+                                            // Listen for height messages from iframe
+                                            const handler = (e: MessageEvent) => {
+                                              if (e.data?.type === 'iframe-height' && e.data?.id === les.id) {
+                                                el.style.height = `${e.data.height + 20}px`;
+                                              }
+                                            };
+                                            window.addEventListener('message', handler);
+                                            // Cleanup blob URL on unmount
+                                            el.addEventListener('load', () => {
+                                              setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+                                            }, { once: true });
                                           }}
                                         />
                                       );
