@@ -205,22 +205,41 @@ export default function TpemsCourseDetail() {
     const infoY = headerBottom + 22;
     doc.setDrawColor(220, 225, 230);
     doc.setLineWidth(0.3);
-    doc.roundedRect(mx, infoY, contentW, 28, 2, 2, "S");
+    doc.roundedRect(mx, infoY, contentW, 32, 2, 2, "S");
 
-    doc.setFontSize(8);
-    doc.setTextColor(140, 140, 140);
+    // Row 1: Alumno + Fecha
+    doc.setFontSize(7);
+    doc.setTextColor(150, 150, 150);
     doc.text("ALUMNO", mx + 5, infoY + 6);
-    doc.text("CURSO", mx + 5, infoY + 17);
-    doc.text("CODIGO", pw / 2 + 5, infoY + 17);
-    doc.text("FECHA", pw - mx - 38, infoY + 6);
+    doc.text("FECHA", pw - mx - 5, infoY + 6, { align: "right" });
 
     doc.setFontSize(10);
     doc.setTextColor(30, 30, 30);
-    doc.text(course.student_name, mx + 5, infoY + 11);
+    doc.text(course.student_name, mx + 5, infoY + 12);
+    doc.text(new Date().toLocaleDateString("es-CL"), pw - mx - 5, infoY + 12, { align: "right" });
+
+    // Separator line
+    doc.setDrawColor(235, 238, 241);
+    doc.line(mx + 5, infoY + 16, pw - mx - 5, infoY + 16);
+
+    // Row 2: Curso + Codigo
+    doc.setFontSize(7);
+    doc.setTextColor(150, 150, 150);
+    doc.text("CURSO", mx + 5, infoY + 21);
+    doc.text("CODIGO", pw - mx - 5, infoY + 21, { align: "right" });
+
     doc.setFontSize(9);
-    doc.text(course.course_title, mx + 5, infoY + 23);
-    doc.text(course.course_code || "", pw / 2 + 5, infoY + 23);
-    doc.text(new Date().toLocaleDateString("es-CL"), pw - mx - 38, infoY + 11);
+    doc.setTextColor(30, 30, 30);
+    // Truncate course title if too long
+    const maxTitleW = contentW - 60;
+    let titleText = course.course_title;
+    while (doc.getTextWidth(titleText) > maxTitleW && titleText.length > 10) {
+      titleText = titleText.substring(0, titleText.length - 2);
+    }
+    if (titleText !== course.course_title) titleText += "...";
+    doc.text(titleText, mx + 5, infoY + 27);
+    doc.setTextColor(0, 51, 102);
+    doc.text(course.course_code || "", pw - mx - 5, infoY + 27, { align: "right" });
 
     // ── Build module data ──
     type PdfRow = { name: string; hasExam: boolean; score: number | null; weight: number };
@@ -241,19 +260,23 @@ export default function TpemsCourseDetail() {
     });
 
     // ── Table ──
-    const colX = { modulo: mx + 4, tipo: 120, nota: 148, estado: 168 };
+    const tableX = mx;
+    const tableRight = pw - mx;
+    const tipoCenterX = 122;
+    const notaCenterX = 150;
+    const estadoCenterX = 175;
     const rowH = 9;
-    let y = infoY + 36;
+    let y = infoY + 40;
 
     // Table header
     doc.setFillColor(0, 51, 102);
-    doc.roundedRect(mx, y, contentW, 10, 1, 1, "F");
-    doc.setFontSize(8);
+    doc.roundedRect(tableX, y, contentW, 10, 1, 1, "F");
+    doc.setFontSize(7.5);
     doc.setTextColor(255, 255, 255);
-    doc.text("MODULO", colX.modulo, y + 7);
-    doc.text("TIPO", colX.tipo, y + 7);
-    doc.text("NOTA", colX.nota, y + 7);
-    doc.text("ESTADO", colX.estado, y + 7);
+    doc.text("MODULO", tableX + 5, y + 7);
+    doc.text("TIPO", tipoCenterX, y + 7, { align: "center" });
+    doc.text("NOTA", notaCenterX, y + 7, { align: "center" });
+    doc.text("ESTADO", estadoCenterX, y + 7, { align: "center" });
     y += 12;
 
     // Table rows
@@ -261,68 +284,71 @@ export default function TpemsCourseDetail() {
       // Alternating background
       if (i % 2 === 0) {
         doc.setFillColor(248, 250, 252);
-        doc.rect(mx, y - 5, contentW, rowH, "F");
+        doc.rect(tableX, y - 5, contentW, rowH, "F");
       }
       // Left border accent for exam rows
       if (row.hasExam) {
         doc.setFillColor(0, 114, 206);
-        doc.rect(mx, y - 5, 1.5, rowH, "F");
+        doc.rect(tableX, y - 5, 1.5, rowH, "F");
       }
 
+      // Module name
       doc.setFontSize(8.5);
       doc.setTextColor(40, 40, 40);
-
-      const maxLen = 48;
+      const maxLen = 42;
       const name = row.name.length > maxLen ? row.name.substring(0, maxLen) + "..." : row.name;
-      doc.text(name, colX.modulo, y);
+      doc.text(name, tableX + 5, y);
 
-      // Tipo badge
-      doc.setFontSize(7.5);
+      // Tipo badge (centered)
+      doc.setFontSize(7);
+      const tipoText = row.hasExam ? "Examen" : "Contenido";
+      const tipoBadgeW = doc.getTextWidth(tipoText) + 5;
       if (row.hasExam) {
         doc.setFillColor(219, 234, 254);
-        doc.roundedRect(colX.tipo - 1, y - 4, 18, 6, 1, 1, "F");
+        doc.roundedRect(tipoCenterX - tipoBadgeW / 2, y - 4, tipoBadgeW, 6, 1, 1, "F");
         doc.setTextColor(30, 64, 175);
-        doc.text("Examen", colX.tipo + 1, y);
       } else {
         doc.setFillColor(229, 231, 235);
-        doc.roundedRect(colX.tipo - 1, y - 4, 22, 6, 1, 1, "F");
+        doc.roundedRect(tipoCenterX - tipoBadgeW / 2, y - 4, tipoBadgeW, 6, 1, 1, "F");
         doc.setTextColor(75, 85, 99);
-        doc.text("Contenido", colX.tipo + 1, y);
       }
+      doc.text(tipoText, tipoCenterX, y, { align: "center" });
 
-      // Nota
+      // Nota (centered)
       doc.setFontSize(9);
       if (row.hasExam && row.score != null) {
         doc.setTextColor(row.score >= 80 ? 22 : 220, row.score >= 80 ? 163 : 38, row.score >= 80 ? 74 : 38);
-        doc.text(`${row.score}%`, colX.nota, y);
+        doc.text(`${row.score}%`, notaCenterX, y, { align: "center" });
       } else {
         doc.setTextColor(180, 180, 180);
-        doc.text("—", colX.nota + 2, y);
+        doc.text("—", notaCenterX, y, { align: "center" });
       }
 
-      // Estado
-      doc.setFontSize(7.5);
-      if (row.hasExam) {
-        if (row.score != null) {
-          if (row.score >= 80) {
-            doc.setFillColor(220, 252, 231);
-            doc.roundedRect(colX.estado - 1, y - 4, 20, 6, 1, 1, "F");
-            doc.setTextColor(22, 101, 52);
-          } else {
-            doc.setFillColor(254, 226, 226);
-            doc.roundedRect(colX.estado - 1, y - 4, 22, 6, 1, 1, "F");
-            doc.setTextColor(153, 27, 27);
-          }
-          doc.text(row.score >= 80 ? "Aprobado" : "Reprobado", colX.estado + 1, y);
+      // Estado badge (centered)
+      doc.setFontSize(7);
+      let estadoText = "";
+      if (row.hasExam && row.score != null) {
+        estadoText = row.score >= 80 ? "Aprobado" : "Reprobado";
+        const estadoBadgeW = doc.getTextWidth(estadoText) + 5;
+        if (row.score >= 80) {
+          doc.setFillColor(220, 252, 231);
+          doc.setTextColor(22, 101, 52);
         } else {
-          doc.setTextColor(150, 150, 150);
-          doc.text("Pendiente", colX.estado + 1, y);
+          doc.setFillColor(254, 226, 226);
+          doc.setTextColor(153, 27, 27);
         }
+        doc.roundedRect(estadoCenterX - estadoBadgeW / 2, y - 4, estadoBadgeW, 6, 1, 1, "F");
+        doc.text(estadoText, estadoCenterX, y, { align: "center" });
+      } else if (row.hasExam) {
+        doc.setTextColor(150, 150, 150);
+        doc.text("Pendiente", estadoCenterX, y, { align: "center" });
       } else {
+        estadoText = "Aprobado";
+        const estadoBadgeW = doc.getTextWidth(estadoText) + 5;
         doc.setFillColor(220, 252, 231);
-        doc.roundedRect(colX.estado - 1, y - 4, 20, 6, 1, 1, "F");
+        doc.roundedRect(estadoCenterX - estadoBadgeW / 2, y - 4, estadoBadgeW, 6, 1, 1, "F");
         doc.setTextColor(22, 101, 52);
-        doc.text("Aprobado", colX.estado + 1, y);
+        doc.text(estadoText, estadoCenterX, y, { align: "center" });
       }
 
       y += rowH;
@@ -331,7 +357,7 @@ export default function TpemsCourseDetail() {
     // Table bottom border
     doc.setDrawColor(200, 205, 210);
     doc.setLineWidth(0.3);
-    doc.line(mx, y - 4, mx + contentW, y - 4);
+    doc.line(tableX, y - 4, tableRight, y - 4);
 
     // ── Final score box ──
     if (examGradeItems.length > 0) {
@@ -365,10 +391,10 @@ export default function TpemsCourseDetail() {
 
         doc.setFontSize(14);
         doc.setTextColor(passed ? 22 : 185, passed ? 101 : 28, passed ? 52 : 28);
-        doc.text(`${finalScore}%`, colX.nota - 2, y + 11);
+        doc.text(`${finalScore}%`, notaCenterX, y + 11, { align: "center" });
 
         doc.setFontSize(9);
-        doc.text(passed ? "APROBADO" : "REPROBADO", colX.estado, y + 11);
+        doc.text(passed ? "APROBADO" : "REPROBADO", estadoCenterX, y + 11, { align: "center" });
 
         if (scoredExams.length > 1) {
           y += boxH + 3;
