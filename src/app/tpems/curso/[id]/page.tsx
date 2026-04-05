@@ -149,7 +149,7 @@ export default function TpemsCourseDetail() {
   }, []);
 
   function downloadGradesPDF() {
-    if (!course || gradeItems.length === 0) return;
+    if (!course) return;
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -169,49 +169,118 @@ export default function TpemsCourseDetail() {
     doc.text(`Codigo: ${course.course_code || ""}`, 20, 64);
     doc.text(`Fecha: ${new Date().toLocaleDateString("es-CL")}`, 20, 71);
 
+    // Build rows: all modules, marking which have exams
+    type PdfRow = { name: string; hasExam: boolean; score: number | null; weight: number };
+    const rows: PdfRow[] = [];
+    const examGradeItems: { weight: number; score: number | null }[] = [];
+
+    modules.forEach((mod, idx) => {
+      const modLessons = lessons.filter((l) => l.module_id === mod.id);
+      const hasExam = modLessons.some((l) => l.type === "exam");
+
+      // Find matching grade item for this module
+      const gradeItem = gradeItems.find((gi) =>
+        gi.name.toLowerCase().includes(mod.title.toLowerCase()) ||
+        gi.name.toLowerCase().includes(`modulo ${idx + 1}`) ||
+        gi.name.toLowerCase().includes(`módulo ${idx + 1}`)
+      );
+      const grade = gradeItem ? studentGrades.find((g) => g.grade_item_id === gradeItem.id) : null;
+
+      rows.push({
+        name: `Modulo ${idx + 1}: ${mod.title}`,
+        hasExam,
+        score: hasExam && grade ? grade.score : null,
+        weight: gradeItem?.weight || 0,
+      });
+
+      if (hasExam && gradeItem) {
+        examGradeItems.push({ weight: gradeItem.weight, score: grade?.score ?? null });
+      }
+    });
+
     // Table header
     let y = 85;
     doc.setFillColor(0, 51, 102);
     doc.rect(20, y - 5, pageWidth - 40, 10, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(9);
-    doc.text("Evaluacion", 25, y + 1);
-    doc.text("Peso", 120, y + 1);
+    doc.text("Modulo", 25, y + 1);
+    doc.text("Tipo", 115, y + 1);
     doc.text("Nota", 145, y + 1);
-    doc.text("Estado", 170, y + 1);
+    doc.text("Estado", 168, y + 1);
 
     // Table rows
     y += 12;
-    doc.setTextColor(50, 50, 50);
-    gradeItems.forEach((item) => {
-      const grade = studentGrades.find((g) => g.grade_item_id === item.id);
-      const score = grade?.score;
-      doc.text(item.name, 25, y);
-      doc.text(`${item.weight}%`, 120, y);
-      doc.text(score != null ? `${score}%` : "-", 145, y);
-      doc.text(score != null ? (score >= 80 ? "Aprobado" : "Reprobado") : "Pendiente", 170, y);
+    rows.forEach((row) => {
+      // Alternate row background
+      if (rows.indexOf(row) % 2 === 0) {
+        doc.setFillColor(245, 247, 250);
+        doc.rect(20, y - 5, pageWidth - 40, 8, "F");
+      }
+      doc.setTextColor(50, 50, 50);
+      doc.setFontSize(8.5);
+
+      // Truncate long names
+      const maxNameLen = 50;
+      const displayName = row.name.length > maxNameLen ? row.name.substring(0, maxNameLen) + "..." : row.name;
+      doc.text(displayName, 25, y);
+
+      doc.text(row.hasExam ? "Examen" : "Contenido", 115, y);
+
+      if (row.hasExam) {
+        doc.text(row.score != null ? `${row.score}%` : "-", 145, y);
+        if (row.score != null) {
+          doc.setTextColor(row.score >= 80 ? 22 : 220, row.score >= 80 ? 163 : 38, row.score >= 80 ? 74 : 38);
+          doc.text(row.score >= 80 ? "Aprobado" : "Reprobado", 168, y);
+        } else {
+          doc.setTextColor(150, 150, 150);
+          doc.text("Pendiente", 168, y);
+        }
+      } else {
+        doc.setTextColor(22, 163, 74);
+        doc.text("-", 145, y);
+        doc.text("Aprobado", 168, y);
+      }
       y += 8;
     });
 
-    // Final score
-    const gradedItems = gradeItems.filter((item) => {
-      const g = studentGrades.find((sg) => sg.grade_item_id === item.id);
-      return g?.score != null;
-    });
-    if (gradedItems.length > 0) {
-      let totalW = 0, wSum = 0;
-      gradedItems.forEach((item) => {
-        const g = studentGrades.find((sg) => sg.grade_item_id === item.id);
-        if (g?.score != null) { wSum += g.score * item.weight; totalW += item.weight; }
-      });
-      const final_ = totalW > 0 ? Math.round((wSum / totalW) * 100) / 100 : 0;
-      y += 5;
-      doc.setDrawColor(200, 200, 200);
-      doc.line(20, y - 3, pageWidth - 20, y - 3);
-      doc.setFontSize(11);
-      doc.setTextColor(0, 51, 102);
-      doc.text("Nota Final (Promedio Ponderado):", 25, y + 5);
-      doc.text(`${final_}%`, 145, y + 5);
+    // Final score section
+    y += 4;
+    doc.setDrawColor(0, 51, 102);
+    doc.setLineWidth(0.5);
+    doc.line(20, y - 2, pageWidth - 20, y - 2);
+
+    if (examGradeItems.length > 0) {
+      const scoredExams = examGradeItems.filter((e) => e.score !== null);
+      if (scoredExams.length > 0) {
+        let finalScore: number;
+        if (scoredExams.length === 1) {
+          finalScore = scoredExams[0].score!;
+        } else {
+          let wSum = 0, totalW = 0;
+          scoredExams.forEach((e) => {
+            wSum += e.score! * e.weight;
+            totalW += e.weight;
+          });
+          finalScore = totalW > 0 ? Math.round((wSum / totalW) * 100) / 100 : 0;
+        }
+
+        y += 6;
+        doc.setFontSize(11);
+        doc.setTextColor(0, 51, 102);
+        doc.text(scoredExams.length > 1 ? "Nota Final (Promedio Ponderado):" : "Nota Final:", 25, y);
+        doc.text(`${finalScore}%`, 145, y);
+        doc.setTextColor(finalScore >= 80 ? 22 : 220, finalScore >= 80 ? 163 : 38, finalScore >= 80 ? 74 : 38);
+        doc.setFontSize(10);
+        doc.text(finalScore >= 80 ? "APROBADO" : "REPROBADO", 168, y);
+
+        if (scoredExams.length > 1) {
+          y += 7;
+          doc.setFontSize(8);
+          doc.setTextColor(130, 130, 130);
+          doc.text(`Ponderacion: ${examGradeItems.map((e, i) => `Examen ${i + 1}: ${e.weight}%`).join("  |  ")}`, 25, y);
+        }
+      }
     }
 
     doc.save(`Calificaciones_${course.course_code || "curso"}.pdf`);
@@ -1123,57 +1192,93 @@ export default function TpemsCourseDetail() {
         {/* ============ GRADES TAB ============ */}
         {activeTab === "grades" && (
           <div className="space-y-6">
-            {gradeItems.length === 0 ? (
+            {modules.length === 0 ? (
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center">
                 <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl">📊</div>
-                <p className="text-gray-500 font-medium">Las calificaciones estarán disponibles una vez que el instructor las registre.</p>
+                <p className="text-gray-500 font-medium">Las calificaciones estarán disponibles una vez que completes los módulos.</p>
               </div>
-            ) : (
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
-                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-sm">📊</div>
-                  <h3 className="font-semibold text-gray-800">Mis Calificaciones</h3>
-                </div>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
-                      <th className="px-6 py-3 font-medium">Evaluación</th>
-                      <th className="px-6 py-3 font-medium text-center">Ponderación</th>
-                      <th className="px-6 py-3 font-medium text-center">Nota</th>
-                      <th className="px-6 py-3 font-medium text-center">Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {gradeItems.map((item) => {
-                      const grade = studentGrades.find((g) => g.grade_item_id === item.id);
-                      const score = grade?.score;
-                      return (
-                        <tr key={item.id} className="border-t border-gray-50">
-                          <td className="px-6 py-3 text-gray-700">{item.name}</td>
-                          <td className="px-6 py-3 text-center text-gray-500">{item.weight}%</td>
+            ) : (() => {
+              // Build module rows with exam info
+              const moduleRows = modules.map((mod, idx) => {
+                const modLessons = lessons.filter((l) => l.module_id === mod.id);
+                const hasExam = modLessons.some((l) => l.type === "exam");
+                const gradeItem = gradeItems.find((gi) =>
+                  gi.name.toLowerCase().includes(mod.title.toLowerCase()) ||
+                  gi.name.toLowerCase().includes(`modulo ${idx + 1}`) ||
+                  gi.name.toLowerCase().includes(`módulo ${idx + 1}`)
+                );
+                const grade = gradeItem ? studentGrades.find((g) => g.grade_item_id === gradeItem.id) : null;
+                return { mod, idx, hasExam, gradeItem, score: hasExam && grade ? grade.score : null, weight: gradeItem?.weight || 0 };
+              });
+              const examModules = moduleRows.filter((r) => r.hasExam && r.score !== null);
+              let finalScore: number | null = null;
+              if (examModules.length > 0) {
+                if (examModules.length === 1) {
+                  finalScore = examModules[0].score;
+                } else {
+                  let wSum = 0, totalW = 0;
+                  examModules.forEach((e) => { wSum += e.score! * e.weight; totalW += e.weight; });
+                  finalScore = totalW > 0 ? Math.round((wSum / totalW) * 100) / 100 : 0;
+                }
+              }
+
+              return (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-sm">📊</div>
+                    <h3 className="font-semibold text-gray-800">Mis Calificaciones</h3>
+                  </div>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
+                        <th className="px-6 py-3 font-medium">Módulo</th>
+                        <th className="px-6 py-3 font-medium text-center">Tipo</th>
+                        <th className="px-6 py-3 font-medium text-center">Nota</th>
+                        <th className="px-6 py-3 font-medium text-center">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {moduleRows.map((row) => (
+                        <tr key={row.mod.id} className={`border-t border-gray-50 ${row.hasExam ? "bg-blue-50/30" : ""}`}>
+                          <td className="px-6 py-3 text-gray-700">
+                            <span className="text-gray-400 mr-1">{row.idx + 1}.</span>
+                            {row.mod.title}
+                          </td>
                           <td className="px-6 py-3 text-center">
-                            {score !== null && score !== undefined ? (
-                              <span className={`font-bold ${score >= 80 ? "text-green-600" : "text-red-600"}`}>{score}%</span>
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded ${row.hasExam ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"}`}>
+                              {row.hasExam ? "Examen" : "Contenido"}
+                            </span>
+                          </td>
+                          <td className="px-6 py-3 text-center">
+                            {row.hasExam ? (
+                              row.score !== null ? (
+                                <span className={`font-bold ${row.score >= 80 ? "text-green-600" : "text-red-600"}`}>{row.score}%</span>
+                              ) : (
+                                <span className="text-gray-300">—</span>
+                              )
                             ) : (
                               <span className="text-gray-300">—</span>
                             )}
                           </td>
                           <td className="px-6 py-3 text-center">
-                            {score !== null && score !== undefined ? (
-                              <span className={`text-xs font-medium px-2 py-1 rounded ${score >= 80 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
-                                {score >= 80 ? "Aprobado" : "Reprobado"}
-                              </span>
+                            {row.hasExam ? (
+                              row.score !== null ? (
+                                <span className={`text-xs font-medium px-2 py-1 rounded ${row.score >= 80 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                                  {row.score >= 80 ? "Aprobado" : "Reprobado"}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-gray-400">Pendiente</span>
+                              )
                             ) : (
-                              <span className="text-xs text-gray-400">Pendiente</span>
+                              <span className="text-xs font-medium px-2 py-1 rounded bg-green-100 text-green-800">Aprobado</span>
                             )}
                           </td>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                {/* Download grades button */}
-                {studentGrades.length > 0 && (
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {/* Download grades button */}
                   <div className="px-6 py-3 border-t border-gray-100">
                     <button
                       onClick={downloadGradesPDF}
@@ -1183,29 +1288,19 @@ export default function TpemsCourseDetail() {
                       Descargar Calificaciones (PDF)
                     </button>
                   </div>
-                )}
-                {/* Final score */}
-                {(() => {
-                  const gradedItems = gradeItems.filter((item) => {
-                    const g = studentGrades.find((sg) => sg.grade_item_id === item.id);
-                    return g?.score !== null && g?.score !== undefined;
-                  });
-                  if (gradedItems.length === 0) return null;
-                  let totalW = 0, wSum = 0;
-                  gradedItems.forEach((item) => {
-                    const g = studentGrades.find((sg) => sg.grade_item_id === item.id);
-                    if (g?.score != null) { wSum += g.score * item.weight; totalW += item.weight; }
-                  });
-                  const final_ = totalW > 0 ? Math.round((wSum / totalW) * 100) / 100 : 0;
-                  return (
+
+                  {/* Final score */}
+                  {finalScore !== null && (
                     <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
-                      <span className="font-semibold text-gray-800">Nota Final (Promedio Ponderado)</span>
-                      <span className={`text-xl font-bold ${final_ >= 80 ? "text-green-600" : "text-red-600"}`}>{final_}%</span>
+                      <span className="font-semibold text-gray-800">
+                        {examModules.length > 1 ? "Nota Final (Promedio Ponderado)" : "Nota Final"}
+                      </span>
+                      <span className={`text-xl font-bold ${finalScore >= 80 ? "text-green-600" : "text-red-600"}`}>{finalScore}%</span>
                     </div>
-                  );
-                })()}
-              </div>
-            )}
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Diploma */}
             {diploma && (() => {
