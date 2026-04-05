@@ -14,6 +14,7 @@ type Question = {
   correct_answer: string;
   points: number;
   is_new?: boolean;
+  is_modified?: boolean;
 };
 
 type Exam = {
@@ -73,7 +74,7 @@ function ExamEditorContent({ courseId }: { courseId: string }) {
   }
 
   function updateQuestion(idx: number, field: string, value: any) {
-    setQuestions((prev) => prev.map((q, i) => (i === idx ? { ...q, [field]: value } : q)));
+    setQuestions((prev) => prev.map((q, i) => (i === idx ? { ...q, [field]: value, is_modified: !q.is_new ? true : q.is_modified } : q)));
   }
 
   function updateOption(qIdx: number, optIdx: number, text: string) {
@@ -217,7 +218,29 @@ function ExamEditorContent({ courseId }: { courseId: string }) {
         if (json.error) throw new Error(json.error);
       }
 
-      setSuccess(`${newQuestions.length} preguntas guardadas`);
+      // Update existing modified questions
+      const modifiedQuestions = questions.filter((q) => !q.is_new && q.is_modified && q.id);
+      for (const q of modifiedQuestions) {
+        const res2 = await fetch("/api/admin/examenes", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "update_question",
+            id: q.id,
+            question_type: q.question_type,
+            question_text: q.question_text,
+            options: q.options,
+            correct_answer: q.correct_answer,
+            points: q.points,
+            sort_order: q.sort_order,
+          }),
+        });
+        const json2 = await res2.json();
+        if (json2.error) throw new Error(json2.error);
+      }
+
+      const totalSaved = newQuestions.length + modifiedQuestions.length;
+      setSuccess(`${totalSaved} pregunta(s) guardada(s)`);
       // Reload
       const res = await fetch(`/api/admin/examenes?activity_id=${activityId}`);
       const json = await res.json();

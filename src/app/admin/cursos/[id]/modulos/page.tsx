@@ -83,8 +83,11 @@ export default function AdminModulosPage({ params }: { params: Promise<{ id: str
       dbLessons = data || [];
     }
 
+    const usedIds = new Set<string>();
     const merged: Module[] = courseModuleNames.map((name, idx) => {
-      const existing = (existingModules || []).find((m: any) => m.title === name) || (existingModules || [])[idx];
+      const byTitle = (existingModules || []).find((m: any) => m.title === name && !usedIds.has(m.id));
+      const existing = byTitle || (existingModules || []).find((m: any) => m.sort_order === idx && !usedIds.has(m.id));
+      if (existing) usedIds.add(existing.id);
 
       if (existing) {
         return {
@@ -170,6 +173,15 @@ export default function AdminModulosPage({ params }: { params: Promise<{ id: str
       if (deletedLessonIds.length > 0) {
         await supabase.from("module_activities").delete().in("id", deletedLessonIds);
         setDeletedLessonIds([]);
+      }
+
+      // Clean up orphaned course_modules not in current module list
+      const activeModuleIds = modules.filter((m) => m.id).map((m) => m.id!);
+      const { data: allDbModules } = await supabase.from("course_modules").select("id").eq("course_id", courseId);
+      const orphanIds = (allDbModules || []).filter((m: any) => !activeModuleIds.includes(m.id)).map((m: any) => m.id);
+      if (orphanIds.length > 0) {
+        await supabase.from("module_activities").delete().in("module_id", orphanIds);
+        await supabase.from("course_modules").delete().in("id", orphanIds);
       }
 
       for (let i = 0; i < modules.length; i++) {
