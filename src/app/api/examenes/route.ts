@@ -173,6 +173,91 @@ export async function POST(request: Request) {
           graded_at: new Date().toISOString(),
           comments: `Auto-calificado (Intento ${attempt.attempt_number})`,
         }, { onConflict: "registration_id,grade_item_id" });
+
+        // Auto-complete: check if all grade items have scores and calculate final
+        const { data: registration } = await supabaseAdmin
+          .from("registrations")
+          .select("id, course_id, first_name, last_name, theoretical_start, practical_end")
+          .eq("id", attempt.registration_id)
+          .single();
+
+        if (registration) {
+          const { data: allGradeItems } = await supabaseAdmin
+            .from("grade_items")
+            .select("id, weight")
+            .eq("course_id", registration.course_id);
+
+          const { data: allGrades } = await supabaseAdmin
+            .from("student_grades")
+            .select("grade_item_id, score")
+            .eq("registration_id", registration.id);
+
+          if (allGradeItems && allGrades) {
+            const gradeMap = new Map(allGrades.map((g: any) => [g.grade_item_id, g.score]));
+            const allHaveScores = allGradeItems.every((gi: any) => gradeMap.has(gi.id) && gradeMap.get(gi.id) !== null);
+
+            if (allHaveScores) {
+              let weightedSum = 0, totalWeight = 0;
+              for (const gi of allGradeItems) {
+                const s = gradeMap.get(gi.id) as number;
+                weightedSum += s * gi.weight;
+                totalWeight += gi.weight;
+              }
+              const finalScore = totalWeight > 0 ? Math.round((weightedSum / totalWeight) * 100) / 100 : 0;
+              const passed = finalScore >= 80;
+
+              // Update registration status
+              await supabaseAdmin.from("registrations").update({
+                status: "completed",
+                final_score: finalScore,
+                grade_status: passed ? "approved" : "failed",
+              }).eq("id", registration.id);
+
+              // Auto-issue diploma if approved
+              if (passed) {
+                const { data: course } = await supabaseAdmin
+                  .from("courses")
+                  .select("title, code, area")
+                  .eq("id", registration.course_id)
+                  .single();
+
+                // Check if diploma already exists
+                const { data: existingDiploma } = await supabaseAdmin
+                  .from("diplomas")
+                  .select("id")
+                  .eq("registration_id", registration.id)
+                  .maybeSingle();
+
+                if (!existingDiploma && course) {
+                  // Generate verification code
+                  let prefix = "";
+                  if (course.code) {
+                    const parts = course.code.split("/");
+                    prefix = parts.length >= 3 ? `${parts[1]}-${parts[2]}` : parts.join("-");
+                  } else {
+                    prefix = (course.area || "ENAE").replace(/[^A-Z]/gi, "").substring(0, 6).toUpperCase();
+                  }
+                  const number = String(Math.floor(Math.random() * 9000000) + 1000000).padStart(7, "0");
+                  const year = new Date().getFullYear();
+                  const verificationCode = `${prefix}-${number}-${year}`;
+
+                  await supabaseAdmin.from("diplomas").insert({
+                    registration_id: registration.id,
+                    verification_code: verificationCode,
+                    student_name: `${registration.first_name} ${registration.last_name}`,
+                    course_title: course.title,
+                    course_code: course.code,
+                    final_score: finalScore,
+                    status: "approved",
+                    issued_date: new Date().toISOString().split("T")[0],
+                    theoretical_start: registration.theoretical_start,
+                    practical_end: registration.practical_end,
+                  });
+                }
+              }
+            }
+          }
+        }
       }
 
       // Build review data with correct answers
