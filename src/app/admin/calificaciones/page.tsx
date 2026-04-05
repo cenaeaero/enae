@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 type CourseOption = { id: string; title: string; code: string | null };
-type GradeItem = { id: string; name: string; weight: number; sort_order: number };
+type GradeItem = { id: string; name: string; weight: number; sort_order: number; is_auto?: boolean };
 type StudentRow = {
   registrationId: string;
   name: string;
   email: string;
   company: string | null;
   grades: Record<string, number | null>; // grade_item_id -> score
+  autoGrades: Set<string>; // grade_item_ids that were auto-graded
   finalScore: number | null;
   gradeStatus: string | null;
 };
@@ -46,17 +47,20 @@ export default function CalificacionesPage() {
       .eq("course_id", courseId)
       .order("sort_order");
 
-    setGradeItems((items as GradeItem[]) || []);
+    // Mark module-based items as auto-graded
+    const gradeItemsList = ((items as GradeItem[]) || []).map((item) => ({
+      ...item,
+      is_auto: item.name.toLowerCase().includes("modulo") || item.name.toLowerCase().includes("módulo") || item.name.toLowerCase().includes("dgac") || item.name.toLowerCase().includes("simulador"),
+    }));
+    setGradeItems(gradeItemsList);
 
     // Load registrations for this course
-    const { data: regs, error: regsError } = await supabase
+    const { data: regs } = await supabase
       .from("registrations")
       .select("id, first_name, last_name, email, organization, status")
       .eq("course_id", courseId)
       .in("status", ["confirmed", "completed"])
       .order("last_name");
-
-    console.log("Registrations query:", { courseId, regs: regs?.length, error: regsError?.message });
 
     if (!regs || regs.length === 0 || !items) {
       setStudents([]);
@@ -64,18 +68,47 @@ export default function CalificacionesPage() {
       return;
     }
 
-    // Load existing grades
+    // Load existing grades from student_grades
     const regIds = regs.map((r: any) => r.id);
     const { data: grades } = await supabase
       .from("student_grades")
-      .select("registration_id, grade_item_id, score")
+      .select("registration_id, grade_item_id, score, comments")
       .in("registration_id", regIds);
 
     const gradeMap: Record<string, Record<string, number | null>> = {};
+    const autoGradeMap: Record<string, Set<string>> = {};
     (grades || []).forEach((g: any) => {
       if (!gradeMap[g.registration_id]) gradeMap[g.registration_id] = {};
+      if (!autoGradeMap[g.registration_id]) autoGradeMap[g.registration_id] = new Set();
       gradeMap[g.registration_id][g.grade_item_id] = g.score;
+      if (g.comments?.includes("Auto-calificado")) {
+        autoGradeMap[g.registration_id].add(g.grade_item_id);
+      }
     });
+
+    // Also load latest exam attempt scores per module for students who have taken exams
+    // This catches scores that weren't saved to student_grades yet
+    const { data: examAttempts } = await supabase
+      .from("exam_attempts")
+      .select("registration_id, score, status, exams(activity_id, grade_item_id)")
+      .in("registration_id", regIds)
+      .eq("status", "completed")
+      .order("completed_at", { ascending: false });
+
+    if (examAttempts) {
+      for (const attempt of examAttempts as any[]) {
+        const regId = attempt.registration_id;
+        const exam = attempt.exams;
+        if (!exam?.grade_item_id) continue;
+        if (!gradeMap[regId]) gradeMap[regId] = {};
+        if (!autoGradeMap[regId]) autoGradeMap[regId] = new Set();
+        // Only set if not already set (keep latest)
+        if (gradeMap[regId][exam.grade_item_id] === undefined || gradeMap[regId][exam.grade_item_id] === null) {
+          gradeMap[regId][exam.grade_item_id] = attempt.score;
+          autoGradeMap[regId].add(exam.grade_item_id);
+        }
+      }
+    }
 
     setStudents(
       regs.map((r: any) => ({
@@ -84,6 +117,7 @@ export default function CalificacionesPage() {
         email: r.email,
         company: r.organization || null,
         grades: gradeMap[r.id] || {},
+        autoGrades: autoGradeMap[r.id] || new Set(),
         finalScore: null,
         gradeStatus: "pending",
       }))
@@ -151,7 +185,6 @@ export default function CalificacionesPage() {
             : "failed"
           : "pending";
 
-      // Try to update final_score/grade_status, ignore if columns don't exist
       const { error: updateErr } = await supabase
         .from("registrations")
         .update({ final_score: finalScore, grade_status: gradeStatus })
@@ -250,10 +283,15 @@ export default function CalificacionesPage() {
                     key={item.id}
                     className="px-3 py-3 font-medium text-center whitespace-nowrap"
                   >
-                    {item.name}
+                    <span className="block">{item.name}</span>
                     <span className="block text-[10px] text-gray-400 font-normal">
-                      Peso: {item.weight}
+                      Peso: {item.weight}%
                     </span>
+                    {item.is_auto && (
+                      <span className="inline-block mt-0.5 text-[9px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-medium">
+                        Auto
+                      </span>
+                    )}
                   </th>
                 ))}
                 <th className="px-3 py-3 font-medium text-center">Final</th>
@@ -279,32 +317,41 @@ export default function CalificacionesPage() {
                         {student.name}
                       </p>
                       <p className="text-xs text-gray-400">{student.email}</p>
-                      {student.company && (
-                        <p className="text-xs text-gray-400">
-                          {student.company}
-                        </p>
-                      )}
                     </td>
-                    {gradeItems.map((item) => (
-                      <td key={item.id} className="px-3 py-3 text-center">
-                        <input
-                          type="number"
-                          value={student.grades[item.id] ?? ""}
-                          onChange={(e) =>
-                            setGrade(
-                              student.registrationId,
-                              item.id,
-                              e.target.value === ""
-                                ? null
-                                : parseFloat(e.target.value)
-                            )
-                          }
-                          min="0"
-                          max="100"
-                          className="w-16 border border-gray-200 rounded px-2 py-1 text-sm text-center focus:ring-1 focus:ring-[#0072CE]"
-                        />
-                      </td>
-                    ))}
+                    {gradeItems.map((item) => {
+                      const isAuto = student.autoGrades.has(item.id);
+                      const score = student.grades[item.id];
+                      return (
+                        <td key={item.id} className="px-3 py-3 text-center">
+                          {isAuto ? (
+                            <span className={`font-bold text-sm ${
+                              score !== null && score !== undefined
+                                ? score >= 80 ? "text-green-600" : "text-red-600"
+                                : "text-gray-400"
+                            }`}>
+                              {score !== null && score !== undefined ? `${score}%` : "—"}
+                            </span>
+                          ) : (
+                            <input
+                              type="number"
+                              value={score ?? ""}
+                              onChange={(e) =>
+                                setGrade(
+                                  student.registrationId,
+                                  item.id,
+                                  e.target.value === ""
+                                    ? null
+                                    : parseFloat(e.target.value)
+                                )
+                              }
+                              min="0"
+                              max="100"
+                              className="w-16 border border-gray-200 rounded px-2 py-1 text-sm text-center focus:ring-1 focus:ring-[#0072CE]"
+                            />
+                          )}
+                        </td>
+                      );
+                    })}
                     <td className="px-3 py-3 text-center">
                       <span
                         className={`font-bold ${

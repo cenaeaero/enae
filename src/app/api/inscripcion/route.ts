@@ -22,6 +22,20 @@ export async function POST(request: Request) {
         const { firstName, lastName, email, rut, company } = student;
         let isReturningStudent = false;
 
+        // Check if already registered in this course (prevent duplicates)
+        const { data: existingReg } = await supabaseAdmin
+          .from("registrations")
+          .select("id")
+          .eq("course_id", courseId)
+          .eq("email", email)
+          .in("status", ["confirmed", "completed"])
+          .maybeSingle();
+
+        if (existingReg) {
+          results.push({ email, success: false, error: "Ya está inscrito en este curso" });
+          continue;
+        }
+
         // Check if student already exists
         let userId: string | undefined;
         const { data: existingProfile } = await supabaseAdmin

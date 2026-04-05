@@ -164,6 +164,12 @@ export default function AdminInscripcionPage() {
     const data = await res.json();
     setResults(data.results || []);
     setSubmitting(false);
+
+    // Reset form after successful submission to prevent accidental re-submit
+    const allSuccess = (data.results || []).every((r: any) => r.success);
+    if (allSuccess) {
+      setStudents([emptyStudent()]);
+    }
   }
 
   return (

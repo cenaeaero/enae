@@ -136,12 +136,39 @@ export async function POST(request: Request) {
         .update({ score, total_points: totalPoints, earned_points: earnedPoints, completed_at: new Date().toISOString(), status: "completed" })
         .eq("id", attempt_id);
 
-      // Auto-grade: save to student_grades if exam has grade_item_id
+      // Auto-grade: save to student_grades
       const exam = attempt.exams;
-      if (exam?.grade_item_id) {
+      let gradeItemId = exam?.grade_item_id;
+
+      // If no grade_item_id on exam, auto-find by matching module → grade_item
+      if (!gradeItemId && exam?.activity_id) {
+        const { data: activity } = await supabaseAdmin
+          .from("module_activities")
+          .select("module_id, course_modules(sort_order, course_id)")
+          .eq("id", exam.activity_id)
+          .single();
+
+        if (activity?.course_modules) {
+          const mod = activity.course_modules as any;
+          // Find grade_item matching this module's sort_order
+          const { data: gradeItems } = await supabaseAdmin
+            .from("grade_items")
+            .select("id")
+            .eq("course_id", mod.course_id)
+            .order("sort_order");
+
+          if (gradeItems && gradeItems[mod.sort_order]) {
+            gradeItemId = gradeItems[mod.sort_order].id;
+            // Auto-link the exam for future attempts
+            await supabaseAdmin.from("exams").update({ grade_item_id: gradeItemId }).eq("id", exam.id);
+          }
+        }
+      }
+
+      if (gradeItemId) {
         await supabaseAdmin.from("student_grades").upsert({
           registration_id: attempt.registration_id,
-          grade_item_id: exam.grade_item_id,
+          grade_item_id: gradeItemId,
           score,
           graded_at: new Date().toISOString(),
           comments: `Auto-calificado (Intento ${attempt.attempt_number})`,
