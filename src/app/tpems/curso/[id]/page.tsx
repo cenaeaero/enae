@@ -1208,59 +1208,92 @@ export default function TpemsCourseDetail() {
             )}
 
             {/* Diploma */}
-            {diploma && (
-              <div className="bg-white rounded-2xl border border-green-200 shadow-sm overflow-hidden">
-                <div className="bg-green-50 px-6 py-4 flex items-center gap-3">
-                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-                  </svg>
-                  <div>
-                    <h3 className="font-bold text-green-800">Diploma Emitido</h3>
-                    <p className="text-sm text-green-600">Tu certificado ha sido emitido exitosamente.</p>
+            {diploma && (() => {
+              const surveys = buildQuestionnaireList();
+              const allSurveysCompleted = surveys.length > 0 && surveys.every((s) => s.completed);
+              const pendingSurveys = surveys.filter((s) => !s.completed);
+
+              return (
+                <div className="bg-white rounded-2xl border border-green-200 shadow-sm overflow-hidden">
+                  <div className="bg-green-50 px-6 py-4 flex items-center gap-3">
+                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                    </svg>
+                    <div>
+                      <h3 className="font-bold text-green-800">Diploma Emitido</h3>
+                      <p className="text-sm text-green-600">Tu certificado ha sido emitido exitosamente.</p>
+                    </div>
+                  </div>
+                  <div className="p-6">
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase">Código de Verificación</p>
+                        <p className="font-mono font-bold text-[#003366] text-lg">{diploma.verification_code}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase">Calificación Final</p>
+                        <p className="font-bold text-lg text-green-600">{diploma.final_score}%</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase">Estado</p>
+                        <span className="text-xs font-medium px-2.5 py-1 rounded bg-green-100 text-green-800">
+                          {diploma.status === "approved" ? "Aprobado" : "Reprobado"}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase">Fecha de Emisión</p>
+                        <p className="text-gray-700">{new Date(diploma.issued_date).toLocaleDateString("es-CL", { day: "2-digit", month: "long", year: "numeric" })}</p>
+                      </div>
+                    </div>
+
+                    {!allSurveysCompleted ? (
+                      <div className="mt-4 pt-4 border-t border-gray-100">
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                          <div className="flex items-start gap-3">
+                            <span className="text-xl shrink-0">📋</span>
+                            <div>
+                              <p className="text-sm font-semibold text-amber-800">Para descargar tu diploma debes completar las encuestas de evaluación</p>
+                              <p className="text-xs text-amber-600 mt-1">Tienes {pendingSurveys.length} encuesta{pendingSurveys.length > 1 ? "s" : ""} pendiente{pendingSurveys.length > 1 ? "s" : ""}:</p>
+                              <ul className="mt-2 space-y-1">
+                                {pendingSurveys.map((s, i) => (
+                                  <li key={i}>
+                                    <Link
+                                      href={`/tpems/curso/${course.id}/encuesta/${s.type}${s.moduleName ? `?module=${encodeURIComponent(s.moduleName)}` : ""}`}
+                                      className="text-xs text-[#0072CE] hover:underline"
+                                    >
+                                      → {s.name}
+                                    </Link>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-4 pt-4 border-t border-gray-100 flex gap-3 flex-wrap">
+                        <a
+                          href={`/verificar?code=${diploma.verification_code}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 bg-[#003366] hover:bg-[#004B87] text-white text-sm font-medium px-4 py-2 rounded-lg transition"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                          Verificar Diploma
+                        </a>
+                        <button
+                          onClick={downloadDiplomaPDF}
+                          className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                          Descargar Diploma (PDF)
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div className="p-6">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase">Código de Verificación</p>
-                      <p className="font-mono font-bold text-[#003366] text-lg">{diploma.verification_code}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase">Calificación Final</p>
-                      <p className="font-bold text-lg text-green-600">{diploma.final_score}%</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase">Estado</p>
-                      <span className="text-xs font-medium px-2.5 py-1 rounded bg-green-100 text-green-800">
-                        {diploma.status === "approved" ? "Aprobado" : "Reprobado"}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase">Fecha de Emisión</p>
-                      <p className="text-gray-700">{new Date(diploma.issued_date).toLocaleDateString("es-CL", { day: "2-digit", month: "long", year: "numeric" })}</p>
-                    </div>
-                  </div>
-                  <div className="mt-4 pt-4 border-t border-gray-100 flex gap-3 flex-wrap">
-                    <a
-                      href={`/verificar?code=${diploma.verification_code}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 bg-[#003366] hover:bg-[#004B87] text-white text-sm font-medium px-4 py-2 rounded-lg transition"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-                      Verificar Diploma
-                    </a>
-                    <button
-                      onClick={downloadDiplomaPDF}
-                      className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                      Descargar Diploma (PDF)
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         )}
 
