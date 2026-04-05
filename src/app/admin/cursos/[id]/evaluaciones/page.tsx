@@ -46,7 +46,7 @@ export default function EvaluacionesPage({
           id: g.id, name: g.name, weight: g.weight, sort_order: g.sort_order,
         })));
       } else {
-        // Auto-generate from course_modules only (admin adds extras manually if needed)
+        // Auto-generate from modules that have exams
         const { data: modules } = await supabase
           .from("course_modules")
           .select("id, title, sort_order")
@@ -54,14 +54,34 @@ export default function EvaluacionesPage({
           .order("sort_order");
 
         if (modules && modules.length > 0) {
-          const moduleWeight = Math.floor((100 / modules.length) * 100) / 100;
+          // Check which modules have exams
+          const { data: activities } = await supabase
+            .from("module_activities")
+            .select("id, module_id, type")
+            .in("module_id", modules.map((m: any) => m.id))
+            .eq("type", "exam");
 
-          const generated: GradeItem[] = modules.map((mod: any, idx: number) => ({
-            name: `Modulo ${idx + 1}: ${mod.title}`,
-            weight: idx === modules.length - 1
-              ? Math.round((100 - moduleWeight * (modules.length - 1)) * 100) / 100
+          const { data: exams } = activities && activities.length > 0
+            ? await supabase
+                .from("exams")
+                .select("id, activity_id")
+                .in("activity_id", activities.map((a: any) => a.id))
+            : { data: [] };
+
+          const modulesWithExams = modules.filter((mod: any) => {
+            const modActivities = (activities || []).filter((a: any) => a.module_id === mod.id);
+            return modActivities.some((a: any) => (exams || []).some((e: any) => e.activity_id === a.id));
+          });
+
+          const targetModules = modulesWithExams.length > 0 ? modulesWithExams : modules;
+          const moduleWeight = Math.floor((100 / targetModules.length) * 100) / 100;
+
+          const generated: GradeItem[] = targetModules.map((mod: any, idx: number) => ({
+            name: `Modulo ${modules.indexOf(mod) + 1}: ${mod.title}`,
+            weight: idx === targetModules.length - 1
+              ? Math.round((100 - moduleWeight * (targetModules.length - 1)) * 100) / 100
               : moduleWeight,
-            sort_order: idx,
+            sort_order: mod.sort_order,
             is_new: true,
             is_auto: true,
           }));
@@ -115,19 +135,43 @@ export default function EvaluacionesPage({
       return;
     }
 
-    const moduleWeight = Math.floor((100 / modules.length) * 100) / 100;
+    // Check which modules have exams
+    const { data: activities } = await supabase
+      .from("module_activities")
+      .select("id, module_id, type")
+      .in("module_id", modules.map((m: any) => m.id))
+      .eq("type", "exam");
 
-    const generated: GradeItem[] = modules.map((mod: any, idx: number) => ({
-      name: `Modulo ${idx + 1}: ${mod.title}`,
-      weight: idx === modules.length - 1
-        ? Math.round((100 - moduleWeight * (modules.length - 1)) * 100) / 100
+    const { data: exams } = activities && activities.length > 0
+      ? await supabase
+          .from("exams")
+          .select("id, activity_id")
+          .in("activity_id", activities.map((a: any) => a.id))
+      : { data: [] };
+
+    const modulesWithExams = modules.filter((mod: any) => {
+      const modActivities = (activities || []).filter((a: any) => a.module_id === mod.id);
+      return modActivities.some((a: any) => (exams || []).some((e: any) => e.activity_id === a.id));
+    });
+
+    const targetModules = modulesWithExams.length > 0 ? modulesWithExams : modules;
+    const moduleWeight = Math.floor((100 / targetModules.length) * 100) / 100;
+
+    const generated: GradeItem[] = targetModules.map((mod: any, idx: number) => ({
+      name: `Modulo ${modules.indexOf(mod) + 1}: ${mod.title}`,
+      weight: idx === targetModules.length - 1
+        ? Math.round((100 - moduleWeight * (targetModules.length - 1)) * 100) / 100
         : moduleWeight,
-      sort_order: idx,
+      sort_order: mod.sort_order,
       is_new: true,
       is_auto: true,
     }));
     setItems(generated);
-    setMessage("Evaluaciones regeneradas desde modulos. Agrega evaluaciones adicionales si es necesario. Recuerda guardar.");
+
+    const msg = modulesWithExams.length > 0
+      ? `Se encontraron ${modulesWithExams.length} modulo(s) con examen. Agrega evaluaciones adicionales si es necesario.`
+      : "No se encontraron examenes en los modulos. Se generaron items para todos los modulos.";
+    setMessage(msg + " Recuerda guardar.");
   }
 
   const totalWeight = items.reduce((sum, item) => sum + (item.weight || 0), 0);
