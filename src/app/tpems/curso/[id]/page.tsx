@@ -1248,7 +1248,7 @@ export default function TpemsCourseDetail() {
                                           srcDoc={srcDoc}
                                           className="w-full border-0 rounded-lg mb-3"
                                           style={{ minHeight: "500px" }}
-                                          sandbox="allow-scripts"
+                                          sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-presentation"
                                           onLoad={(e) => {
                                             const iframe = e.target as HTMLIFrameElement;
                                             try {

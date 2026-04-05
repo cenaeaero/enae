@@ -381,7 +381,7 @@ export default function AdminModulosPage({ params }: { params: Promise<{ id: str
                                       srcDoc={les.description}
                                       className="w-full border-0"
                                       style={{ minHeight: "400px" }}
-                                      sandbox="allow-scripts"
+                                      sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-presentation"
                                       onLoad={(e) => {
                                         const iframe = e.target as HTMLIFrameElement;
                                         try {
