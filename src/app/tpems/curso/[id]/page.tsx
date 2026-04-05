@@ -148,26 +148,50 @@ export default function TpemsCourseDetail() {
     };
   }, []);
 
-  function downloadGradesPDF() {
+  async function downloadGradesPDF() {
     if (!course) return;
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
 
+    // Load logo
+    let logoLoaded = false;
+    try {
+      const logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new window.Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => resolve(img);
+        img.onerror = () => reject();
+        img.src = "/img/logo-enae.png";
+      });
+      const logoW = 40;
+      const logoH = (logoImg.height / logoImg.width) * logoW;
+      doc.addImage(logoImg, "PNG", (pageWidth - logoW) / 2, 8, logoW, logoH);
+      logoLoaded = true;
+    } catch { /* continue without logo */ }
+
+    const headerY = logoLoaded ? 38 : 25;
+
     // Header
-    doc.setFontSize(18);
+    doc.setFontSize(16);
     doc.setTextColor(0, 51, 102);
-    doc.text("ENAE - Escuela de Navegacion Aerea", pageWidth / 2, 25, { align: "center" });
-    doc.setFontSize(14);
+    doc.text("ENAE - Escuela de Navegacion Aerea", pageWidth / 2, headerY, { align: "center" });
+    doc.setFontSize(13);
     doc.setTextColor(60, 60, 60);
-    doc.text("Certificado de Calificaciones", pageWidth / 2, 35, { align: "center" });
+    doc.text("Certificado de Calificaciones", pageWidth / 2, headerY + 8, { align: "center" });
+
+    // Divider line
+    doc.setDrawColor(0, 51, 102);
+    doc.setLineWidth(0.5);
+    doc.line(20, headerY + 12, pageWidth - 20, headerY + 12);
 
     // Student and course info
+    const infoY = headerY + 20;
     doc.setFontSize(10);
     doc.setTextColor(100, 100, 100);
-    doc.text(`Alumno: ${course.student_name}`, 20, 50);
-    doc.text(`Curso: ${course.course_title}`, 20, 57);
-    doc.text(`Codigo: ${course.course_code || ""}`, 20, 64);
-    doc.text(`Fecha: ${new Date().toLocaleDateString("es-CL")}`, 20, 71);
+    doc.text(`Alumno: ${course.student_name}`, 20, infoY);
+    doc.text(`Curso: ${course.course_title}`, 20, infoY + 7);
+    doc.text(`Codigo: ${course.course_code || ""}`, 20, infoY + 14);
+    doc.text(`Fecha: ${new Date().toLocaleDateString("es-CL")}`, 20, infoY + 21);
 
     // Build rows: all modules, marking which have exams
     type PdfRow = { name: string; hasExam: boolean; score: number | null; weight: number };
@@ -199,7 +223,7 @@ export default function TpemsCourseDetail() {
     });
 
     // Table header
-    let y = 85;
+    let y = infoY + 33;
     doc.setFillColor(0, 51, 102);
     doc.rect(20, y - 5, pageWidth - 40, 10, "F");
     doc.setTextColor(255, 255, 255);
@@ -686,7 +710,7 @@ export default function TpemsCourseDetail() {
     { key: "info", label: "Info" },
     ...(modules.length > 0 && lessons.length > 0 ? [{ key: "modules" as Tab, label: `Módulos (${totalModules})` }] : []),
     { key: "grades", label: "Calificaciones" },
-    { key: "evaluation", label: "Evaluation" },
+    { key: "evaluation", label: "Encuesta" },
     { key: "messages", label: "Mensajes" },
   ];
 
@@ -700,16 +724,8 @@ export default function TpemsCourseDetail() {
 
   function buildQuestionnaireList() {
     const items: { name: string; type: string; moduleName?: string; completed: boolean; dateCompleted?: string }[] = [];
-    if (course!.course_modules && course!.course_modules.length > 0) {
-      course!.course_modules.forEach((mod) => {
-        const response = surveyResponses.find((r) => r.questionnaire_type === "module" && r.module_name === mod);
-        items.push({ name: `Cuestionario de opinión sobre el módulo - ${mod}`, type: "module", moduleName: mod, completed: !!response, dateCompleted: response?.created_at });
-      });
-    }
     const courseResponse = surveyResponses.find((r) => r.questionnaire_type === "course");
-    items.push({ name: "Cuestionario integral del curso", type: "course", completed: !!courseResponse, dateCompleted: courseResponse?.created_at });
-    const instructorResponse = surveyResponses.find((r) => r.questionnaire_type === "instructor");
-    items.push({ name: "Cuestionario de evaluación del instructor", type: "instructor", completed: !!instructorResponse, dateCompleted: instructorResponse?.created_at });
+    items.push({ name: "Encuesta de satisfacción del curso", type: "course", completed: !!courseResponse, dateCompleted: courseResponse?.created_at });
     return items;
   }
 
@@ -1406,9 +1422,9 @@ export default function TpemsCourseDetail() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100">
-                      <th className="text-left px-6 py-4 font-medium text-gray-500 uppercase text-xs tracking-wider">Questionnaire</th>
-                      <th className="text-left px-6 py-4 font-medium text-gray-500 uppercase text-xs tracking-wider">Status</th>
-                      <th className="text-left px-6 py-4 font-medium text-gray-500 uppercase text-xs tracking-wider">Date Completed</th>
+                      <th className="text-left px-6 py-4 font-medium text-gray-500 uppercase text-xs tracking-wider">Encuesta</th>
+                      <th className="text-left px-6 py-4 font-medium text-gray-500 uppercase text-xs tracking-wider">Estado</th>
+                      <th className="text-left px-6 py-4 font-medium text-gray-500 uppercase text-xs tracking-wider">Fecha</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1423,7 +1439,7 @@ export default function TpemsCourseDetail() {
                         </td>
                         <td className="px-6 py-4">
                           <span className={`inline-flex text-xs font-medium px-2.5 py-1 rounded border ${item.completed ? "bg-green-100 text-green-800 border-green-200" : "bg-yellow-100 text-yellow-800 border-yellow-200"}`}>
-                            {item.completed ? "Completed" : "Pending"}
+                            {item.completed ? "Completada" : "Pendiente"}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-gray-500">{item.dateCompleted ? formatDate(item.dateCompleted) : "—"}</td>
