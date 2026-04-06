@@ -25,73 +25,27 @@ export default function EvaluacionesPage({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
-  useEffect(() => {
-    async function load() {
-      const { data: course } = await supabase
-        .from("courses")
-        .select("title")
-        .eq("id", courseId)
-        .single();
-      if (course) setCourseTitle(course.title);
+  async function loadItems() {
+    const { data: course } = await supabase
+      .from("courses")
+      .select("title")
+      .eq("id", courseId)
+      .single();
+    if (course) setCourseTitle(course.title);
 
-      // Load existing grade items
-      const { data: existing } = await supabase
-        .from("grade_items")
-        .select("*")
-        .eq("course_id", courseId)
-        .order("sort_order");
+    const { data: existing } = await supabase
+      .from("grade_items")
+      .select("*")
+      .eq("course_id", courseId)
+      .order("sort_order");
 
-      if (existing && existing.length > 0) {
-        setItems(existing.map((g: any) => ({
-          id: g.id, name: g.name, weight: g.weight, sort_order: g.sort_order,
-        })));
-      } else {
-        // Auto-generate from modules that have exams
-        const { data: modules } = await supabase
-          .from("course_modules")
-          .select("id, title, sort_order")
-          .eq("course_id", courseId)
-          .order("sort_order");
+    setItems((existing || []).map((g: any) => ({
+      id: g.id, name: g.name, weight: g.weight, sort_order: g.sort_order,
+    })));
+    setLoading(false);
+  }
 
-        if (modules && modules.length > 0) {
-          // Check which modules have exams
-          const { data: activities } = await supabase
-            .from("module_activities")
-            .select("id, module_id, type")
-            .in("module_id", modules.map((m: any) => m.id))
-            .eq("type", "exam");
-
-          const { data: exams } = activities && activities.length > 0
-            ? await supabase
-                .from("exams")
-                .select("id, activity_id")
-                .in("activity_id", activities.map((a: any) => a.id))
-            : { data: [] };
-
-          const modulesWithExams = modules.filter((mod: any) => {
-            const modActivities = (activities || []).filter((a: any) => a.module_id === mod.id);
-            return modActivities.some((a: any) => (exams || []).some((e: any) => e.activity_id === a.id));
-          });
-
-          const targetModules = modulesWithExams.length > 0 ? modulesWithExams : modules;
-          const moduleWeight = Math.floor((100 / targetModules.length) * 100) / 100;
-
-          const generated: GradeItem[] = targetModules.map((mod: any, idx: number) => ({
-            name: `Modulo ${modules.indexOf(mod) + 1}: ${mod.title}`,
-            weight: idx === targetModules.length - 1
-              ? Math.round((100 - moduleWeight * (targetModules.length - 1)) * 100) / 100
-              : moduleWeight,
-            sort_order: mod.sort_order,
-            is_new: true,
-            is_auto: true,
-          }));
-          setItems(generated);
-        }
-      }
-      setLoading(false);
-    }
-    load();
-  }, [courseId]);
+  useEffect(() => { loadItems(); }, [courseId]);
 
   function addItem() {
     setItems((prev) => [
@@ -196,38 +150,42 @@ export default function EvaluacionesPage({
   async function saveAll() {
     setSaving(true);
     setMessage("");
-    let hasError = false;
 
-    // Delete removed items
-    const { data: current } = await supabase
-      .from("grade_items").select("id").eq("course_id", courseId);
+    try {
+      // Simple strategy: update existing items, insert new ones, delete removed ones
+      const { data: dbItems } = await supabase.from("grade_items").select("id").eq("course_id", courseId);
+      const currentDbIds = (dbItems || []).map((d: any) => d.id);
+      const keepIds = items.filter((i) => i.id).map((i) => i.id!);
 
-    const keepIds = items.filter((i) => i.id).map((i) => i.id!);
-    const toDelete = (current || []).filter((c: any) => !keepIds.includes(c.id)).map((c: any) => c.id);
-    if (toDelete.length > 0) {
-      const { error } = await supabase.from("grade_items").delete().in("id", toDelete);
-      if (error) { console.error("Delete error:", error.message); hasError = true; }
-    }
+      // Delete items no longer in the list
+      const toDelete = currentDbIds.filter((dbId: string) => !keepIds.includes(dbId));
+      if (toDelete.length > 0) {
+        await supabase.from("grade_items").delete().in("id", toDelete);
+      }
 
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      const payload = { course_id: courseId, name: item.name, weight: item.weight, sort_order: i };
-      if (item.id && !item.is_new) {
-        const { error } = await supabase.from("grade_items").update(payload).eq("id", item.id);
-        if (error) { console.error("Update error:", error.message); hasError = true; }
-      } else {
-        const { data: inserted, error } = await supabase.from("grade_items").insert(payload).select().single();
-        if (error) {
-          console.error("Insert error:", error.message);
-          hasError = true;
-        } else if (inserted) {
-          items[i].id = inserted.id;
-          items[i].is_new = false;
+      // Update or insert each item
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const payload = { course_id: courseId, name: item.name, weight: item.weight, sort_order: i };
+
+        if (item.id && currentDbIds.includes(item.id)) {
+          // Exists in DB — update
+          await supabase.from("grade_items").update(payload).eq("id", item.id);
+        } else if (item.id) {
+          // Has id but not in current DB (was inserted by regenerate) — skip, already in DB
+        } else {
+          // New item without id — insert
+          const { data: inserted } = await supabase.from("grade_items").insert(payload).select().single();
+          if (inserted) items[i].id = inserted.id;
         }
       }
-    }
 
-    setMessage(hasError ? "Hubo errores al guardar." : "Evaluaciones guardadas correctamente");
+      // Reload from DB to ensure state matches reality
+      await loadItems();
+      setMessage("Evaluaciones guardadas correctamente");
+    } catch (err: any) {
+      setMessage("Error al guardar: " + (err.message || "desconocido"));
+    }
     setSaving(false);
   }
 
