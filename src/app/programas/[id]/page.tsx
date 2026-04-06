@@ -51,7 +51,7 @@ export default function ProgramDetailPage() {
       const { data: dbProgram } = await supabase
         .from("programs")
         .select("*")
-        .or(`slug.eq.${slug},id.eq.${slug}`)
+        .eq("slug", slug)
         .eq("is_active", true)
         .maybeSingle();
 
