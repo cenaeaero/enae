@@ -1294,12 +1294,16 @@ d.addEventListener('keydown',function(e){
 d.addEventListener('mousedown',function(e){if(e.detail>1)e.preventDefault();},true);
 })();</script>`;
                                       const isFullDoc = desc.trim().toLowerCase().startsWith("<!doctype") || desc.trim().toLowerCase().startsWith("<html");
-                                      // Auto-resize script that posts height to parent
+                                      // Auto-resize script that posts height to parent (only sends when height changes)
                                       const resizeJS = `<script>
-(function r(){
-  var h=document.documentElement.scrollHeight;
-  window.parent.postMessage({type:'iframe-height',height:h,id:'${les.id}'},'*');
-  setTimeout(r,1000);
+(function(){
+  var lastH=0;
+  function r(){
+    var h=document.body.scrollHeight||document.documentElement.scrollHeight;
+    if(h!==lastH){lastH=h;window.parent.postMessage({type:'iframe-height',height:h,id:'${les.id}'},'*');}
+    setTimeout(r,500);
+  }
+  if(document.readyState==='complete')r();else window.addEventListener('load',r);
 })();
 </script>`;
                                       const fullProtectionJS = protectionJS + resizeJS;
@@ -1318,14 +1322,22 @@ d.addEventListener('mousedown',function(e){if(e.detail>1)e.preventDefault();},tr
                                           allow="autoplay; fullscreen; encrypted-media"
                                           ref={(el) => {
                                             if (!el) return;
-                                            // Listen for height messages from iframe
+                                            // Prevent duplicate listeners
+                                            if ((el as any).__resizeHandler) {
+                                              window.removeEventListener('message', (el as any).__resizeHandler);
+                                            }
                                             const handler = (e: MessageEvent) => {
                                               if (e.data?.type === 'iframe-height' && e.data?.id === les.id) {
-                                                el.style.height = `${e.data.height + 20}px`;
+                                                const newH = e.data.height;
+                                                const curH = parseInt(el.style.height) || 0;
+                                                // Only update if significantly different (avoid grow loop)
+                                                if (Math.abs(newH - curH) > 5) {
+                                                  el.style.height = `${newH}px`;
+                                                }
                                               }
                                             };
+                                            (el as any).__resizeHandler = handler;
                                             window.addEventListener('message', handler);
-                                            // Cleanup blob URL on unmount
                                             el.addEventListener('load', () => {
                                               setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
                                             }, { once: true });
