@@ -15,6 +15,7 @@ type Student = {
 
 type CourseOption = { id: string; title: string; code: string | null };
 type SessionOption = { id: string; dates: string; location: string };
+type ProgramOption = { id: string; title: string; slug: string; course_ids: string[] };
 
 const emptyStudent = (): Student => ({
   firstName: "",
@@ -27,6 +28,9 @@ const emptyStudent = (): Student => ({
 });
 
 export default function AdminInscripcionPage() {
+  const [allCourses, setAllCourses] = useState<CourseOption[]>([]);
+  const [programs, setPrograms] = useState<ProgramOption[]>([]);
+  const [selectedProgram, setSelectedProgram] = useState("");
   const [courses, setCourses] = useState<CourseOption[]>([]);
   const [sessions, setSessions] = useState<SessionOption[]>([]);
   const [selectedCourse, setSelectedCourse] = useState("");
@@ -41,6 +45,7 @@ export default function AdminInscripcionPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    // Load courses
     supabase
       .from("courses")
       .select("id, title, code")
@@ -49,17 +54,30 @@ export default function AdminInscripcionPage() {
       .then(({ data, error }) => {
         if (error) console.error("Error loading courses:", error.message);
         if (data && data.length > 0) {
+          setAllCourses(data as CourseOption[]);
           setCourses(data as CourseOption[]);
         } else {
-          // Fallback: load all courses without is_active filter
           supabase
             .from("courses")
             .select("id, title, code")
             .order("title")
             .then(({ data: allData }) => {
-              if (allData) setCourses(allData as CourseOption[]);
+              if (allData) {
+                setAllCourses(allData as CourseOption[]);
+                setCourses(allData as CourseOption[]);
+              }
             });
         }
+      });
+
+    // Load programs
+    supabase
+      .from("programs")
+      .select("id, title, slug, course_ids")
+      .eq("is_active", true)
+      .order("sort_order")
+      .then(({ data }) => {
+        if (data) setPrograms(data as ProgramOption[]);
       });
   }, []);
 
@@ -178,10 +196,31 @@ export default function AdminInscripcionPage() {
         Inscripción de Alumnos
       </h1>
 
-      {/* Course selection */}
+      {/* Program & Course selection */}
       <div className="bg-white rounded-lg border border-gray-200 p-5 mb-6">
-        <h2 className="text-sm font-semibold text-gray-800 mb-3">Curso y Fechas</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <h2 className="text-sm font-semibold text-gray-800 mb-3">Programa, Curso y Fechas</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div>
+            <label className="block text-xs text-gray-500 uppercase mb-1">Programa</label>
+            <select value={selectedProgram} onChange={(e) => {
+              const progId = e.target.value;
+              setSelectedProgram(progId);
+              setSelectedCourse("");
+              if (progId) {
+                const prog = programs.find((p) => p.id === progId);
+                if (prog && prog.course_ids.length > 0) {
+                  setCourses(allCourses.filter((c) => prog.course_ids.includes(c.id)));
+                } else {
+                  setCourses(allCourses);
+                }
+              } else {
+                setCourses(allCourses);
+              }
+            }} className="w-full border border-gray-200 rounded px-3 py-2 text-sm">
+              <option value="">Todos los cursos</option>
+              {programs.map((p) => (<option key={p.id} value={p.id}>{p.title}</option>))}
+            </select>
+          </div>
           <div>
             <label className="block text-xs text-gray-500 uppercase mb-1">Curso</label>
             <select value={selectedCourse} onChange={(e) => setSelectedCourse(e.target.value)} className="w-full border border-gray-200 rounded px-3 py-2 text-sm">
