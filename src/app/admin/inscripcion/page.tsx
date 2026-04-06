@@ -162,29 +162,50 @@ export default function AdminInscripcionPage() {
 
   async function handleSubmit() {
     const valid = students.filter((s) => s.firstName && s.lastName && s.email);
-    if (valid.length === 0 || !selectedCourse) return;
+    if (valid.length === 0) return;
+
+    // Determine which courses to enroll in
+    let courseIds: string[] = [];
+    if (selectedCourse) {
+      courseIds = [selectedCourse];
+    } else if (selectedProgram) {
+      const prog = programs.find((p) => p.id === selectedProgram);
+      if (prog) courseIds = prog.course_ids;
+    }
+    if (courseIds.length === 0) return;
 
     setSubmitting(true);
     setResults(null);
 
-    const res = await fetch("/api/inscripcion", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        students: valid,
-        courseId: selectedCourse,
-        sessionId: selectedSession || null,
-        theoreticalStart: theoreticalStart || null,
-        practicalEnd: practicalEnd || null,
-      }),
-    });
+    const allResults: { email: string; success: boolean; error?: string }[] = [];
 
-    const data = await res.json();
-    setResults(data.results || []);
+    for (const courseId of courseIds) {
+      const courseName = allCourses.find((c) => c.id === courseId)?.title || "";
+      const res = await fetch("/api/inscripcion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          students: valid,
+          courseId,
+          sessionId: selectedSession || null,
+          theoreticalStart: theoreticalStart || null,
+          practicalEnd: practicalEnd || null,
+        }),
+      });
+      const data = await res.json();
+      (data.results || []).forEach((r: any) => {
+        allResults.push({
+          email: r.email,
+          success: r.success,
+          error: r.error ? `[${courseName}] ${r.error}` : undefined,
+        });
+      });
+    }
+
+    setResults(allResults);
     setSubmitting(false);
 
-    // Reset form after successful submission to prevent accidental re-submit
-    const allSuccess = (data.results || []).every((r: any) => r.success);
+    const allSuccess = allResults.every((r) => r.success);
     if (allSuccess) {
       setStudents([emptyStudent()]);
     }
@@ -315,8 +336,14 @@ export default function AdminInscripcionPage() {
         </div>
       )}
 
-      <button onClick={handleSubmit} disabled={submitting || !selectedCourse} className="bg-[#003366] hover:bg-[#004B87] disabled:bg-gray-300 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition">
-        {submitting ? "Inscribiendo..." : `Inscribir ${students.filter((s) => s.email).length} alumno(s)`}
+      <button onClick={handleSubmit} disabled={submitting || (!selectedCourse && !selectedProgram)} className="bg-[#003366] hover:bg-[#004B87] disabled:bg-gray-300 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition">
+        {submitting ? "Inscribiendo..." : (() => {
+          const numStudents = students.filter((s) => s.email).length;
+          const numCourses = selectedCourse ? 1 : (programs.find((p) => p.id === selectedProgram)?.course_ids.length || 0);
+          return numCourses > 1
+            ? `Inscribir ${numStudents} alumno(s) en ${numCourses} cursos`
+            : `Inscribir ${numStudents} alumno(s)`;
+        })()}
       </button>
     </div>
   );
