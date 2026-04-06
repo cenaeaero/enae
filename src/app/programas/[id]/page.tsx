@@ -1,8 +1,10 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { programs } from "@/data/programs";
-import { courses } from "@/data/courses";
+import { useEffect, useState } from "react";
+import { programs as staticPrograms } from "@/data/programs";
+import { courses as staticCourses } from "@/data/courses";
+import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 
 const areaColors: Record<string, string> = {
@@ -14,11 +16,101 @@ const areaColors: Record<string, string> = {
   "gestion-aeronautica": "bg-emerald-500",
 };
 
+type ProgramData = {
+  title: string;
+  area: string;
+  areaSlug: string;
+  type: string;
+  duration: string;
+  language: string;
+  description: string;
+  goal: string;
+  fee?: string | null;
+  courseIds: string[];
+};
+
+type CourseData = {
+  id: string;
+  title: string;
+  code?: string | null;
+  area?: string;
+};
+
 export default function ProgramDetailPage() {
   const params = useParams();
-  const program = programs.find((p) => p.id === params.id);
+  const slug = params.id as string;
 
-  if (!program) {
+  const [program, setProgram] = useState<ProgramData | null>(null);
+  const [programCourses, setProgramCourses] = useState<CourseData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      // Try Supabase first - match by slug or id
+      const { data: dbProgram } = await supabase
+        .from("programs")
+        .select("*")
+        .or(`slug.eq.${slug},id.eq.${slug}`)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (dbProgram) {
+        setProgram({
+          title: dbProgram.title,
+          area: dbProgram.area,
+          areaSlug: dbProgram.area_slug,
+          type: dbProgram.type,
+          duration: dbProgram.duration,
+          language: dbProgram.language,
+          description: dbProgram.description,
+          goal: dbProgram.goal,
+          fee: dbProgram.fee,
+          courseIds: dbProgram.course_ids || [],
+        });
+
+        // Load linked courses from Supabase by UUIDs
+        if (dbProgram.course_ids && dbProgram.course_ids.length > 0) {
+          const { data: courses } = await supabase
+            .from("courses")
+            .select("id, title, code, area")
+            .in("id", dbProgram.course_ids);
+          setProgramCourses(courses || []);
+        }
+      } else {
+        // Fallback to static data
+        const staticProg = staticPrograms.find((p) => p.id === slug);
+        if (staticProg) {
+          setProgram({
+            title: staticProg.title,
+            area: staticProg.area,
+            areaSlug: staticProg.areaSlug,
+            type: staticProg.type,
+            duration: staticProg.duration,
+            language: staticProg.language,
+            description: staticProg.description,
+            goal: staticProg.goal,
+            fee: staticProg.fee,
+            courseIds: staticProg.courseIds,
+          });
+          const courses = staticProg.courseIds
+            .map((id) => staticCourses.find((c) => c.id === id))
+            .filter(Boolean) as CourseData[];
+          setProgramCourses(courses);
+        } else {
+          setNotFound(true);
+        }
+      }
+      setLoading(false);
+    }
+    load();
+  }, [slug]);
+
+  if (loading) {
+    return <div className="max-w-7xl mx-auto px-4 py-16 text-center text-gray-400">Cargando...</div>;
+  }
+
+  if (notFound || !program) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-16 text-center">
         <h1 className="text-2xl font-bold text-gray-500">
@@ -33,10 +125,6 @@ export default function ProgramDetailPage() {
       </div>
     );
   }
-
-  const programCourses = program.courseIds
-    .map((id) => courses.find((c) => c.id === id))
-    .filter(Boolean);
 
   return (
     <>
@@ -120,70 +208,66 @@ export default function ProgramDetailPage() {
               </div>
 
               {/* Programme Courses */}
-              <h2 className="text-xl font-light text-gray-700 mb-4">
-                Cursos del Programa
-              </h2>
-              <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100">
-                {programCourses.map((course) => (
-                  <div
-                    key={course!.id}
-                    className="flex items-center gap-4 p-4 hover:bg-gray-50 transition"
-                  >
-                    {/* Thumbnail */}
-                    <div className="w-20 h-14 bg-gradient-to-br from-[#003366] to-[#004B87] rounded flex items-center justify-center shrink-0">
-                      <span className="text-white text-xs font-medium text-center leading-tight px-1">
-                        {course!.area}
-                      </span>
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <Link
-                        href={`/cursos/${course!.id}`}
-                        className="text-sm font-semibold text-[#003366] hover:text-[#0072CE] transition"
+              {programCourses.length > 0 && (
+                <>
+                  <h2 className="text-xl font-light text-gray-700 mb-4">
+                    Cursos del Programa
+                  </h2>
+                  <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100">
+                    {programCourses.map((course) => (
+                      <div
+                        key={course.id}
+                        className="flex items-center gap-4 p-4 hover:bg-gray-50 transition"
                       >
-                        {course!.title}
-                      </Link>
-                      {course!.code && (
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          {course!.code}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Badge */}
-                    <span className="text-xs font-medium text-blue-600 border border-blue-200 bg-blue-50 px-2.5 py-1 rounded-full shrink-0 hidden sm:block">
-                      Obligatorio
-                    </span>
-
-                    {/* Detail link */}
-                    <Link
-                      href={`/cursos/${course!.id}`}
-                      className="text-xs text-[#0072CE] border border-[#0072CE] rounded-full px-3 py-1.5 hover:bg-blue-50 transition shrink-0 hidden sm:flex items-center gap-1"
-                    >
-                      Detalles
-                      <svg
-                        className="w-3 h-3"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 5l7 7-7 7"
-                        />
-                      </svg>
-                    </Link>
+                        <div className="w-20 h-14 bg-gradient-to-br from-[#003366] to-[#004B87] rounded flex items-center justify-center shrink-0">
+                          <span className="text-white text-xs font-medium text-center leading-tight px-1">
+                            {course.area || program.area}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <Link
+                            href={`/cursos/${course.id}`}
+                            className="text-sm font-semibold text-[#003366] hover:text-[#0072CE] transition"
+                          >
+                            {course.title}
+                          </Link>
+                          {course.code && (
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              {course.code}
+                            </p>
+                          )}
+                        </div>
+                        <span className="text-xs font-medium text-blue-600 border border-blue-200 bg-blue-50 px-2.5 py-1 rounded-full shrink-0 hidden sm:block">
+                          Obligatorio
+                        </span>
+                        <Link
+                          href={`/cursos/${course.id}`}
+                          className="text-xs text-[#0072CE] border border-[#0072CE] rounded-full px-3 py-1.5 hover:bg-blue-50 transition shrink-0 hidden sm:flex items-center gap-1"
+                        >
+                          Detalles
+                          <svg
+                            className="w-3 h-3"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M9 5l7 7-7 7"
+                            />
+                          </svg>
+                        </Link>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </>
+              )}
             </div>
 
             {/* Sidebar */}
             <aside className="lg:w-80 shrink-0">
-              {/* Institution card */}
               <div className="bg-white rounded-lg border border-gray-200 p-6 text-center mb-4">
                 <p className="text-xs text-gray-400 mb-3">Desarrollado por:</p>
                 <img
@@ -197,57 +281,35 @@ export default function ProgramDetailPage() {
                 <p className="text-xs text-gray-400 mt-0.5">Santiago, Chile</p>
               </div>
 
-              {/* Details table */}
               <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                 <table className="w-full text-sm">
                   <tbody className="divide-y divide-gray-100">
                     <tr>
-                      <td className="px-4 py-3 font-medium text-gray-700">
-                        Tipo:
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 text-right">
-                        {program.type}
-                      </td>
+                      <td className="px-4 py-3 font-medium text-gray-700">Tipo:</td>
+                      <td className="px-4 py-3 text-gray-600 text-right">{program.type}</td>
                     </tr>
                     <tr>
-                      <td className="px-4 py-3 font-medium text-gray-700">
-                        Idioma:
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 text-right">
-                        {program.language}
-                      </td>
+                      <td className="px-4 py-3 font-medium text-gray-700">Idioma:</td>
+                      <td className="px-4 py-3 text-gray-600 text-right">{program.language}</td>
                     </tr>
                     <tr>
-                      <td className="px-4 py-3 font-medium text-gray-700">
-                        Duración:
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 text-right">
-                        {program.duration}
-                      </td>
+                      <td className="px-4 py-3 font-medium text-gray-700">Duración:</td>
+                      <td className="px-4 py-3 text-gray-600 text-right">{program.duration}</td>
                     </tr>
                     {program.fee && (
                       <tr>
-                        <td className="px-4 py-3 font-medium text-gray-700">
-                          Arancel:
-                        </td>
-                        <td className="px-4 py-3 text-gray-600 text-right">
-                          {program.fee}
-                        </td>
+                        <td className="px-4 py-3 font-medium text-gray-700">Arancel:</td>
+                        <td className="px-4 py-3 text-gray-600 text-right">{program.fee}</td>
                       </tr>
                     )}
                     <tr>
-                      <td className="px-4 py-3 font-medium text-gray-700">
-                        Cursos:
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 text-right">
-                        {program.courseIds.length}
-                      </td>
+                      <td className="px-4 py-3 font-medium text-gray-700">Cursos:</td>
+                      <td className="px-4 py-3 text-gray-600 text-right">{programCourses.length}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
 
-              {/* CTA */}
               <div className="mt-4">
                 <Link
                   href="/admision"

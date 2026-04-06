@@ -145,24 +145,25 @@ export default function EditCoursePage({
       if (existingCM) {
         const matched = new Set<string>();
 
-        // Update existing modules that still exist (match by title)
+        // Update existing modules that still exist (match by title, case-insensitive)
         for (let i = 0; i < cleanModules.length; i++) {
-          const existing = existingCM.find((cm) => cm.title === cleanModules[i] && !matched.has(cm.id));
+          const existing = existingCM.find((cm) => cm.title.toLowerCase() === cleanModules[i].toLowerCase() && !matched.has(cm.id));
           if (existing) {
             matched.add(existing.id);
-            if (existing.sort_order !== i) {
-              await supabase.from("course_modules").update({ sort_order: i }).eq("id", existing.id);
-            }
+            // Update sort_order and sync title to match course definition
+            await supabase.from("course_modules").update({ sort_order: i, title: cleanModules[i] }).eq("id", existing.id);
           }
         }
 
-        // Delete course_modules that are no longer in the list
-        // CASCADE will delete their module_activities too
+        // Only delete orphaned course_modules that have NO lessons (safe delete)
         const toDelete = existingCM.filter((cm) => !matched.has(cm.id));
         for (const cm of toDelete) {
-          // Only delete if the title is NOT in the new list
-          if (!cleanModules.includes(cm.title)) {
-            await supabase.from("course_modules").delete().eq("id", cm.id);
+          const cleanLower = cleanModules.map((m) => m.toLowerCase());
+          if (!cleanLower.includes(cm.title.toLowerCase())) {
+            const { count } = await supabase.from("module_activities").select("id", { count: "exact", head: true }).eq("module_id", cm.id);
+            if (count === 0) {
+              await supabase.from("course_modules").delete().eq("id", cm.id);
+            }
           }
         }
       }
