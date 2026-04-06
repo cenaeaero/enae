@@ -22,7 +22,7 @@ type Program = {
 
 type CourseOption = { id: string; title: string; code: string | null };
 
-const typeOptions = ["Certificacion", "Diploma", "Programa"];
+const typeOptions = ["Certificación", "Diploma", "Programa"];
 
 const emptyProgram = (): Omit<Program, "id"> => ({
   slug: "",

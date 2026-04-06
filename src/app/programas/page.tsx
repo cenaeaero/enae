@@ -8,7 +8,6 @@ import Link from "next/link";
 
 const typeColors: Record<string, string> = {
   Certificación: "bg-blue-50 text-blue-700 border-blue-200",
-  Certificacion: "bg-blue-50 text-blue-700 border-blue-200",
   Diploma: "bg-purple-50 text-purple-700 border-purple-200",
   Programa: "bg-gray-50 text-gray-700 border-gray-200",
 };
@@ -126,7 +125,6 @@ export default function ProgramasPage() {
               >
                 <option value="todos">Todos</option>
                 <option value="Certificación">Certificación</option>
-                <option value="Certificacion">Certificacion</option>
                 <option value="Diploma">Diploma</option>
                 <option value="Programa">Programa</option>
               </select>
