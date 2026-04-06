@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { chileCities } from "@/data/chile-cities";
@@ -74,8 +74,13 @@ const emptyProfile: ProfileData = {
   country: "", supervisor_name: "", supervisor_email: "", folio_enae: "",
 };
 
+type GradeItem = { id: string; name: string; weight: number };
+type StudentGrade = { grade_item_id: string; score: number };
+type ProgressItem = { activity_id: string; status: string; activity_title?: string; module_title?: string };
+
 export default function RegistroDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const id = params.id as string;
 
   const [profile, setProfile] = useState<ProfileData>(emptyProfile);
@@ -84,9 +89,20 @@ export default function RegistroDetailPage() {
   const [regDate, setRegDate] = useState("");
   const [courseTitle, setCourseTitle] = useState("");
   const [courseCode, setCourseCode] = useState("");
+  const [courseId, setCourseId] = useState("");
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<ProfileData>(emptyProfile);
   const [savingProfile, setSavingProfile] = useState(false);
+
+  // New: grades, progress, password, delete
+  const [gradeItems, setGradeItems] = useState<GradeItem[]>([]);
+  const [studentGrades, setStudentGrades] = useState<StudentGrade[]>([]);
+  const [progress, setProgress] = useState<ProgressItem[]>([]);
+  const [totalActivities, setTotalActivities] = useState(0);
+  const [newPassword, setNewPassword] = useState("");
+  const [passwordMsg, setPasswordMsg] = useState("");
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const [procedure, setProcedure] = useState<DgacProcedure | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -108,6 +124,7 @@ export default function RegistroDetailPage() {
       setRegDate(regData.created_at);
       setCourseTitle(regData.courses?.title || "");
       setCourseCode(regData.courses?.code || "");
+      setCourseId(regData.course_id || "");
 
       // Try to get full profile data
       const { data: prof } = await supabase
@@ -138,6 +155,31 @@ export default function RegistroDetailPage() {
       setProfile(p);
       setEditForm(p);
       if (prof) setProfileId(prof.id);
+    }
+
+    // Load grades
+    if (regData?.course_id) {
+      const { data: gi } = await supabase.from("grade_items").select("id, name, weight").eq("course_id", regData.course_id).order("sort_order");
+      setGradeItems((gi || []) as GradeItem[]);
+
+      const { data: sg } = await supabase.from("student_grades").select("grade_item_id, score").eq("registration_id", id);
+      setStudentGrades((sg || []) as StudentGrade[]);
+
+      // Load progress
+      const { data: modules } = await supabase.from("course_modules").select("id, title").eq("course_id", regData.course_id).order("sort_order");
+      const moduleIds = (modules || []).map((m: any) => m.id);
+      if (moduleIds.length > 0) {
+        const { data: activities } = await supabase.from("module_activities").select("id, title, module_id").in("module_id", moduleIds).order("sort_order");
+        setTotalActivities((activities || []).length);
+
+        const { data: prog } = await supabase.from("student_progress").select("activity_id, status").eq("registration_id", id);
+        const progressWithNames = (prog || []).map((p: any) => {
+          const act = (activities || []).find((a: any) => a.id === p.activity_id);
+          const mod = act ? (modules || []).find((m: any) => m.id === act.module_id) : null;
+          return { ...p, activity_title: act?.title || "", module_title: mod?.title || "" };
+        });
+        setProgress(progressWithNames);
+      }
     }
 
     // Load DGAC procedure directly from Supabase
@@ -294,6 +336,54 @@ export default function RegistroDetailPage() {
     });
   }
 
+  async function handleDelete() {
+    if (!confirm("¿Estás seguro de eliminar este registro? Se eliminarán todas las notas, progreso, diplomas y trámites asociados. Esta acción no se puede deshacer.")) return;
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/admin/registros", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const json = await res.json();
+      if (json.error) {
+        alert("Error: " + json.error);
+        setDeleting(false);
+      } else {
+        router.push("/admin/registros");
+      }
+    } catch {
+      alert("Error de conexión");
+      setDeleting(false);
+    }
+  }
+
+  async function handlePasswordReset() {
+    if (!newPassword || newPassword.length < 6) {
+      setPasswordMsg("La contraseña debe tener al menos 6 caracteres");
+      return;
+    }
+    setSavingPassword(true);
+    setPasswordMsg("");
+    try {
+      const res = await fetch("/api/admin/registros", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reset_password", email: profile.email, password: newPassword }),
+      });
+      const json = await res.json();
+      if (json.error) {
+        setPasswordMsg("Error: " + json.error);
+      } else {
+        setPasswordMsg("Contraseña actualizada correctamente");
+        setNewPassword("");
+      }
+    } catch {
+      setPasswordMsg("Error de conexión");
+    }
+    setSavingPassword(false);
+  }
+
   if (loading) return <div className="text-center py-16 text-gray-400">Cargando...</div>;
 
   if (!profile.email) {
@@ -376,6 +466,128 @@ export default function RegistroDetailPage() {
             <EditField label="Folio ENAE" value={editForm.folio_enae} onChange={(v) => setEditForm({ ...editForm, folio_enae: v })} />
           </div>
         )}
+      </div>
+
+      {/* Grades & Progress */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+        <h2 className="font-semibold text-gray-800 mb-4">Calificaciones y Progreso</h2>
+
+        {/* Progress bar */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-gray-500">Progreso del curso</span>
+            <span className="text-xs font-medium text-gray-700">
+              {progress.filter((p) => p.status === "completed").length} / {totalActivities} actividades
+            </span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2.5">
+            <div
+              className="bg-[#0072CE] h-2.5 rounded-full transition-all"
+              style={{ width: `${totalActivities > 0 ? (progress.filter((p) => p.status === "completed").length / totalActivities) * 100 : 0}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Grades table */}
+        {gradeItems.length > 0 ? (
+          <table className="w-full text-sm mb-4">
+            <thead>
+              <tr className="text-left text-xs text-gray-500 uppercase border-b border-gray-100">
+                <th className="pb-2">Evaluación</th>
+                <th className="pb-2 text-center">Peso</th>
+                <th className="pb-2 text-center">Nota</th>
+                <th className="pb-2 text-center">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {gradeItems.map((gi) => {
+                const grade = studentGrades.find((sg) => sg.grade_item_id === gi.id);
+                return (
+                  <tr key={gi.id} className="border-b border-gray-50">
+                    <td className="py-2 text-gray-700">{gi.name}</td>
+                    <td className="py-2 text-center text-gray-500">{gi.weight}%</td>
+                    <td className="py-2 text-center font-medium">{grade ? `${grade.score}%` : "—"}</td>
+                    <td className="py-2 text-center">
+                      {grade ? (
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded ${grade.score >= 80 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                          {grade.score >= 80 ? "Aprobado" : "Reprobado"}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">Pendiente</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : (
+          <p className="text-sm text-gray-400 mb-4">No hay evaluaciones configuradas para este curso</p>
+        )}
+
+        {/* Activity progress list */}
+        {progress.length > 0 && (
+          <details className="mt-2">
+            <summary className="text-xs text-[#0072CE] cursor-pointer hover:underline">
+              Ver detalle de actividades completadas ({progress.filter((p) => p.status === "completed").length})
+            </summary>
+            <div className="mt-2 max-h-48 overflow-y-auto space-y-1">
+              {progress.filter((p) => p.status === "completed").map((p, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs text-gray-600 py-1 border-b border-gray-50">
+                  <span className="text-green-500">✓</span>
+                  <span className="text-gray-400">{p.module_title}:</span>
+                  <span>{p.activity_title}</span>
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+      </div>
+
+      {/* Password Reset & Delete */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+        <h2 className="font-semibold text-gray-800 mb-4">Acciones de Cuenta</h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Password reset */}
+          <div>
+            <h3 className="text-sm font-medium text-gray-700 mb-2">Cambiar Contraseña</h3>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Nueva contraseña (min. 6 caracteres)"
+                className="flex-1 border border-gray-200 rounded px-3 py-2 text-sm"
+              />
+              <button
+                onClick={handlePasswordReset}
+                disabled={savingPassword || !newPassword}
+                className="bg-[#003366] hover:bg-[#004B87] disabled:bg-gray-300 text-white px-4 py-2 rounded text-sm font-medium transition"
+              >
+                {savingPassword ? "..." : "Cambiar"}
+              </button>
+            </div>
+            {passwordMsg && (
+              <p className={`text-xs mt-1 ${passwordMsg.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>
+                {passwordMsg}
+              </p>
+            )}
+          </div>
+
+          {/* Delete registration */}
+          <div>
+            <h3 className="text-sm font-medium text-gray-700 mb-2">Eliminar Registro</h3>
+            <p className="text-xs text-gray-400 mb-2">Elimina este registro y todos sus datos asociados (notas, progreso, diplomas, trámites).</p>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white px-4 py-2 rounded text-sm font-medium transition"
+            >
+              {deleting ? "Eliminando..." : "Eliminar Registro"}
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* DGAC Procedures */}

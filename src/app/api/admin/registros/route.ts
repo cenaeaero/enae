@@ -84,3 +84,100 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const admin = await verifyAdmin();
+    if (!admin) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
+
+    const { id } = await request.json();
+    if (!id) {
+      return NextResponse.json({ error: "id requerido" }, { status: 400 });
+    }
+
+    // Get registration to find related data
+    const { data: reg } = await supabaseAdmin
+      .from("registrations")
+      .select("email, course_id")
+      .eq("id", id)
+      .single();
+
+    if (!reg) {
+      return NextResponse.json({ error: "Registro no encontrado" }, { status: 404 });
+    }
+
+    // Delete related records
+    await supabaseAdmin.from("student_grades").delete().eq("registration_id", id);
+    await supabaseAdmin.from("exam_attempts").delete().eq("registration_id", id);
+    await supabaseAdmin.from("student_progress").delete().eq("registration_id", id);
+    await supabaseAdmin.from("survey_responses").delete().eq("registration_id", id);
+    await supabaseAdmin.from("diplomas").delete().eq("registration_id", id);
+    await supabaseAdmin.from("dgac_procedures").delete().eq("registration_id", id);
+
+    // Delete the registration
+    const { error } = await supabaseAdmin
+      .from("registrations")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    console.error("Admin registros DELETE error:", err?.message);
+    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    const admin = await verifyAdmin();
+    if (!admin) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
+
+    const { action, email, password } = await request.json();
+
+    if (action === "reset_password") {
+      if (!email || !password) {
+        return NextResponse.json({ error: "email y password requeridos" }, { status: 400 });
+      }
+
+      // Find the auth user by email
+      const { data: { users }, error: listErr } = await supabaseAdmin.auth.admin.listUsers();
+      if (listErr) {
+        return NextResponse.json({ error: listErr.message }, { status: 500 });
+      }
+
+      const authUser = users?.find((u: any) => u.email === email);
+      if (!authUser) {
+        return NextResponse.json({ error: "Usuario no encontrado en auth" }, { status: 404 });
+      }
+
+      const { error: updateErr } = await supabaseAdmin.auth.admin.updateUserById(authUser.id, {
+        password,
+      });
+
+      if (updateErr) {
+        return NextResponse.json({ error: updateErr.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === "get_progress") {
+      const { registration_id, course_id } = await request.json();
+      // This is handled in the frontend via direct Supabase queries
+      return NextResponse.json({ error: "Use direct queries" }, { status: 400 });
+    }
+
+    return NextResponse.json({ error: "Acción no válida" }, { status: 400 });
+  } catch (err: any) {
+    console.error("Admin registros PUT error:", err?.message);
+    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+  }
+}
