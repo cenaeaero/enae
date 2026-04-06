@@ -124,6 +124,9 @@ export default function EvaluacionesPage({
   }
 
   async function regenerateFromModules() {
+    // First, delete ALL existing grade items for this course
+    await supabase.from("grade_items").delete().eq("course_id", courseId);
+
     const { data: modules } = await supabase
       .from("course_modules")
       .select("id, title, sort_order")
@@ -131,6 +134,7 @@ export default function EvaluacionesPage({
       .order("sort_order");
 
     if (!modules || modules.length === 0) {
+      setItems([]);
       setMessage("No hay modulos definidos para este curso");
       return;
     }
@@ -157,21 +161,33 @@ export default function EvaluacionesPage({
     const targetModules = modulesWithExams.length > 0 ? modulesWithExams : modules;
     const moduleWeight = Math.floor((100 / targetModules.length) * 100) / 100;
 
-    const generated: GradeItem[] = targetModules.map((mod: any, idx: number) => ({
-      name: `Modulo ${modules.indexOf(mod) + 1}: ${mod.title}`,
-      weight: idx === targetModules.length - 1
+    // Insert directly into DB to avoid duplication issues
+    const generated: GradeItem[] = [];
+    for (let idx = 0; idx < targetModules.length; idx++) {
+      const mod = targetModules[idx];
+      const weight = idx === targetModules.length - 1
         ? Math.round((100 - moduleWeight * (targetModules.length - 1)) * 100) / 100
-        : moduleWeight,
-      sort_order: mod.sort_order,
-      is_new: true,
-      is_auto: true,
-    }));
+        : moduleWeight;
+      const { data: inserted } = await supabase
+        .from("grade_items")
+        .insert({
+          course_id: courseId,
+          name: `Modulo ${modules.indexOf(mod) + 1}: ${mod.title}`,
+          weight,
+          sort_order: idx,
+        })
+        .select()
+        .single();
+      if (inserted) {
+        generated.push({ id: inserted.id, name: inserted.name, weight: inserted.weight, sort_order: idx, is_auto: true });
+      }
+    }
     setItems(generated);
 
     const msg = modulesWithExams.length > 0
-      ? `Se encontraron ${modulesWithExams.length} modulo(s) con examen. Agrega evaluaciones adicionales si es necesario.`
-      : "No se encontraron examenes en los modulos. Se generaron items para todos los modulos.";
-    setMessage(msg + " Recuerda guardar.");
+      ? `${modulesWithExams.length} evaluacion(es) generadas desde módulos con examen.`
+      : "No se encontraron examenes. Se generaron items para todos los modulos.";
+    setMessage(msg);
   }
 
   const totalWeight = items.reduce((sum, item) => sum + (item.weight || 0), 0);
