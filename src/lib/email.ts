@@ -39,7 +39,7 @@ export async function sendStudentCredentials(
             <p style="margin: 5px 0;"><strong>Contrasena:</strong> ${password}</p>
           </div>
           <p>Para completar tu inscripcion, ingresa al portal y realiza el pago del curso:</p>
-          <a href="${SITE_URL}/tpems" style="display: inline-block; background: #0072CE; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">Acceder al Portal</a>
+          <a href="${SITE_URL}/tpems/login" style="display: inline-block; background: #0072CE; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">Acceder al Portal</a>
           <p style="margin-top: 20px; color: #6b7280; font-size: 14px;">Si tienes dudas, contactanos en <a href="mailto:${ADMIN_EMAIL}">${ADMIN_EMAIL}</a></p>
         </div>
         <div style="background: #001d3d; padding: 15px; text-align: center;">
@@ -73,7 +73,7 @@ export async function sendReturningStudentWelcome(
             <p style="color: #6b7280; margin: 0; font-size: 14px;">Este curso ha sido agregado a tu portal de alumnos</p>
           </div>
           <p>Accede con tus credenciales habituales — tu contrasena no ha cambiado:</p>
-          <a href="${SITE_URL}/tpems" style="display: inline-block; background: #0072CE; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">Acceder al Portal</a>
+          <a href="${SITE_URL}/tpems/login" style="display: inline-block; background: #0072CE; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">Acceder al Portal</a>
           <p style="margin-top: 20px; color: #6b7280; font-size: 14px;">Si tienes dudas, contactanos en <a href="mailto:${ADMIN_EMAIL}">${ADMIN_EMAIL}</a></p>
         </div>
         <div style="background: #001d3d; padding: 15px; text-align: center;">
@@ -204,7 +204,7 @@ export async function sendStudentCourseAccess(
           <p>Tu pago ha sido confirmado y ya puedes acceder al curso <strong>${courseName}</strong> en nuestra plataforma.</p>
           <p>Ingresa al portal de alumnos con tus credenciales habituales para iniciar tu formacion:</p>
           <div style="text-align: center; margin: 25px 0;">
-            <a href="${SITE_URL}/tpems" style="display: inline-block; background: #0072CE; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">Acceder al Curso</a>
+            <a href="${SITE_URL}/tpems/login" style="display: inline-block; background: #0072CE; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">Acceder al Curso</a>
           </div>
           <p style="color: #6b7280; font-size: 14px;">Si tienes dudas, contactanos en <a href="mailto:${ADMIN_EMAIL}">${ADMIN_EMAIL}</a></p>
         </div>
