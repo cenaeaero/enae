@@ -121,6 +121,7 @@ export default function TpemsCourseDetail() {
   const [expandedLessonId, setExpandedLessonId] = useState<string | null>(null);
   const [gradeItems, setGradeItems] = useState<GradeItemRow[]>([]);
   const [studentGrades, setStudentGrades] = useState<GradeRow[]>([]);
+  const [examAttempts, setExamAttempts] = useState<{ activity_id: string; score: number }[]>([]);
   const [diploma, setDiploma] = useState<DiplomaRow | null>(null);
 
   const registrationId = params.id as string;
@@ -737,6 +738,21 @@ export default function TpemsCourseDetail() {
             .select("grade_item_id, score")
             .eq("registration_id", r.id);
           if (grades) setStudentGrades(grades as GradeRow[]);
+        }
+
+        // Load exam attempts as fallback for grades
+        const { data: attempts } = await supabase
+          .from("exam_attempts")
+          .select("exam_id, score, status, exams(activity_id)")
+          .eq("registration_id", r.id)
+          .eq("status", "completed")
+          .order("completed_at", { ascending: false });
+        if (attempts) {
+          const seen = new Set<string>();
+          const mapped = attempts
+            .filter((a: any) => a.exams?.activity_id && !seen.has(a.exams.activity_id))
+            .map((a: any) => { seen.add(a.exams.activity_id); return { activity_id: a.exams.activity_id, score: a.score }; });
+          setExamAttempts(mapped);
         }
 
         const { data: diplomaData } = await supabase
@@ -1494,7 +1510,21 @@ d.addEventListener('mousedown',function(e){if(e.detail>1)e.preventDefault();},tr
                   gi.name.toLowerCase().includes(`módulo ${idx + 1}`)
                 );
                 const grade = gradeItem ? studentGrades.find((g) => g.grade_item_id === gradeItem.id) : null;
-                return { mod, idx, hasExam, gradeItem, score: hasExam && grade ? grade.score : null, weight: gradeItem?.weight || 0 };
+                // Fallback: get score from exam_attempts if no student_grade
+                let score: number | null = null;
+                if (hasExam) {
+                  if (grade) {
+                    score = grade.score;
+                  } else {
+                    // Find exam attempt for this module's exam activity
+                    const examLesson = modLessons.find((l) => l.type === "exam");
+                    if (examLesson) {
+                      const attempt = examAttempts.find((a) => a.activity_id === examLesson.id);
+                      if (attempt) score = attempt.score;
+                    }
+                  }
+                }
+                return { mod, idx, hasExam, gradeItem, score, weight: gradeItem?.weight || 0 };
               });
               const examModules = moduleRows.filter((r) => r.hasExam && r.score !== null);
               let finalScore: number | null = null;
