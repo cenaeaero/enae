@@ -1036,6 +1036,8 @@ export default function TpemsCourseDetail() {
             const { data: mp } = await supabase.from("module_progress").select("module_id, status").eq("registration_id", registrationId);
             if (mp) setProgress(mp as ModuleProgress[]);
             setUpdatingProgress(false);
+            // Scroll to top after completing
+            window.scrollTo({ top: 0, behavior: "smooth" });
           }
 
           function parseLessonData(les: LessonData) {
@@ -1077,7 +1079,12 @@ export default function TpemsCourseDetail() {
                   const isSelected = mod.id === selectedModuleId;
                   const modLessons = lessons.filter((l) => l.module_id === mod.id);
                   const completedLessons = modLessons.filter((l) => getLessonStatus(l.id) === "completed").length;
-                  const prevModuleCompleted = idx === 0 || getModuleStatus(modules[idx - 1].id) === "completed";
+                  // Module is unlocked if previous module is completed in DB OR all its lessons are completed
+                  const prevMod = idx > 0 ? modules[idx - 1] : null;
+                  const prevModStatus = prevMod ? getModuleStatus(prevMod.id) : "completed";
+                  const prevModLessons = prevMod ? lessons.filter((l) => l.module_id === prevMod.id) : [];
+                  const prevModAllDone = prevModLessons.length > 0 && prevModLessons.every((l) => getLessonStatus(l.id) === "completed");
+                  const prevModuleCompleted = idx === 0 || prevModStatus === "completed" || prevModAllDone;
                   const isModuleLocked = !prevModuleCompleted;
                   const lessonPercent = modLessons.length > 0 ? Math.round((completedLessons / modLessons.length) * 100) : 0;
                   return (
@@ -1155,7 +1162,12 @@ export default function TpemsCourseDetail() {
                           <div key={les.id} className={`transition ${!unlocked ? "opacity-50" : ""}`}>
                             {/* Lesson header */}
                             <button
-                              onClick={() => unlocked && setExpandedLessonId(expanded ? null : les.id)}
+                              onClick={() => {
+                                if (!unlocked) return;
+                                const newId = expanded ? null : les.id;
+                                setExpandedLessonId(newId);
+                                if (newId) setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 100);
+                              }}
                               disabled={!unlocked}
                               className={`w-full text-left px-5 py-4 flex items-center gap-4 transition ${unlocked && !expanded ? "hover:bg-gray-50" : ""} ${expanded ? "bg-blue-50/50" : ""}`}
                             >
