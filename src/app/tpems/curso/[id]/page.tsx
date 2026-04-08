@@ -1034,16 +1034,46 @@ export default function TpemsCourseDetail() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ registration_id: registrationId, activity_id: lessonId, status: "completed" }),
             });
-            setActivityProgress((prev) => {
-              const exists = prev.find((p) => p.activity_id === lessonId);
-              if (exists) return prev.map((p) => p.activity_id === lessonId ? { ...p, status: "completed" as const } : p);
-              return [...prev, { activity_id: lessonId, status: "completed" as const }];
-            });
+            const newProgress = (() => {
+              const exists = activityProgress.find((p) => p.activity_id === lessonId);
+              if (exists) return activityProgress.map((p) => p.activity_id === lessonId ? { ...p, status: "completed" as const } : p);
+              return [...activityProgress, { activity_id: lessonId, status: "completed" as const }];
+            })();
+            setActivityProgress(newProgress);
+
             // Refresh module progress
             const { data: mp } = await supabase.from("module_progress").select("module_id, status").eq("registration_id", registrationId);
             if (mp) setProgress(mp as ModuleProgress[]);
+
+            // Check if current module is now fully completed → advance to next
+            const currentModLessons = moduleLessons;
+            const allDone = currentModLessons.every((l) =>
+              newProgress.find((p) => p.activity_id === l.id)?.status === "completed"
+            );
+
+            if (allDone && selectedModuleId) {
+              const currentModIdx = modules.findIndex((m) => m.id === selectedModuleId);
+              const nextMod = currentModIdx >= 0 && currentModIdx < modules.length - 1 ? modules[currentModIdx + 1] : null;
+              if (nextMod) {
+                // Move to next module
+                setSelectedModuleId(nextMod.id);
+                setExpandedLessonId(null);
+                // Auto-expand first lesson of next module after a brief delay
+                const nextModLessons = lessons.filter((l) => l.module_id === nextMod.id);
+                if (nextModLessons.length > 0) {
+                  setTimeout(() => setExpandedLessonId(nextModLessons[0].id), 300);
+                }
+              }
+            } else {
+              // Advance to next lesson in current module
+              const currentLessonIdx = currentModLessons.findIndex((l) => l.id === lessonId);
+              const nextLesson = currentLessonIdx >= 0 && currentLessonIdx < currentModLessons.length - 1 ? currentModLessons[currentLessonIdx + 1] : null;
+              if (nextLesson) {
+                setExpandedLessonId(nextLesson.id);
+              }
+            }
+
             setUpdatingProgress(false);
-            // Scroll to top after completing
             window.scrollTo({ top: 0, behavior: "smooth" });
           }
 
