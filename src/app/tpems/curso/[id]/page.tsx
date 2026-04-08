@@ -125,6 +125,13 @@ export default function TpemsCourseDetail() {
 
   const registrationId = params.id as string;
 
+  // Scroll to top when lesson changes
+  useEffect(() => {
+    if (expandedLessonId) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [expandedLessonId]);
+
   // Content protection: block print, view source, save, copy, devtools
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -1306,7 +1313,7 @@ d.addEventListener('keydown',function(e){
 d.addEventListener('mousedown',function(e){if(e.detail>1)e.preventDefault();},true);
 })();</script>`;
                                       const isFullDoc = desc.trim().toLowerCase().startsWith("<!doctype") || desc.trim().toLowerCase().startsWith("<html");
-                                      // Auto-resize script that posts height to parent (only sends when height changes)
+                                      // Auto-resize + scroll-to-top on navigation clicks
                                       const resizeJS = `<script>
 (function(){
   var lastH=0;
@@ -1316,6 +1323,18 @@ d.addEventListener('mousedown',function(e){if(e.detail>1)e.preventDefault();},tr
     setTimeout(r,500);
   }
   if(document.readyState==='complete')r();else window.addEventListener('load',r);
+  // Intercept navigation buttons to scroll parent to top
+  document.addEventListener('click',function(e){
+    var t=e.target;while(t&&t!==document){
+      if(t.tagName==='A'||t.tagName==='BUTTON'){
+        var txt=(t.textContent||'').toLowerCase();
+        if(txt.indexOf('siguiente')>=0||txt.indexOf('anterior')>=0||txt.indexOf('next')>=0||txt.indexOf('prev')>=0){
+          window.parent.postMessage({type:'scroll-top'},'*');
+        }
+      }
+      t=t.parentElement;
+    }
+  },true);
 })();
 </script>`;
                                       const fullProtectionJS = protectionJS + resizeJS;
@@ -1339,6 +1358,10 @@ d.addEventListener('mousedown',function(e){if(e.detail>1)e.preventDefault();},tr
                                               window.removeEventListener('message', (el as any).__resizeHandler);
                                             }
                                             const handler = (e: MessageEvent) => {
+                                              if (e.data?.type === 'scroll-top') {
+                                                window.scrollTo({ top: 0, behavior: "smooth" });
+                                                return;
+                                              }
                                               if (e.data?.type === 'iframe-height' && e.data?.id === les.id) {
                                                 const newH = e.data.height;
                                                 const curH = parseInt(el.style.height) || 0;
