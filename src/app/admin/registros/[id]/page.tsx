@@ -76,6 +76,7 @@ const emptyProfile: ProfileData = {
 
 type GradeItem = { id: string; name: string; weight: number };
 type StudentGrade = { grade_item_id: string; score: number };
+type ExamAttempt = { activity_id: string; score: number };
 type ProgressItem = { activity_id: string; status: string; activity_title?: string; module_title?: string };
 
 export default function RegistroDetailPage() {
@@ -97,6 +98,9 @@ export default function RegistroDetailPage() {
   // New: grades, progress, password, delete
   const [gradeItems, setGradeItems] = useState<GradeItem[]>([]);
   const [studentGrades, setStudentGrades] = useState<StudentGrade[]>([]);
+  const [examAttempts, setExamAttempts] = useState<ExamAttempt[]>([]);
+  const [courseModules, setCourseModules] = useState<{ id: string; title: string }[]>([]);
+  const [courseActivities, setCourseActivities] = useState<{ id: string; module_id: string; type: string }[]>([]);
   const [progress, setProgress] = useState<ProgressItem[]>([]);
   const [totalActivities, setTotalActivities] = useState(0);
   const [newPassword, setNewPassword] = useState("");
@@ -165,11 +169,17 @@ export default function RegistroDetailPage() {
       const { data: sg } = await supabase.from("student_grades").select("grade_item_id, score").eq("registration_id", id);
       setStudentGrades((sg || []) as StudentGrade[]);
 
+      // Load exam attempts as fallback for grades
+      const { data: ea } = await supabase.from("exam_attempts").select("activity_id, score").eq("registration_id", id).order("completed_at", { ascending: false });
+      setExamAttempts((ea || []) as ExamAttempt[]);
+
       // Load progress
       const { data: modules } = await supabase.from("course_modules").select("id, title").eq("course_id", regData.course_id).order("sort_order");
+      setCourseModules((modules || []) as { id: string; title: string }[]);
       const moduleIds = (modules || []).map((m: any) => m.id);
       if (moduleIds.length > 0) {
-        const { data: activities } = await supabase.from("module_activities").select("id, title, module_id").in("module_id", moduleIds).order("sort_order");
+        const { data: activities } = await supabase.from("module_activities").select("id, title, module_id, type").in("module_id", moduleIds).order("sort_order");
+        setCourseActivities((activities || []) as { id: string; module_id: string; type: string }[]);
         setTotalActivities((activities || []).length);
 
         const { data: prog } = await supabase.from("student_progress").select("activity_id, status").eq("registration_id", id);
@@ -500,17 +510,29 @@ export default function RegistroDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {gradeItems.map((gi) => {
+              {gradeItems.map((gi, idx) => {
                 const grade = studentGrades.find((sg) => sg.grade_item_id === gi.id);
+                // Fallback: get score from exam_attempts via module matching
+                let score: number | null = grade ? grade.score : null;
+                if (score === null && courseModules.length > 0) {
+                  const mod = courseModules[idx];
+                  if (mod) {
+                    const examActivity = courseActivities.find((a) => a.module_id === mod.id && a.type === "exam");
+                    if (examActivity) {
+                      const attempt = examAttempts.find((a) => a.activity_id === examActivity.id);
+                      if (attempt) score = attempt.score;
+                    }
+                  }
+                }
                 return (
                   <tr key={gi.id} className="border-b border-gray-50">
                     <td className="py-2 text-gray-700">{gi.name}</td>
                     <td className="py-2 text-center text-gray-500">{gi.weight}%</td>
-                    <td className="py-2 text-center font-medium">{grade ? `${grade.score}%` : "—"}</td>
+                    <td className="py-2 text-center font-medium">{score !== null ? `${score}%` : "—"}</td>
                     <td className="py-2 text-center">
-                      {grade ? (
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded ${grade.score >= 80 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                          {grade.score >= 80 ? "Aprobado" : "Reprobado"}
+                      {score !== null ? (
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded ${score >= 80 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                          {score >= 80 ? "Aprobado" : "Reprobado"}
                         </span>
                       ) : (
                         <span className="text-xs text-gray-400">Pendiente</span>
