@@ -296,8 +296,21 @@ export default function TpemsCourseDetail() {
         gi.name.toLowerCase().includes(`módulo ${idx + 1}`)
       );
       const grade = gradeItem ? studentGrades.find((g) => g.grade_item_id === gradeItem.id) : null;
-      rows.push({ name: `${idx + 1}. ${mod.title}`, hasExam, score: hasExam && grade ? grade.score : null, weight: gradeItem?.weight || 0 });
-      if (hasExam && gradeItem) examGradeItems.push({ weight: gradeItem.weight, score: grade?.score ?? null });
+      // Fallback: get score from exam_attempts
+      let score: number | null = null;
+      if (hasExam) {
+        if (grade) {
+          score = grade.score;
+        } else {
+          const examLesson = modLessons.find((l) => l.type === "exam");
+          if (examLesson) {
+            const attempt = examAttempts.find((a) => a.activity_id === examLesson.id);
+            if (attempt) score = attempt.score;
+          }
+        }
+      }
+      rows.push({ name: `${idx + 1}. ${mod.title}`, hasExam, score, weight: gradeItem?.weight || 0 });
+      if (hasExam) examGradeItems.push({ weight: gradeItem?.weight || 0, score });
     });
 
     // ── Table ──
