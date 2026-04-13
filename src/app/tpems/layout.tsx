@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import Image from "next/image";
 import ForcePasswordChangeModal from "@/components/ForcePasswordChangeModal";
+import SessionTimeout from "@/components/SessionTimeout";
 
 export default function TpemsLayout({
   children,
@@ -432,6 +433,9 @@ export default function TpemsLayout({
         isOpen={showPasswordModal}
         onComplete={() => setShowPasswordModal(false)}
       />
+
+      {/* Session timeout — auto-logout after 60 min inactivity */}
+      <SessionTimeout />
     </div>
   );
 }
