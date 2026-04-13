@@ -116,6 +116,11 @@ export default function RegistroDetailPage() {
   const [selectedType, setSelectedType] = useState<string>("nueva");
   const [dgacError, setDgacError] = useState("");
 
+  // Access tracking
+  const [accessCount, setAccessCount] = useState(0);
+  const [lastAccess, setLastAccess] = useState<string | null>(null);
+  const [recentLogs, setRecentLogs] = useState<{ accessed_at: string }[]>([]);
+
   const loadData = useCallback(async () => {
     // Load registration
     const { data: regData } = await supabase
@@ -213,6 +218,17 @@ export default function RegistroDetailPage() {
         .order("changed_at", { ascending: false });
       setHistory((histData || []) as HistoryEntry[]);
     }
+
+    // Load access logs
+    try {
+      const accessRes = await fetch(`/api/acceso?registration_id=${id}`);
+      if (accessRes.ok) {
+        const accessData = await accessRes.json();
+        setAccessCount(accessData.total_accesses || 0);
+        setLastAccess(accessData.last_access || null);
+        setRecentLogs(accessData.recent_logs || []);
+      }
+    } catch {}
 
     setLoading(false);
   }, [id]);
@@ -499,6 +515,36 @@ export default function RegistroDetailPage() {
       <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
         <h2 className="font-semibold text-gray-800 mb-4">Calificaciones y Progreso</h2>
 
+        {/* Access stats + Progress overview */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+          {/* Accesos */}
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-center">
+            <div className="text-2xl font-bold text-[#003366]">{accessCount}</div>
+            <div className="text-xs text-gray-500 mt-1">Ingresos al curso</div>
+          </div>
+          {/* Último acceso */}
+          <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-center">
+            <div className="text-sm font-semibold text-gray-700">
+              {lastAccess
+                ? new Date(lastAccess).toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" })
+                : "—"}
+            </div>
+            <div className="text-[10px] text-gray-400 mt-0.5">
+              {lastAccess
+                ? new Date(lastAccess).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })
+                : ""}
+            </div>
+            <div className="text-xs text-gray-500 mt-1">Último acceso</div>
+          </div>
+          {/* Progreso */}
+          <div className="bg-green-50 border border-green-100 rounded-xl p-4 text-center">
+            <div className="text-2xl font-bold text-green-700">
+              {totalActivities > 0 ? Math.round((progress.filter((p) => p.status === "completed").length / totalActivities) * 100) : 0}%
+            </div>
+            <div className="text-xs text-gray-500 mt-1">Avance del curso</div>
+          </div>
+        </div>
+
         {/* Progress bar */}
         <div className="mb-4">
           <div className="flex items-center justify-between mb-1">
@@ -514,6 +560,27 @@ export default function RegistroDetailPage() {
             />
           </div>
         </div>
+
+        {/* Recent access log */}
+        {recentLogs.length > 0 && (
+          <details className="mb-4">
+            <summary className="text-xs text-[#0072CE] cursor-pointer hover:underline">
+              Ver historial de accesos ({accessCount})
+            </summary>
+            <div className="mt-2 max-h-40 overflow-y-auto space-y-1">
+              {recentLogs.map((log, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs text-gray-600 py-1 border-b border-gray-50">
+                  <span className="text-blue-400">🔵</span>
+                  <span>
+                    {new Date(log.accessed_at).toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" })}
+                    {" "}
+                    {new Date(log.accessed_at).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
 
         {/* Grades table */}
         {gradeItems.length > 0 ? (

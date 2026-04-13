@@ -785,6 +785,13 @@ export default function TpemsCourseDetail() {
           if (responses) setSurveyResponses(responses);
         }
       }
+      // Log course access
+      fetch("/api/acceso", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registration_id: registrationId }),
+      }).catch(() => {});
+
       setLoading(false);
     }
     load();
