@@ -1132,7 +1132,7 @@ export default function TpemsCourseDetail() {
                   <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 mb-6 flex items-center justify-between">
                     <div>
                       <h2 className="text-lg font-bold text-gray-800">{fullscreenExam.lessonTitle}</h2>
-                      <p className="text-xs text-gray-500">{course?.title}</p>
+                      <p className="text-xs text-gray-500">{course?.course_title}</p>
                     </div>
                     <button
                       onClick={() => { if (confirm("¿Salir del examen? Tu progreso se ha guardado automáticamente.")) setFullscreenExam(null); }}
@@ -1148,13 +1148,15 @@ export default function TpemsCourseDetail() {
                       registrationId={registrationId}
                       onComplete={(score, passed) => {
                         if (passed) completeLesson(fullscreenExam.lessonId);
-                        // Stay in fullscreen to show results, user clicks "Salir" or we auto-close after delay
-                        setTimeout(() => {
-                          setFullscreenExam(null);
-                          window.scrollTo({ top: 0, behavior: "smooth" });
-                        }, 5000);
                       }}
                     />
+                    {/* Button to return after reviewing results */}
+                    <button
+                      onClick={() => { setFullscreenExam(null); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                      className="mt-6 w-full bg-[#003366] hover:bg-[#004B87] text-white py-3 rounded-lg font-medium transition"
+                    >
+                      Volver al curso
+                    </button>
                   </div>
                 </div>
               </div>
