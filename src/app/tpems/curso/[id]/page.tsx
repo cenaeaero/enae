@@ -123,6 +123,7 @@ export default function TpemsCourseDetail() {
   const [studentGrades, setStudentGrades] = useState<GradeRow[]>([]);
   const [examAttempts, setExamAttempts] = useState<{ activity_id: string; score: number }[]>([]);
   const [diploma, setDiploma] = useState<DiplomaRow | null>(null);
+  const [fullscreenExam, setFullscreenExam] = useState<{ lessonId: string; lessonTitle: string } | null>(null);
 
   const registrationId = params.id as string;
 
@@ -1087,16 +1088,17 @@ export default function TpemsCourseDetail() {
                 // Move to next module
                 setSelectedModuleId(nextMod.id);
                 setExpandedLessonId(null);
-                // Auto-expand first lesson of next module after a brief delay
+                // Auto-expand first NON-EXAM lesson of next module
                 const nextModLessons = lessons.filter((l) => l.module_id === nextMod.id);
-                if (nextModLessons.length > 0) {
-                  setTimeout(() => setExpandedLessonId(nextModLessons[0].id), 300);
+                const firstNonExam = nextModLessons.find((l) => l.type !== "exam");
+                if (firstNonExam) {
+                  setTimeout(() => setExpandedLessonId(firstNonExam.id), 300);
                 }
               }
             } else {
-              // Advance to next lesson in current module
+              // Advance to next NON-EXAM lesson in current module
               const currentLessonIdx = currentModLessons.findIndex((l) => l.id === lessonId);
-              const nextLesson = currentLessonIdx >= 0 && currentLessonIdx < currentModLessons.length - 1 ? currentModLessons[currentLessonIdx + 1] : null;
+              const nextLesson = currentModLessons.slice(currentLessonIdx + 1).find((l) => l.type !== "exam");
               if (nextLesson) {
                 setExpandedLessonId(nextLesson.id);
               }
@@ -1119,6 +1121,44 @@ export default function TpemsCourseDetail() {
               } catch {}
             }
             return { desc, entryId, zoomUrl, zoomDatetime };
+          }
+
+          // Fullscreen exam mode
+          if (fullscreenExam) {
+            return (
+              <div className="fixed inset-0 z-50 bg-gray-50 overflow-y-auto">
+                <div className="max-w-3xl mx-auto px-4 py-6">
+                  {/* Header */}
+                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 mb-6 flex items-center justify-between">
+                    <div>
+                      <h2 className="text-lg font-bold text-gray-800">{fullscreenExam.lessonTitle}</h2>
+                      <p className="text-xs text-gray-500">{course?.title}</p>
+                    </div>
+                    <button
+                      onClick={() => { if (confirm("¿Salir del examen? Tu progreso se ha guardado automáticamente.")) setFullscreenExam(null); }}
+                      className="text-sm text-gray-500 hover:text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg transition"
+                    >
+                      Salir
+                    </button>
+                  </div>
+                  {/* Exam player */}
+                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+                    <ExamPlayer
+                      examId={fullscreenExam.lessonId}
+                      registrationId={registrationId}
+                      onComplete={(score, passed) => {
+                        if (passed) completeLesson(fullscreenExam.lessonId);
+                        // Stay in fullscreen to show results, user clicks "Salir" or we auto-close after delay
+                        setTimeout(() => {
+                          setFullscreenExam(null);
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }, 5000);
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            );
           }
 
           return (
@@ -1282,15 +1322,31 @@ export default function TpemsCourseDetail() {
                                   </div>
                                 )}
 
-                                {/* Exam lesson */}
+                                {/* Exam lesson — show start button instead of auto-loading */}
                                 {les.type === "exam" && (
-                                  <ExamPlayer
-                                    examId={les.id}
-                                    registrationId={registrationId}
-                                    onComplete={(score, passed) => {
-                                      if (passed) completeLesson(les.id);
-                                    }}
-                                  />
+                                  <div className="text-center py-6">
+                                    {status === "completed" ? (
+                                      <div className="bg-green-50 border border-green-200 rounded-xl p-6">
+                                        <div className="text-3xl mb-2">✅</div>
+                                        <p className="text-green-800 font-medium">Examen completado</p>
+                                      </div>
+                                    ) : (
+                                      <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
+                                        <div className="text-3xl mb-3">📝</div>
+                                        <h3 className="text-lg font-semibold text-gray-800 mb-2">{les.title}</h3>
+                                        <p className="text-sm text-gray-600 mb-4">
+                                          Al iniciar el examen se abrirá en pantalla completa. Asegúrate de tener una conexión estable a internet.
+                                          Tus respuestas se guardan automáticamente cada 30 segundos.
+                                        </p>
+                                        <button
+                                          onClick={() => setFullscreenExam({ lessonId: les.id, lessonTitle: les.title })}
+                                          className="bg-[#0072CE] hover:bg-[#005fa3] text-white px-8 py-3 rounded-lg font-medium transition"
+                                        >
+                                          Iniciar Examen
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
                                 )}
 
                                 {/* Discussion lesson */}

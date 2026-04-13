@@ -184,6 +184,68 @@ export async function sendStudentPaymentReceipt(
   });
 }
 
+export async function sendAdminExamNotification(
+  studentName: string,
+  studentEmail: string,
+  courseName: string,
+  examName: string,
+  score: number,
+  passed: boolean
+) {
+  await transporter.sendMail({
+    from: `"ENAE Sistema" <${FROM}>`,
+    to: ADMIN_EMAIL,
+    subject: `Examen ${passed ? "aprobado" : "reprobado"}: ${studentName} - ${examName}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px;">
+        <h2 style="color: #003366;">Resultado de Examen</h2>
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Alumno:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${studentName}</td></tr>
+          <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Email:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${studentEmail}</td></tr>
+          <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Curso:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${courseName}</td></tr>
+          <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Examen:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${examName}</td></tr>
+          <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Nota:</td><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold; font-size: 18px;">${score}%</td></tr>
+          <tr><td style="padding: 8px; font-weight: bold;">Estado:</td><td style="padding: 8px;"><span style="background: ${passed ? "#D1FAE5" : "#FEE2E2"}; color: ${passed ? "#065F46" : "#991B1B"}; padding: 2px 8px; border-radius: 10px; font-size: 13px;">${passed ? "Aprobado" : "Reprobado"}</span></td></tr>
+        </table>
+        <p style="margin-top: 15px;"><a href="${SITE_URL}/admin/registros" style="color: #0072CE;">Ver en panel admin</a></p>
+      </div>
+    `,
+  });
+}
+
+export async function sendStudentExamReset(
+  email: string,
+  studentName: string,
+  courseName: string,
+  examName: string
+) {
+  await transporter.sendMail({
+    from: `"ENAE Training" <${FROM}>`,
+    to: email,
+    subject: `Examen habilitado nuevamente - ${courseName}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #003366; padding: 20px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">ENAE TPEMS</h1>
+          <p style="color: #93C5FD; margin: 5px 0 0; font-size: 12px;">Training Programme Electronic Management System</p>
+        </div>
+        <div style="padding: 30px; background: #f8f9fa;">
+          <h2 style="color: #003366;">Hola ${studentName},</h2>
+          <p>Tu examen <strong>${examName}</strong> del curso <strong>${courseName}</strong> ha sido reiniciado por el administrador.</p>
+          <p>Ya puedes volver a rendir el examen ingresando al portal de alumnos:</p>
+          <div style="text-align: center; margin: 25px 0;">
+            <a href="${SITE_URL}/tpems/login" style="display: inline-block; background: #0072CE; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">Acceder al Portal</a>
+          </div>
+          <p style="color: #6b7280; font-size: 14px;">Si tienes dudas, contactanos en <a href="mailto:${ADMIN_EMAIL}">${ADMIN_EMAIL}</a></p>
+        </div>
+        <div style="background: #001d3d; padding: 15px; text-align: center;">
+          <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegacion Aerea | AOC 1521 DGAC</p>
+        </div>
+      </div>
+    `,
+  });
+}
+
 export async function sendStudentCourseAccess(
   email: string,
   studentName: string,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-service";
 import { createSupabaseServer } from "@/lib/supabase-server";
+import { sendAdminExamNotification } from "@/lib/email";
 
 async function getUser() {
   const supabase = await createSupabaseServer();
@@ -355,6 +356,20 @@ export async function POST(request: Request) {
           }
         }
       }
+
+      // Send email notification to admin
+      try {
+        const { data: reg } = await supabaseAdmin
+          .from("registrations")
+          .select("first_name, last_name, email, course_id")
+          .eq("id", attempt.registration_id)
+          .single();
+        if (reg) {
+          const { data: courseData } = await supabaseAdmin.from("courses").select("title").eq("id", reg.course_id).single();
+          const examTitle = exam?.title || "Examen";
+          sendAdminExamNotification(`${reg.first_name} ${reg.last_name}`, reg.email, courseData?.title || "", examTitle, score, score >= (exam?.passing_score || 80)).catch(() => {});
+        }
+      } catch {}
 
       // Build review data with correct answers
       const { data: fullQuestions } = await supabaseAdmin

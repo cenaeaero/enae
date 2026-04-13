@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-service";
 import { createSupabaseServer } from "@/lib/supabase-server";
+import { sendStudentExamReset } from "@/lib/email";
 
 async function verifyAdmin() {
   const supabase = await createSupabaseServer();
@@ -211,6 +212,20 @@ export async function DELETE(request: Request) {
         .eq("registration_id", registration_id)
         .eq("grade_item_id", exam.grade_item_id);
     }
+
+    // Send email to student notifying exam reset
+    try {
+      const { data: reg } = await supabaseAdmin
+        .from("registrations")
+        .select("first_name, last_name, email, course_id")
+        .eq("id", registration_id)
+        .single();
+      if (reg) {
+        const { data: courseData } = await supabaseAdmin.from("courses").select("title").eq("id", reg.course_id).single();
+        const { data: examData } = await supabaseAdmin.from("exams").select("title").eq("id", realExamId).single();
+        sendStudentExamReset(reg.email, `${reg.first_name} ${reg.last_name}`, courseData?.title || "", examData?.title || "Examen").catch(() => {});
+      }
+    } catch {}
 
     return NextResponse.json({ reset: true, attempts_deleted: attemptIds.length });
   } catch (err: any) {
