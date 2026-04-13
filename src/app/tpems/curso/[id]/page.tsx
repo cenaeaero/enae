@@ -785,12 +785,24 @@ export default function TpemsCourseDetail() {
           if (responses) setSurveyResponses(responses);
         }
       }
-      // Log course access
-      fetch("/api/acceso", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ registration_id: registrationId }),
-      }).catch(() => {});
+      // Log course access directly via Supabase client
+      (async () => {
+        try {
+          // Check throttle: only log if last access > 5 min ago
+          const { data: lastLog } = await supabase
+            .from("course_access_log")
+            .select("accessed_at")
+            .eq("registration_id", registrationId)
+            .order("accessed_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          const shouldLog = !lastLog || (Date.now() - new Date(lastLog.accessed_at).getTime() > 5 * 60 * 1000);
+          if (shouldLog) {
+            await supabase.from("course_access_log").insert({ registration_id: registrationId });
+          }
+        } catch {}
+      })();
 
       setLoading(false);
     }

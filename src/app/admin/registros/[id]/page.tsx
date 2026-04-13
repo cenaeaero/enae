@@ -219,15 +219,30 @@ export default function RegistroDetailPage() {
       setHistory((histData || []) as HistoryEntry[]);
     }
 
-    // Load access logs
+    // Load access logs directly from Supabase
     try {
-      const accessRes = await fetch(`/api/acceso?registration_id=${id}`);
-      if (accessRes.ok) {
-        const accessData = await accessRes.json();
-        setAccessCount(accessData.total_accesses || 0);
-        setLastAccess(accessData.last_access || null);
-        setRecentLogs(accessData.recent_logs || []);
-      }
+      const { count } = await supabase
+        .from("course_access_log")
+        .select("id", { count: "exact", head: true })
+        .eq("registration_id", id);
+      setAccessCount(count || 0);
+
+      const { data: lastLog } = await supabase
+        .from("course_access_log")
+        .select("accessed_at")
+        .eq("registration_id", id)
+        .order("accessed_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setLastAccess(lastLog?.accessed_at || null);
+
+      const { data: logs } = await supabase
+        .from("course_access_log")
+        .select("accessed_at")
+        .eq("registration_id", id)
+        .order("accessed_at", { ascending: false })
+        .limit(50);
+      setRecentLogs(logs || []);
     } catch {}
 
     setLoading(false);
