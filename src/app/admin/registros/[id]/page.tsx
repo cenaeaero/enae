@@ -510,12 +510,12 @@ export default function RegistroDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {gradeItems.map((gi, idx) => {
+              {gradeItems.map((gi) => {
                 const grade = studentGrades.find((sg) => sg.grade_item_id === gi.id);
-                // Fallback: get score from exam_attempts via module matching
+                // Fallback: get score from exam_attempts via module title matching
                 let score: number | null = grade ? grade.score : null;
                 if (score === null && courseModules.length > 0) {
-                  const mod = courseModules[idx];
+                  const mod = courseModules.find((m) => gi.name.toLowerCase().includes(m.title.toLowerCase()));
                   if (mod) {
                     const examActivity = courseActivities.find((a) => a.module_id === mod.id && a.type === "exam");
                     if (examActivity) {
@@ -523,6 +523,10 @@ export default function RegistroDetailPage() {
                       if (attempt) score = attempt.score;
                     }
                   }
+                }
+                // Also try matching any exam attempt directly if only one grade item
+                if (score === null && gradeItems.length === 1 && examAttempts.length > 0) {
+                  score = examAttempts[0].score;
                 }
                 return (
                   <tr key={gi.id} className="border-b border-gray-50">
