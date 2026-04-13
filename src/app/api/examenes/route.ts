@@ -15,9 +15,9 @@ export async function POST(request: Request) {
     if (!user?.email) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
     const body = await request.json();
-    const { action } = body;
+    let { action } = body;
 
-    // START EXAM — return questions without correct answers
+    // START EXAM — return questions without correct answers (or resume in-progress attempt)
     if (action === "start") {
       const { exam_id, registration_id } = body;
 
@@ -31,43 +31,139 @@ export async function POST(request: Request) {
 
       const realExamId = exam.id;
 
-      // Count existing attempts
-      const { count } = await supabaseAdmin
+      // Check for existing in-progress attempt (resume)
+      const { data: inProgress } = await supabaseAdmin
         .from("exam_attempts")
-        .select("id", { count: "exact", head: true })
+        .select("*")
         .eq("exam_id", realExamId)
         .eq("registration_id", registration_id)
-        .eq("status", "completed");
+        .eq("status", "in_progress")
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      if ((count || 0) >= exam.max_attempts) {
-        return NextResponse.json({ error: "Intentos maximos alcanzados" }, { status: 400 });
+      if (inProgress) {
+        // Check if time has expired server-side
+        const elapsed = (Date.now() - new Date(inProgress.started_at).getTime()) / 1000;
+        const timeLimitSecs = (exam.time_limit_minutes || 0) * 60;
+
+        if (timeLimitSecs > 0 && elapsed >= timeLimitSecs) {
+          // Auto-finalize expired attempt with saved answers
+          const { data: savedAnswers } = await supabaseAdmin
+            .from("exam_answers")
+            .select("question_id, selected_answer")
+            .eq("attempt_id", inProgress.id);
+
+          // Finalize with whatever was saved
+          const answerList = (savedAnswers || [])
+            .filter((a: any) => a.selected_answer)
+            .map((a: any) => ({ question_id: a.question_id, selected_answer: a.selected_answer }));
+
+          // Fall through to finalize block below
+          action = "finalize";
+          body.attempt_id = inProgress.id;
+          body.answers = answerList;
+        } else {
+          // Resume: return remaining time and saved answers
+          const remainingTime = timeLimitSecs > 0 ? Math.max(0, Math.floor(timeLimitSecs - elapsed)) : null;
+
+          let { data: questions } = await supabaseAdmin
+            .from("exam_questions")
+            .select("id, sort_order, question_type, question_text, options, points")
+            .eq("exam_id", realExamId)
+            .order("sort_order");
+
+          // Load saved answers
+          const { data: savedAnswers } = await supabaseAdmin
+            .from("exam_answers")
+            .select("question_id, selected_answer")
+            .eq("attempt_id", inProgress.id);
+
+          const savedMap: Record<string, string> = {};
+          for (const sa of savedAnswers || []) {
+            if (sa.selected_answer) savedMap[sa.question_id] = sa.selected_answer;
+          }
+
+          return NextResponse.json({
+            attempt_id: inProgress.id,
+            time_limit_minutes: exam.time_limit_minutes,
+            remaining_seconds: remainingTime,
+            questions: questions || [],
+            saved_answers: savedMap,
+            resumed: true,
+          });
+        }
       }
 
-      // Create attempt
-      const { data: attempt, error: attemptErr } = await supabaseAdmin
+      // Only create new attempt if we're not falling through to finalize
+      if (action === "start") {
+        // Count existing completed attempts
+        const { count } = await supabaseAdmin
+          .from("exam_attempts")
+          .select("id", { count: "exact", head: true })
+          .eq("exam_id", realExamId)
+          .eq("registration_id", registration_id)
+          .eq("status", "completed");
+
+        if ((count || 0) >= exam.max_attempts) {
+          return NextResponse.json({ error: "Intentos maximos alcanzados" }, { status: 400 });
+        }
+
+        // Create attempt
+        const { data: attempt, error: attemptErr } = await supabaseAdmin
+          .from("exam_attempts")
+          .insert({ exam_id: realExamId, registration_id, attempt_number: (count || 0) + 1 })
+          .select()
+          .single();
+
+        if (attemptErr) return NextResponse.json({ error: attemptErr.message }, { status: 500 });
+
+        // Load questions (strip correct answers)
+        let { data: questions } = await supabaseAdmin
+          .from("exam_questions")
+          .select("id, sort_order, question_type, question_text, options, points")
+          .eq("exam_id", realExamId)
+          .order("sort_order");
+
+        if (exam.shuffle_questions && questions) {
+          questions = questions.sort(() => Math.random() - 0.5);
+        }
+
+        return NextResponse.json({
+          attempt_id: attempt.id,
+          time_limit_minutes: exam.time_limit_minutes,
+          questions: questions || [],
+        });
+      }
+    }
+
+    // SAVE ANSWERS — auto-save partial answers periodically
+    if (action === "save_answers") {
+      const { attempt_id, answers: partialAnswers } = body;
+      // partialAnswers: {question_id: selected_answer}
+
+      const { data: attempt } = await supabaseAdmin
         .from("exam_attempts")
-        .insert({ exam_id: realExamId, registration_id, attempt_number: (count || 0) + 1 })
-        .select()
+        .select("id, status")
+        .eq("id", attempt_id)
         .single();
 
-      if (attemptErr) return NextResponse.json({ error: attemptErr.message }, { status: 500 });
+      if (!attempt) return NextResponse.json({ error: "Intento no encontrado" }, { status: 404 });
+      if (attempt.status === "completed") return NextResponse.json({ error: "Examen ya finalizado" }, { status: 400 });
 
-      // Load questions (strip correct answers)
-      let { data: questions } = await supabaseAdmin
-        .from("exam_questions")
-        .select("id, sort_order, question_type, question_text, options, points")
-        .eq("exam_id", realExamId)
-        .order("sort_order");
+      // Upsert each answer
+      const rows = Object.entries(partialAnswers || {}).map(([question_id, selected_answer]) => ({
+        attempt_id,
+        question_id,
+        selected_answer: selected_answer as string,
+        is_correct: false, // Will be recalculated on finalize
+      }));
 
-      if (exam.shuffle_questions && questions) {
-        questions = questions.sort(() => Math.random() - 0.5);
+      if (rows.length > 0) {
+        await supabaseAdmin.from("exam_answers").upsert(rows, { onConflict: "attempt_id,question_id" });
       }
 
-      return NextResponse.json({
-        attempt_id: attempt.id,
-        time_limit_minutes: exam.time_limit_minutes,
-        questions: questions || [],
-      });
+      return NextResponse.json({ saved: true, count: rows.length });
     }
 
     // FINALIZE EXAM — grade and save

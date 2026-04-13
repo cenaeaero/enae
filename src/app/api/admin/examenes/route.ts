@@ -169,3 +169,51 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
 }
+
+// DELETE: Reset exam attempts for a student
+export async function DELETE(request: Request) {
+  try {
+    const admin = await verifyAdmin();
+    if (!admin) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
+    const { registration_id, exam_id, activity_id } = await request.json();
+    if (!registration_id) return NextResponse.json({ error: "registration_id requerido" }, { status: 400 });
+
+    // Find exam
+    let realExamId = exam_id;
+    if (!realExamId && activity_id) {
+      const { data: exam } = await supabaseAdmin.from("exams").select("id").eq("activity_id", activity_id).maybeSingle();
+      if (exam) realExamId = exam.id;
+    }
+
+    if (!realExamId) return NextResponse.json({ error: "Examen no encontrado" }, { status: 404 });
+
+    // Get all attempts for this student+exam
+    const { data: attempts } = await supabaseAdmin
+      .from("exam_attempts")
+      .select("id")
+      .eq("exam_id", realExamId)
+      .eq("registration_id", registration_id);
+
+    const attemptIds = (attempts || []).map((a: any) => a.id);
+
+    if (attemptIds.length > 0) {
+      // Delete answers first (FK constraint)
+      await supabaseAdmin.from("exam_answers").delete().in("attempt_id", attemptIds);
+      // Delete attempts
+      await supabaseAdmin.from("exam_attempts").delete().in("id", attemptIds);
+    }
+
+    // Also clear the student_grade for this exam if it exists
+    const { data: exam } = await supabaseAdmin.from("exams").select("grade_item_id").eq("id", realExamId).maybeSingle();
+    if (exam?.grade_item_id) {
+      await supabaseAdmin.from("student_grades").delete()
+        .eq("registration_id", registration_id)
+        .eq("grade_item_id", exam.grade_item_id);
+    }
+
+    return NextResponse.json({ reset: true, attempts_deleted: attemptIds.length });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || "Error interno" }, { status: 500 });
+  }
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 type Question = {
   id: string;
@@ -38,6 +38,58 @@ export default function ExamPlayer({ examId, registrationId, onComplete }: Props
   const [review, setReview] = useState<ReviewItem[]>([]);
   const [showReview, setShowReview] = useState(false);
   const [error, setError] = useState("");
+  const [resumed, setResumed] = useState(false);
+  const [lastSaved, setLastSaved] = useState<string | null>(null);
+  const answersRef = useRef(answers);
+  const attemptIdRef = useRef(attemptId);
+  const submittingRef = useRef(false);
+
+  // Keep refs in sync
+  useEffect(() => { answersRef.current = answers; }, [answers]);
+  useEffect(() => { attemptIdRef.current = attemptId; }, [attemptId]);
+
+  // Auto-save answers every 30 seconds
+  const saveAnswers = useCallback(async () => {
+    const currentAttemptId = attemptIdRef.current;
+    const currentAnswers = answersRef.current;
+    if (!currentAttemptId || Object.keys(currentAnswers).length === 0 || submittingRef.current) return;
+    try {
+      const res = await fetch("/api/examenes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "save_answers", attempt_id: currentAttemptId, answers: currentAnswers }),
+      });
+      const json = await res.json();
+      if (json.saved) {
+        setLastSaved(new Date().toLocaleTimeString());
+      }
+    } catch {
+      // Silent fail — will retry next interval
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!attemptId || result) return;
+    const interval = setInterval(saveAnswers, 30000);
+    return () => clearInterval(interval);
+  }, [attemptId, result, saveAnswers]);
+
+  // Save on page unload
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      const currentAttemptId = attemptIdRef.current;
+      const currentAnswers = answersRef.current;
+      if (!currentAttemptId || Object.keys(currentAnswers).length === 0) return;
+      const blob = new Blob([JSON.stringify({
+        action: "save_answers",
+        attempt_id: currentAttemptId,
+        answers: currentAnswers,
+      })], { type: "application/json" });
+      navigator.sendBeacon("/api/examenes", blob);
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
 
   const startExam = useCallback(async () => {
     try {
@@ -49,9 +101,29 @@ export default function ExamPlayer({ examId, registrationId, onComplete }: Props
       const json = await res.json();
       if (json.error) { setError(json.error); setLoading(false); return; }
 
+      // If server auto-finalized an expired attempt, show results
+      if (json.score !== undefined) {
+        setResult(json);
+        if (json.review) setReview(json.review);
+        onComplete?.(json.score, json.passed);
+        setLoading(false);
+        return;
+      }
+
       setAttemptId(json.attempt_id);
       setQuestions(json.questions || []);
-      if (json.time_limit_minutes) {
+
+      // Resume: restore saved answers
+      if (json.resumed && json.saved_answers) {
+        setAnswers(json.saved_answers);
+        setResumed(true);
+      }
+
+      if (json.remaining_seconds !== undefined && json.remaining_seconds !== null) {
+        // Resumed exam with remaining time
+        setTimeLimit(json.time_limit_minutes);
+        setTimeLeft(json.remaining_seconds);
+      } else if (json.time_limit_minutes) {
         setTimeLimit(json.time_limit_minutes);
         setTimeLeft(json.time_limit_minutes * 60);
       }
@@ -81,7 +153,8 @@ export default function ExamPlayer({ examId, registrationId, onComplete }: Props
   }, [timeLeft, result]);
 
   async function submitExam() {
-    if (!attemptId) return;
+    if (!attemptId || submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const answerList = Object.entries(answers).map(([question_id, selected_answer]) => ({
@@ -103,6 +176,7 @@ export default function ExamPlayer({ examId, registrationId, onComplete }: Props
     } catch {
       setError("Error al enviar examen");
     }
+    submittingRef.current = false;
     setSubmitting(false);
   }
 
@@ -197,11 +271,21 @@ export default function ExamPlayer({ examId, registrationId, onComplete }: Props
 
   return (
     <div>
-      {/* Timer */}
+      {/* Timer + auto-save status */}
       {timeLeft !== null && (
         <div className={`sticky top-0 z-10 bg-white border-b px-4 py-2 flex items-center justify-between ${timeLeft < 60 ? "text-red-600" : "text-gray-600"}`}>
-          <span className="text-sm font-medium">Tiempo restante</span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium">Tiempo restante</span>
+            {lastSaved && <span className="text-[10px] text-gray-400">Guardado: {lastSaved}</span>}
+          </div>
           <span className="text-lg font-mono font-bold">{formatTime(timeLeft)}</span>
+        </div>
+      )}
+
+      {/* Resumed notice */}
+      {resumed && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded-lg text-sm mb-4">
+          Se han recuperado tus respuestas anteriores. Puedes continuar donde lo dejaste.
         </div>
       )}
 

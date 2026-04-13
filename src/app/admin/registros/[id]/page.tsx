@@ -107,6 +107,7 @@ export default function RegistroDetailPage() {
   const [passwordMsg, setPasswordMsg] = useState("");
   const [savingPassword, setSavingPassword] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [resettingExam, setResettingExam] = useState<string | null>(null);
 
   const [procedure, setProcedure] = useState<DgacProcedure | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -394,6 +395,22 @@ export default function RegistroDetailPage() {
     setSavingPassword(false);
   }
 
+  async function handleResetExam(activityId: string) {
+    if (!confirm("¿Reiniciar el examen de este alumno? Se eliminarán todos los intentos y la calificación asociada.")) return;
+    setResettingExam(activityId);
+    try {
+      const res = await fetch("/api/admin/examenes", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registration_id: id, activity_id: activityId }),
+      });
+      const json = await res.json();
+      if (json.error) { alert("Error: " + json.error); }
+      else { alert(`Examen reiniciado. ${json.attempts_deleted} intento(s) eliminado(s).`); loadData(); }
+    } catch { alert("Error al reiniciar examen"); }
+    setResettingExam(null);
+  }
+
   if (loading) return <div className="text-center py-16 text-gray-400">Cargando...</div>;
 
   if (!profile.email) {
@@ -507,6 +524,7 @@ export default function RegistroDetailPage() {
                 <th className="pb-2 text-center">Peso</th>
                 <th className="pb-2 text-center">Nota</th>
                 <th className="pb-2 text-center">Estado</th>
+                <th className="pb-2 text-center">Acción</th>
               </tr>
             </thead>
             <tbody>
@@ -528,6 +546,21 @@ export default function RegistroDetailPage() {
                 if (score === null && gradeItems.length === 1 && examAttempts.length > 0) {
                   score = examAttempts[0].score;
                 }
+                // Find exam activity for reset button
+                let examActivityId: string | null = null;
+                if (courseModules.length > 0) {
+                  const mod = courseModules.find((m) => gi.name.toLowerCase().includes(m.title.toLowerCase()));
+                  if (mod) {
+                    const ea = courseActivities.find((a) => a.module_id === mod.id && a.type === "exam");
+                    if (ea) examActivityId = ea.id;
+                  }
+                }
+                // Fallback: if only one grade item, find any exam activity
+                if (!examActivityId && gradeItems.length === 1) {
+                  const ea = courseActivities.find((a) => a.type === "exam");
+                  if (ea) examActivityId = ea.id;
+                }
+
                 return (
                   <tr key={gi.id} className="border-b border-gray-50">
                     <td className="py-2 text-gray-700">{gi.name}</td>
@@ -540,6 +573,17 @@ export default function RegistroDetailPage() {
                         </span>
                       ) : (
                         <span className="text-xs text-gray-400">Pendiente</span>
+                      )}
+                    </td>
+                    <td className="py-2 text-center">
+                      {examActivityId && (
+                        <button
+                          onClick={() => handleResetExam(examActivityId!)}
+                          disabled={resettingExam === examActivityId}
+                          className="text-xs text-orange-600 hover:text-orange-800 font-medium disabled:opacity-50"
+                        >
+                          {resettingExam === examActivityId ? "..." : "Reiniciar"}
+                        </button>
                       )}
                     </td>
                   </tr>
