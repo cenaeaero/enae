@@ -111,7 +111,7 @@ export async function DELETE(request: Request) {
     // Delete related records
     await supabaseAdmin.from("student_grades").delete().eq("registration_id", id);
     await supabaseAdmin.from("exam_attempts").delete().eq("registration_id", id);
-    await supabaseAdmin.from("student_progress").delete().eq("registration_id", id);
+    await supabaseAdmin.from("activity_progress").delete().eq("registration_id", id);
     await supabaseAdmin.from("survey_responses").delete().eq("registration_id", id);
     await supabaseAdmin.from("diplomas").delete().eq("registration_id", id);
     await supabaseAdmin.from("dgac_procedures").delete().eq("registration_id", id);

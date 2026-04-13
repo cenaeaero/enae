@@ -188,7 +188,7 @@ export default function RegistroDetailPage() {
         setCourseActivities((activities || []) as { id: string; module_id: string; type: string }[]);
         setTotalActivities((activities || []).length);
 
-        const { data: prog } = await supabase.from("student_progress").select("activity_id, status").eq("registration_id", id);
+        const { data: prog } = await supabase.from("activity_progress").select("activity_id, status").eq("registration_id", id);
         const progressWithNames = (prog || []).map((p: any) => {
           const act = (activities || []).find((a: any) => a.id === p.activity_id);
           const mod = act ? (modules || []).find((m: any) => m.id === act.module_id) : null;
