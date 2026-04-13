@@ -11,55 +11,82 @@ export default function SessionTimeout() {
   const [countdown, setCountdown] = useState(WARNING_DURATION);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const warningActiveRef = useRef(false);
+  const countdownValueRef = useRef(WARNING_DURATION);
 
   const logout = useCallback(async () => {
-    // Clear timers
-    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-    if (countdownRef.current) clearInterval(countdownRef.current);
-    await supabase.auth.signOut();
+    // Clear all timers
+    if (idleTimerRef.current) { clearTimeout(idleTimerRef.current); idleTimerRef.current = null; }
+    if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
+    warningActiveRef.current = false;
+    try {
+      await supabase.auth.signOut();
+    } catch {}
     window.location.href = "/tpems/login";
   }, []);
 
+  const startWarning = useCallback(() => {
+    warningActiveRef.current = true;
+    countdownValueRef.current = WARNING_DURATION;
+    setShowWarning(true);
+    setCountdown(WARNING_DURATION);
+
+    // Clear any existing countdown
+    if (countdownRef.current) clearInterval(countdownRef.current);
+
+    countdownRef.current = setInterval(() => {
+      countdownValueRef.current -= 1;
+      setCountdown(countdownValueRef.current);
+
+      if (countdownValueRef.current <= 0) {
+        // Time's up — force logout
+        if (countdownRef.current) clearInterval(countdownRef.current);
+        countdownRef.current = null;
+        logout();
+      }
+    }, 1000);
+  }, [logout]);
+
   const resetIdleTimer = useCallback(() => {
-    // Don't reset if warning is already showing
-    if (showWarning) return;
+    // Don't reset if warning is actively showing
+    if (warningActiveRef.current) return;
 
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
 
     idleTimerRef.current = setTimeout(() => {
-      // Show warning modal
-      setShowWarning(true);
-      setCountdown(WARNING_DURATION);
-
-      // Start countdown
-      countdownRef.current = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            // Time's up — auto logout
-            logout();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+      startWarning();
     }, IDLE_TIMEOUT);
-  }, [showWarning, logout]);
+  }, [startWarning]);
 
   const handleContinue = useCallback(() => {
-    // User wants to continue
-    if (countdownRef.current) clearInterval(countdownRef.current);
+    if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
+    warningActiveRef.current = false;
     setShowWarning(false);
     setCountdown(WARNING_DURATION);
-    resetIdleTimer();
-  }, [resetIdleTimer]);
+    countdownValueRef.current = WARNING_DURATION;
+    // Restart idle timer
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = setTimeout(() => {
+      startWarning();
+    }, IDLE_TIMEOUT);
+  }, [startWarning]);
 
   useEffect(() => {
     const events = ["mousedown", "mousemove", "keydown", "scroll", "touchstart", "click"];
 
-    const handleActivity = () => resetIdleTimer();
+    const handleActivity = () => {
+      if (!warningActiveRef.current) {
+        if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+        idleTimerRef.current = setTimeout(() => {
+          startWarning();
+        }, IDLE_TIMEOUT);
+      }
+    };
 
     // Start the idle timer
-    resetIdleTimer();
+    idleTimerRef.current = setTimeout(() => {
+      startWarning();
+    }, IDLE_TIMEOUT);
 
     // Listen for user activity
     events.forEach((event) => {
@@ -73,7 +100,7 @@ export default function SessionTimeout() {
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       if (countdownRef.current) clearInterval(countdownRef.current);
     };
-  }, [resetIdleTimer]);
+  }, [startWarning]);
 
   if (!showWarning) return null;
 
