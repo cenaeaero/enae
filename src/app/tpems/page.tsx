@@ -166,11 +166,18 @@ export default function TpemsDashboard() {
         </div>
       ) : (
         <div className="space-y-4">
-          {registrations.map((reg) => (
-            <Link
+          {registrations.map((reg) => {
+            // Only allow access to course if registration is confirmed or completed (paid)
+            const hasAccess = reg.status === "confirmed" || reg.status === "completed";
+            const CardWrapper = hasAccess ? Link : "div";
+            const cardProps = hasAccess
+              ? { href: `/tpems/curso/${reg.id}`, className: "block bg-white rounded-lg border border-gray-200 hover:shadow-md transition overflow-hidden cursor-pointer" }
+              : { className: "block bg-white rounded-lg border border-gray-200 overflow-hidden" };
+
+            return (
+            <CardWrapper
               key={reg.id}
-              href={`/tpems/curso/${reg.id}`}
-              className="block bg-white rounded-lg border border-gray-200 hover:shadow-md transition overflow-hidden"
+              {...(cardProps as any)}
             >
               <div className="flex">
                 {/* Thumbnail */}
@@ -310,8 +317,9 @@ export default function TpemsDashboard() {
                   </div>
                 </div>
               </div>
-            </Link>
-          ))}
+            </CardWrapper>
+            );
+          })}
         </div>
       )}
 

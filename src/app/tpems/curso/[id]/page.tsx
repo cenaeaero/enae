@@ -668,6 +668,15 @@ export default function TpemsCourseDetail() {
 
       if (!error && data) {
         const r = data as any;
+
+        // Block access if course is not paid (status pending/rejected/cancelled)
+        // Only allow confirmed or completed status
+        const isAdminBypass = searchParams.get("admin_view") === "1";
+        if (!isAdminBypass && r.status !== "confirmed" && r.status !== "completed") {
+          router.push("/tpems");
+          return;
+        }
+
         const courseData: CourseDelivery = {
           id: r.id,
           status: r.status,
