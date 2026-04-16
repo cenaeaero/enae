@@ -13,6 +13,11 @@ type Registration = {
   created_at: string;
   course_title?: string;
   course_id?: string;
+  progressPercent?: number;
+  totalActivities?: number;
+  completedActivities?: number;
+  lastAccess?: string | null;
+  accessCount?: number;
 };
 
 const statusOptions = [
@@ -51,7 +56,7 @@ export default function AdminRegistrosPage() {
   }, []);
 
   async function loadRegistrations() {
-    let loaded = false;
+    let baseRegs: Registration[] = [];
 
     // Method 1: Try admin API (bypasses RLS)
     try {
@@ -59,36 +64,7 @@ export default function AdminRegistrosPage() {
       if (res.ok) {
         const json = await res.json();
         if (json.registrations && json.registrations.length >= 0) {
-          setRegistrations(
-            json.registrations.map((r: any) => ({
-              id: r.id,
-              first_name: r.first_name,
-              last_name: r.last_name,
-              email: r.email,
-              status: r.status,
-              created_at: r.created_at,
-              course_title: r.courses?.title,
-              course_id: r.course_id,
-            }))
-          );
-          loaded = true;
-        }
-      }
-    } catch (err) {
-      console.error("Admin API failed:", err);
-    }
-
-    // Method 2: Fallback to direct Supabase client
-    if (!loaded) {
-      console.log("Falling back to direct Supabase client...");
-      const { data, error } = await supabase
-        .from("registrations")
-        .select("id, first_name, last_name, email, status, created_at, course_id, courses(title)")
-        .order("created_at", { ascending: false });
-
-      if (!error && data) {
-        setRegistrations(
-          data.map((r: any) => ({
+          baseRegs = json.registrations.map((r: any) => ({
             id: r.id,
             first_name: r.first_name,
             last_name: r.last_name,
@@ -97,12 +73,122 @@ export default function AdminRegistrosPage() {
             created_at: r.created_at,
             course_title: r.courses?.title,
             course_id: r.course_id,
-          }))
-        );
+          }));
+        }
+      }
+    } catch {}
+
+    // Method 2: Fallback to direct Supabase client
+    if (baseRegs.length === 0) {
+      const { data } = await supabase
+        .from("registrations")
+        .select("id, first_name, last_name, email, status, created_at, course_id, courses(title)")
+        .order("created_at", { ascending: false });
+
+      if (data) {
+        baseRegs = data.map((r: any) => ({
+          id: r.id,
+          first_name: r.first_name,
+          last_name: r.last_name,
+          email: r.email,
+          status: r.status,
+          created_at: r.created_at,
+          course_title: r.courses?.title,
+          course_id: r.course_id,
+        }));
       }
     }
 
+    // Show registrations immediately, then enrich with progress + access
+    setRegistrations(baseRegs);
     setLoading(false);
+
+    // Enrich with progress and access data
+    const regIds = baseRegs.map((r) => r.id);
+    if (regIds.length === 0) return;
+
+    // Get all course_ids to fetch modules+activities
+    const courseIds = Array.from(new Set(baseRegs.map((r) => r.course_id).filter(Boolean))) as string[];
+
+    // Count activities per course
+    const activitiesPerCourse: Record<string, number> = {};
+    if (courseIds.length > 0) {
+      const { data: modules } = await supabase
+        .from("course_modules")
+        .select("id, course_id")
+        .in("course_id", courseIds);
+      const modulesByCourseId: Record<string, string[]> = {};
+      (modules || []).forEach((m: any) => {
+        if (!modulesByCourseId[m.course_id]) modulesByCourseId[m.course_id] = [];
+        modulesByCourseId[m.course_id].push(m.id);
+      });
+
+      const allModuleIds = (modules || []).map((m: any) => m.id);
+      if (allModuleIds.length > 0) {
+        const { data: activities } = await supabase
+          .from("module_activities")
+          .select("id, module_id")
+          .in("module_id", allModuleIds);
+
+        const activitiesByModule: Record<string, number> = {};
+        (activities || []).forEach((a: any) => {
+          activitiesByModule[a.module_id] = (activitiesByModule[a.module_id] || 0) + 1;
+        });
+
+        for (const [courseId, modIds] of Object.entries(modulesByCourseId)) {
+          activitiesPerCourse[courseId] = modIds.reduce((sum, mid) => sum + (activitiesByModule[mid] || 0), 0);
+        }
+      }
+    }
+
+    // Get progress per registration
+    const { data: allProgress } = await supabase
+      .from("activity_progress")
+      .select("registration_id, status")
+      .in("registration_id", regIds);
+
+    const completedByReg: Record<string, number> = {};
+    (allProgress || []).forEach((p: any) => {
+      if (p.status === "completed") {
+        completedByReg[p.registration_id] = (completedByReg[p.registration_id] || 0) + 1;
+      }
+    });
+
+    // Get last access per registration
+    const accessByReg: Record<string, { last: string | null; count: number }> = {};
+    try {
+      const { data: accessLogs } = await supabase
+        .from("course_access_log")
+        .select("registration_id, accessed_at")
+        .in("registration_id", regIds)
+        .order("accessed_at", { ascending: false });
+
+      (accessLogs || []).forEach((a: any) => {
+        if (!accessByReg[a.registration_id]) {
+          accessByReg[a.registration_id] = { last: a.accessed_at, count: 0 };
+        }
+        accessByReg[a.registration_id].count += 1;
+      });
+    } catch {}
+
+    // Merge enriched data
+    const enriched = baseRegs.map((r) => {
+      const totalActivities = r.course_id ? (activitiesPerCourse[r.course_id] || 0) : 0;
+      const completed = completedByReg[r.id] || 0;
+      const progressPercent = totalActivities > 0 ? Math.round((completed / totalActivities) * 100) : 0;
+      const access = accessByReg[r.id] || { last: null, count: 0 };
+
+      return {
+        ...r,
+        progressPercent,
+        totalActivities,
+        completedActivities: completed,
+        lastAccess: access.last,
+        accessCount: access.count,
+      };
+    });
+
+    setRegistrations(enriched);
   }
 
   async function updateStatus(id: string, newStatus: string) {
@@ -158,6 +244,19 @@ export default function AdminRegistrosPage() {
       month: "short",
       year: "numeric",
     });
+  }
+
+  function formatRelativeTime(dateStr: string | null | undefined) {
+    if (!dateStr) return null;
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "ahora";
+    if (mins < 60) return `hace ${mins}m`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `hace ${hours}h`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `hace ${days}d`;
+    return new Date(dateStr).toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" });
   }
 
   return (
@@ -224,19 +323,28 @@ export default function AdminRegistrosPage() {
             <thead>
               <tr className="bg-gray-50 text-left text-sm text-gray-500">
                 <th className="px-4 py-3 font-medium">Nombre</th>
-                <th className="px-4 py-3 font-medium">Email</th>
-                <th className="px-4 py-3 font-medium hidden md:table-cell">
-                  Curso
-                </th>
-                <th className="px-4 py-3 font-medium hidden sm:table-cell">
-                  Fecha
-                </th>
+                <th className="px-4 py-3 font-medium hidden lg:table-cell">Email</th>
+                <th className="px-4 py-3 font-medium hidden md:table-cell">Curso</th>
+                <th className="px-4 py-3 font-medium hidden xl:table-cell">Fecha</th>
+                <th className="px-4 py-3 font-medium">Avance</th>
+                <th className="px-4 py-3 font-medium hidden sm:table-cell">Ultimo Ingreso</th>
                 <th className="px-4 py-3 font-medium">Estado</th>
                 <th className="px-4 py-3 font-medium">Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((reg) => (
+              {filtered.map((reg) => {
+                const hasNeverAccessed = !reg.lastAccess || reg.accessCount === 0;
+                const progressPercent = reg.progressPercent ?? 0;
+                const progressColor = progressPercent === 100
+                  ? "bg-green-500"
+                  : progressPercent >= 50
+                  ? "bg-[#0072CE]"
+                  : progressPercent > 0
+                  ? "bg-[#F57C00]"
+                  : "bg-gray-300";
+
+                return (
                 <tr
                   key={reg.id}
                   className="border-t border-gray-100 hover:bg-gray-50"
@@ -249,14 +357,51 @@ export default function AdminRegistrosPage() {
                       {reg.first_name} {reg.last_name}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
+                  <td className="px-4 py-3 text-sm text-gray-600 hidden lg:table-cell">
                     {reg.email}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600 hidden md:table-cell max-w-[200px] truncate">
                     {reg.course_title || "—"}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-500 hidden sm:table-cell">
+                  <td className="px-4 py-3 text-sm text-gray-500 hidden xl:table-cell">
                     {formatDate(reg.created_at)}
+                  </td>
+                  {/* Avance (progreso) */}
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2 min-w-[100px]">
+                      <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${progressColor}`}
+                          style={{ width: `${progressPercent}%` }}
+                        />
+                      </div>
+                      <span className={`text-xs font-medium w-10 text-right ${
+                        progressPercent === 100 ? "text-green-600" :
+                        progressPercent >= 50 ? "text-[#0072CE]" :
+                        progressPercent > 0 ? "text-[#F57C00]" : "text-gray-400"
+                      }`}>
+                        {progressPercent}%
+                      </span>
+                    </div>
+                    {reg.totalActivities === 0 && (
+                      <p className="text-[10px] text-gray-400 mt-1">Sin contenido</p>
+                    )}
+                  </td>
+                  {/* Último Ingreso */}
+                  <td className="px-4 py-3 hidden sm:table-cell">
+                    {hasNeverAccessed ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded bg-red-50 text-red-700 border border-red-200">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                        </svg>
+                        No iniciado
+                      </span>
+                    ) : (
+                      <div>
+                        <div className="text-xs text-gray-700">{formatRelativeTime(reg.lastAccess)}</div>
+                        <div className="text-[10px] text-gray-400">{reg.accessCount} ingreso{reg.accessCount !== 1 ? "s" : ""}</div>
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -280,7 +425,8 @@ export default function AdminRegistrosPage() {
                     </select>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
