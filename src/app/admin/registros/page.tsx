@@ -334,8 +334,9 @@ export default function AdminRegistrosPage() {
             </thead>
             <tbody>
               {filtered.map((reg) => {
-                const hasNeverAccessed = !reg.lastAccess || reg.accessCount === 0;
                 const progressPercent = reg.progressPercent ?? 0;
+                // "No iniciado" only if NO access logs AND NO progress
+                const hasNeverAccessed = (!reg.lastAccess || reg.accessCount === 0) && progressPercent === 0;
                 const progressColor = progressPercent === 100
                   ? "bg-green-500"
                   : progressPercent >= 50
@@ -396,11 +397,13 @@ export default function AdminRegistrosPage() {
                         </svg>
                         No iniciado
                       </span>
-                    ) : (
+                    ) : reg.lastAccess ? (
                       <div>
                         <div className="text-xs text-gray-700">{formatRelativeTime(reg.lastAccess)}</div>
                         <div className="text-[10px] text-gray-400">{reg.accessCount} ingreso{reg.accessCount !== 1 ? "s" : ""}</div>
                       </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
                     )}
                   </td>
                   <td className="px-4 py-3">
