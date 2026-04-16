@@ -28,6 +28,10 @@ type ApprovedStudent = {
   theoreticalStart: string | null;
   practicalEnd: string | null;
   hasDiploma: boolean;
+  progressPercent: number;
+  totalActivities: number;
+  completedActivities: number;
+  canIssueDiploma: boolean;
 };
 
 export default function AdminDiplomasPage() {
@@ -51,31 +55,98 @@ export default function AdminDiplomasPage() {
 
     if (diplomaData) setDiplomas(diplomaData as Diploma[]);
 
-    // Load approved students without diplomas
+    // Load approved students (status completed OR grade_status approved)
     const { data: regs } = await supabase
       .from("registrations")
       .select(
-        "id, first_name, last_name, email, final_score, grade_status, theoretical_start, practical_end, courses(title, code, area)"
+        "id, first_name, last_name, email, final_score, grade_status, status, course_id, theoretical_start, practical_end, courses(title, code, area)"
       )
-      .eq("grade_status", "approved");
+      .or("grade_status.eq.approved,status.eq.completed");
 
-    if (regs) {
-      const diplomaRegIds = (diplomaData || []).map(
-        (d: any) => d.registration_id
-      );
+    if (regs && regs.length > 0) {
+      const diplomaRegIds = (diplomaData || []).map((d: any) => d.registration_id);
+      const regIds = regs.map((r: any) => r.id);
+      const courseIds = Array.from(new Set(regs.map((r: any) => r.course_id).filter(Boolean)));
+
+      // Count total activities per course
+      const activitiesPerCourse: Record<string, number> = {};
+      if (courseIds.length > 0) {
+        const { data: modules } = await supabase
+          .from("course_modules")
+          .select("id, course_id")
+          .in("course_id", courseIds);
+
+        const modulesByCourseId: Record<string, string[]> = {};
+        (modules || []).forEach((m: any) => {
+          if (!modulesByCourseId[m.course_id]) modulesByCourseId[m.course_id] = [];
+          modulesByCourseId[m.course_id].push(m.id);
+        });
+
+        const allModuleIds = (modules || []).map((m: any) => m.id);
+        if (allModuleIds.length > 0) {
+          const { data: activities } = await supabase
+            .from("module_activities")
+            .select("id, module_id")
+            .in("module_id", allModuleIds);
+
+          const activitiesByModule: Record<string, number> = {};
+          (activities || []).forEach((a: any) => {
+            activitiesByModule[a.module_id] = (activitiesByModule[a.module_id] || 0) + 1;
+          });
+
+          for (const [courseId, modIds] of Object.entries(modulesByCourseId)) {
+            activitiesPerCourse[courseId] = modIds.reduce(
+              (sum, mid) => sum + (activitiesByModule[mid] || 0),
+              0
+            );
+          }
+        }
+      }
+
+      // Count completed activities per registration
+      const { data: allProgress } = await supabase
+        .from("activity_progress")
+        .select("registration_id, status")
+        .in("registration_id", regIds)
+        .eq("status", "completed");
+
+      const completedByReg: Record<string, number> = {};
+      (allProgress || []).forEach((p: any) => {
+        completedByReg[p.registration_id] = (completedByReg[p.registration_id] || 0) + 1;
+      });
+
       setApproved(
-        regs.map((r: any) => ({
-          registrationId: r.id,
-          name: `${r.first_name} ${r.last_name}`,
-          email: r.email,
-          courseTitle: r.courses?.title || "",
-          courseCode: r.courses?.code || null,
-          courseArea: r.courses?.area || "",
-          finalScore: r.final_score,
-          theoreticalStart: r.theoretical_start,
-          practicalEnd: r.practical_end,
-          hasDiploma: diplomaRegIds.includes(r.id),
-        }))
+        regs.map((r: any) => {
+          const totalActivities = r.course_id ? activitiesPerCourse[r.course_id] || 0 : 0;
+          const completedActivities = completedByReg[r.id] || 0;
+          const progressPercent = totalActivities > 0
+            ? Math.round((completedActivities / totalActivities) * 100)
+            : 0;
+
+          // Diploma can be issued only if:
+          // 1. Student has completed 100% of activities (or course has no activities yet — legacy)
+          // 2. Grade is approved (final_score >= 80)
+          const has100Progress = totalActivities === 0 || progressPercent === 100;
+          const gradeOk = r.grade_status === "approved" || (r.final_score !== null && r.final_score >= 80);
+          const canIssueDiploma = has100Progress && gradeOk;
+
+          return {
+            registrationId: r.id,
+            name: `${r.first_name} ${r.last_name}`,
+            email: r.email,
+            courseTitle: r.courses?.title || "",
+            courseCode: r.courses?.code || null,
+            courseArea: r.courses?.area || "",
+            finalScore: r.final_score,
+            theoreticalStart: r.theoretical_start,
+            practicalEnd: r.practical_end,
+            hasDiploma: diplomaRegIds.includes(r.id),
+            progressPercent,
+            totalActivities,
+            completedActivities,
+            canIssueDiploma,
+          };
+        })
       );
     }
     setLoading(false);
@@ -104,6 +175,17 @@ export default function AdminDiplomasPage() {
   }
 
   async function issueDiploma(student: ApprovedStudent) {
+    // Block diploma issuance if student hasn't completed the course
+    if (!student.canIssueDiploma) {
+      alert(
+        `No se puede emitir el diploma.\n\n` +
+        `Progreso actual: ${student.progressPercent}% (${student.completedActivities}/${student.totalActivities} actividades)\n` +
+        `Nota final: ${student.finalScore !== null ? student.finalScore + "%" : "sin calificar"}\n\n` +
+        `El alumno debe completar el 100% del curso y tener nota aprobatoria (>= 80%) para emitir el diploma.`
+      );
+      return;
+    }
+
     setIssuing(student.registrationId);
 
     const code = generateVerificationCode(
@@ -317,9 +399,8 @@ export default function AdminDiplomasPage() {
                 <tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
                   <th className="px-4 py-3 font-medium">Alumno</th>
                   <th className="px-4 py-3 font-medium">Curso</th>
-                  <th className="px-4 py-3 font-medium hidden sm:table-cell">
-                    Nota Final
-                  </th>
+                  <th className="px-4 py-3 font-medium">Avance</th>
+                  <th className="px-4 py-3 font-medium hidden sm:table-cell">Nota Final</th>
                   <th className="px-4 py-3 font-medium">Acción</th>
                 </tr>
               </thead>
@@ -327,7 +408,7 @@ export default function AdminDiplomasPage() {
                 {pendingStudents.map((s) => (
                   <tr
                     key={s.registrationId}
-                    className="border-t border-gray-100 hover:bg-gray-50"
+                    className={`border-t border-gray-100 hover:bg-gray-50 ${!s.canIssueDiploma ? "opacity-80" : ""}`}
                   >
                     <td className="px-4 py-3">
                       <p className="font-medium text-gray-800">{s.name}</p>
@@ -336,14 +417,35 @@ export default function AdminDiplomasPage() {
                     <td className="px-4 py-3 text-gray-600">
                       {s.courseTitle}
                     </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2 min-w-[120px]">
+                        <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              s.progressPercent === 100 ? "bg-green-500" : s.progressPercent > 0 ? "bg-[#F57C00]" : "bg-gray-300"
+                            }`}
+                            style={{ width: `${s.progressPercent}%` }}
+                          />
+                        </div>
+                        <span className={`text-xs font-medium w-10 text-right ${
+                          s.progressPercent === 100 ? "text-green-600" : s.progressPercent > 0 ? "text-[#F57C00]" : "text-gray-400"
+                        }`}>
+                          {s.progressPercent}%
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-gray-400 mt-0.5">
+                        {s.completedActivities}/{s.totalActivities} actividades
+                      </p>
+                    </td>
                     <td className="px-4 py-3 font-bold text-green-600 hidden sm:table-cell">
                       {s.finalScore !== null ? `${s.finalScore}%` : "—"}
                     </td>
                     <td className="px-4 py-3">
                       <button
                         onClick={() => issueDiploma(s)}
-                        disabled={issuing === s.registrationId}
-                        className="text-xs bg-[#003366] hover:bg-[#004B87] disabled:bg-gray-300 text-white px-3 py-1.5 rounded font-medium transition"
+                        disabled={issuing === s.registrationId || !s.canIssueDiploma}
+                        title={!s.canIssueDiploma ? "El alumno debe completar el 100% del curso con nota >= 80%" : ""}
+                        className="text-xs bg-[#003366] hover:bg-[#004B87] disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded font-medium transition"
                       >
                         {issuing === s.registrationId
                           ? "Emitiendo..."
