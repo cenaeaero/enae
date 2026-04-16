@@ -22,7 +22,7 @@ function loadImg(src: string): Promise<HTMLImageElement> {
 }
 
 export async function generateDiplomaPDF(diploma: DiplomaData): Promise<jsPDF> {
-  const doc = new jsPDF("landscape");
+  const doc = new jsPDF({ orientation: "landscape", compress: true });
   const pw = doc.internal.pageSize.getWidth();
   const ph = doc.internal.pageSize.getHeight();
   const cx = pw / 2;
