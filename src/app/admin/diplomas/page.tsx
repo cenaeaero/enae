@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { downloadDiplomaPDF, generateDiplomaPDF, getDiplomaPDFBase64 } from "@/lib/diploma-pdf";
 
 type Diploma = {
   id: string;
@@ -34,6 +35,7 @@ export default function AdminDiplomasPage() {
   const [approved, setApproved] = useState<ApprovedStudent[]>([]);
   const [loading, setLoading] = useState(true);
   const [issuing, setIssuing] = useState<string | null>(null);
+  const [sending, setSending] = useState<string | null>(null);
   const [tab, setTab] = useState<"diplomas" | "pending">("diplomas");
 
   useEffect(() => {
@@ -131,6 +133,50 @@ export default function AdminDiplomasPage() {
     setIssuing(null);
   }
 
+  async function handleView(d: Diploma) {
+    try {
+      const doc = await generateDiplomaPDF(d);
+      const blob = doc.output("blob");
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+      // Revoke URL after 1 minute
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err: any) {
+      alert("Error al generar el diploma: " + err.message);
+    }
+  }
+
+  async function handleDownload(d: Diploma) {
+    try {
+      await downloadDiplomaPDF(d, d.course_code);
+    } catch (err: any) {
+      alert("Error al descargar el diploma: " + err.message);
+    }
+  }
+
+  async function handleSendEmail(d: Diploma) {
+    if (!confirm(`¿Enviar el diploma por email al alumno ${d.student_name}?`)) return;
+
+    setSending(d.id);
+    try {
+      const pdf_base64 = await getDiplomaPDFBase64(d);
+      const res = await fetch("/api/admin/enviar-diploma", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ diploma_id: d.id, pdf_base64 }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        alert(`Diploma enviado exitosamente a ${json.email}`);
+      } else {
+        alert("Error al enviar: " + (json.error || "Error desconocido"));
+      }
+    } catch (err: any) {
+      alert("Error al enviar el diploma: " + err.message);
+    }
+    setSending(null);
+  }
+
   function formatDate(d: string | null) {
     if (!d) return "—";
     return new Date(d).toLocaleDateString("es-CL", {
@@ -184,14 +230,11 @@ export default function AdminDiplomasPage() {
                 <tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
                   <th className="px-4 py-3 font-medium">Código</th>
                   <th className="px-4 py-3 font-medium">Alumno</th>
-                  <th className="px-4 py-3 font-medium hidden md:table-cell">
-                    Curso
-                  </th>
-                  <th className="px-4 py-3 font-medium hidden sm:table-cell">
-                    Nota
-                  </th>
+                  <th className="px-4 py-3 font-medium hidden md:table-cell">Curso</th>
+                  <th className="px-4 py-3 font-medium hidden sm:table-cell">Nota</th>
                   <th className="px-4 py-3 font-medium">Fecha</th>
                   <th className="px-4 py-3 font-medium">Estado</th>
+                  <th className="px-4 py-3 font-medium">Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -219,6 +262,42 @@ export default function AdminDiplomasPage() {
                       <span className="text-xs font-medium px-2 py-1 rounded bg-green-100 text-green-800">
                         Emitido
                       </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleView(d)}
+                          className="inline-flex items-center gap-1 text-xs text-[#0072CE] hover:text-[#003366] hover:bg-blue-50 px-2 py-1 rounded transition"
+                          title="Ver diploma"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                          Ver
+                        </button>
+                        <button
+                          onClick={() => handleDownload(d)}
+                          className="inline-flex items-center gap-1 text-xs text-green-700 hover:text-green-900 hover:bg-green-50 px-2 py-1 rounded transition"
+                          title="Descargar PDF"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          Descargar
+                        </button>
+                        <button
+                          onClick={() => handleSendEmail(d)}
+                          disabled={sending === d.id}
+                          className="inline-flex items-center gap-1 text-xs text-[#F57C00] hover:text-[#E65100] hover:bg-orange-50 px-2 py-1 rounded transition disabled:opacity-50"
+                          title="Enviar por email"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                          {sending === d.id ? "Enviando..." : "Enviar"}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
