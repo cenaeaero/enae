@@ -945,8 +945,27 @@ export default function TpemsCourseDetail() {
     messages: "💬",
   };
 
+  const isAdminView = searchParams.get("admin_view") === "1";
+
   return (
     <>
+      {/* Admin Support View Banner */}
+      {isAdminView && (
+        <div className="bg-orange-500 text-white px-4 py-2 sticky top-0 z-50">
+          <div className="max-w-6xl mx-auto flex items-center justify-between gap-3 text-sm">
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              <span className="font-medium">Vista de Soporte — Viendo como alumno: <strong>{course.student_name}</strong></span>
+            </div>
+            <Link href={`/admin/registros/${course.id}`} className="bg-white/20 hover:bg-white/30 px-3 py-1 rounded text-xs font-medium transition whitespace-nowrap">
+              ← Volver al Admin
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Course header */}
       <div className="bg-gradient-to-r from-[#003366] via-[#004B87] to-[#0072CE] text-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5">

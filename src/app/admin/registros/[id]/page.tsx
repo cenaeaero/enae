@@ -459,10 +459,25 @@ export default function RegistroDetailPage() {
 
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-[#003366]">{profile.first_name} {profile.last_name}</h1>
-        <div className="flex items-center gap-2 text-sm">
-          <span className="text-gray-400">Curso:</span>
-          <span className="font-medium text-gray-700">{courseTitle}</span>
-          {courseCode && <span className="text-gray-400">({courseCode})</span>}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-gray-400">Curso:</span>
+            <span className="font-medium text-gray-700">{courseTitle}</span>
+            {courseCode && <span className="text-gray-400">({courseCode})</span>}
+          </div>
+          <a
+            href={`/tpems/curso/${id}?admin_view=1`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 bg-[#F57C00] hover:bg-[#E65100] text-white text-sm font-medium px-4 py-2 rounded-lg transition"
+            title="Abrir el curso tal como lo ve el alumno"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+            Ver como alumno (Soporte)
+          </a>
         </div>
       </div>
 
