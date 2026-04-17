@@ -1210,8 +1210,11 @@ export default function TpemsCourseDetail() {
                     <ExamPlayer
                       examId={fullscreenExam.lessonId}
                       registrationId={registrationId}
-                      onComplete={(score, passed) => {
-                        if (passed) completeLesson(fullscreenExam.lessonId);
+                      onComplete={() => {
+                        // Marcar actividad como completada independientemente del resultado.
+                        // Las notas son parciales y se promedian al final del curso; reprobar
+                        // un modulo no debe bloquear el avance al siguiente.
+                        completeLesson(fullscreenExam.lessonId);
                       }}
                     />
                     {/* Button to return after reviewing results */}
