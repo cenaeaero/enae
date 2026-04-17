@@ -354,16 +354,38 @@ export default function AdminDashboard() {
                   <p className="text-sm font-medium text-gray-800">{action.name}</p>
                   <p className="text-xs text-gray-500">{action.course}</p>
                 </div>
-                <Link
-                  href={action.type === "grade" ? "/admin/calificaciones" : "/admin/diplomas"}
-                  className={`text-xs font-medium px-3 py-1.5 rounded transition ${
-                    action.type === "grade"
-                      ? "bg-[#F57C00] hover:bg-[#E65100] text-white"
-                      : "bg-purple-600 hover:bg-purple-700 text-white"
-                  }`}
-                >
-                  {action.type === "grade" ? "Calificar" : "Emitir Diploma"}
-                </Link>
+                {action.type === "grade" ? (
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res = await fetch("/api/admin/auto-calificar", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ registration_id: action.id }),
+                        });
+                        const json = await res.json();
+                        if (json.results?.[0]?.graded > 0) {
+                          alert(`Auto-calificacion ejecutada: ${json.results[0].graded} notas agregadas. Nota final: ${json.results[0].final_score ?? "—"}%. Estado: ${json.results[0].grade_status || "pending"}`);
+                        } else {
+                          alert("No hay examenes completados por el alumno. Debes ingresar las notas manualmente.");
+                        }
+                      } catch (err: any) {
+                        alert("Error: " + (err?.message || "desconocido"));
+                      }
+                      window.location.href = "/admin/calificaciones";
+                    }}
+                    className="text-xs font-medium px-3 py-1.5 rounded transition bg-[#F57C00] hover:bg-[#E65100] text-white"
+                  >
+                    Calificar
+                  </button>
+                ) : (
+                  <Link
+                    href="/admin/diplomas"
+                    className="text-xs font-medium px-3 py-1.5 rounded transition bg-purple-600 hover:bg-purple-700 text-white"
+                  >
+                    Emitir Diploma
+                  </Link>
+                )}
               </div>
             ))}
           </div>
