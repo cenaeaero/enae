@@ -64,7 +64,7 @@ export default function AdminDashboard() {
       const [courses, students, regs, payments, diplomas] = await Promise.all([
         supabase.from("courses").select("id", { count: "exact", head: true }).eq("is_active", true),
         supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "student"),
-        supabase.from("registrations").select("id, status, grade_status"),
+        supabase.from("registrations").select("id, status, grade_status, course_id"),
         supabase.from("payments").select("id, status"),
         supabase.from("diplomas").select("id", { count: "exact", head: true }),
       ]);
@@ -77,18 +77,9 @@ export default function AdminDashboard() {
         (r: any) => r.status === "completed" && (!r.grade_status || r.grade_status === "pending")
       );
 
-      // Pending diplomas: grade_status = 'approved' but no diploma
+      // Pending diplomas: grade_status = 'approved' but no diploma (count updated later after 100% check)
       const approvedRegs = regData.filter((r: any) => r.grade_status === "approved");
       let pendingDiplomaCount = 0;
-      if (approvedRegs.length > 0) {
-        const { data: existingDiplomas } = await supabase
-          .from("diplomas")
-          .select("registration_id");
-        const diplomaRegIds = (existingDiplomas || []).map((d: any) => d.registration_id);
-        pendingDiplomaCount = approvedRegs.filter(
-          (r: any) => !diplomaRegIds.includes(r.id)
-        ).length;
-      }
 
       setStats({
         totalCourses: courses.count || 0,
@@ -168,7 +159,7 @@ export default function AdminDashboard() {
         });
       }
 
-      // Students needing diplomas
+      // Students needing diplomas — only if they completed 100% of course
       if (approvedRegs.length > 0) {
         const { data: existingDiplomas } = await supabase
           .from("diplomas")
@@ -179,23 +170,89 @@ export default function AdminDashboard() {
         );
 
         if (needDiploma.length > 0) {
-          const { data: diplomaRegs } = await supabase
-            .from("registrations")
-            .select("id, first_name, last_name, courses(title)")
-            .in("id", needDiploma.map((r: any) => r.id));
+          // Count total activities per course (for completion check)
+          const needDiplomaCourseIds = Array.from(
+            new Set(needDiploma.map((r: any) => r.course_id).filter(Boolean))
+          ) as string[];
 
-          if (diplomaRegs) {
-            diplomaRegs.forEach((r: any) => {
-              actions.push({
-                id: r.id,
-                name: `${r.first_name} ${r.last_name}`,
-                course: r.courses?.title || "",
-                type: "diploma",
-              });
+          const activitiesPerCourse: Record<string, number> = {};
+          if (needDiplomaCourseIds.length > 0) {
+            const { data: modules } = await supabase
+              .from("course_modules")
+              .select("id, course_id")
+              .in("course_id", needDiplomaCourseIds);
+
+            const modulesByCourse: Record<string, string[]> = {};
+            (modules || []).forEach((m: any) => {
+              if (!modulesByCourse[m.course_id]) modulesByCourse[m.course_id] = [];
+              modulesByCourse[m.course_id].push(m.id);
             });
+
+            const allModuleIds = (modules || []).map((m: any) => m.id);
+            if (allModuleIds.length > 0) {
+              const { data: activities } = await supabase
+                .from("module_activities")
+                .select("id, module_id")
+                .in("module_id", allModuleIds);
+
+              const actsByModule: Record<string, number> = {};
+              (activities || []).forEach((a: any) => {
+                actsByModule[a.module_id] = (actsByModule[a.module_id] || 0) + 1;
+              });
+
+              for (const [cid, mids] of Object.entries(modulesByCourse)) {
+                activitiesPerCourse[cid] = mids.reduce(
+                  (sum, mid) => sum + (actsByModule[mid] || 0),
+                  0
+                );
+              }
+            }
+          }
+
+          // Get completed activities per registration
+          const needDiplomaIds = needDiploma.map((r: any) => r.id);
+          const { data: allProgress } = await supabase
+            .from("activity_progress")
+            .select("registration_id")
+            .in("registration_id", needDiplomaIds)
+            .eq("status", "completed");
+
+          const completedByReg: Record<string, number> = {};
+          (allProgress || []).forEach((p: any) => {
+            completedByReg[p.registration_id] = (completedByReg[p.registration_id] || 0) + 1;
+          });
+
+          // Filter: only students with 100% progress can get diploma
+          const eligibleForDiploma = needDiploma.filter((r: any) => {
+            const total = r.course_id ? activitiesPerCourse[r.course_id] || 0 : 0;
+            const completed = completedByReg[r.id] || 0;
+            return total === 0 || completed >= total;
+          });
+
+          pendingDiplomaCount = eligibleForDiploma.length;
+
+          if (eligibleForDiploma.length > 0) {
+            const { data: diplomaRegs } = await supabase
+              .from("registrations")
+              .select("id, first_name, last_name, courses(title)")
+              .in("id", eligibleForDiploma.map((r: any) => r.id));
+
+            if (diplomaRegs) {
+              diplomaRegs.forEach((r: any) => {
+                actions.push({
+                  id: r.id,
+                  name: `${r.first_name} ${r.last_name}`,
+                  course: r.courses?.title || "",
+                  type: "diploma",
+                });
+              });
+            }
           }
         }
       }
+
+      // Update pendingDiplomas stat now that we have the real count
+      setStats((prev) => ({ ...prev, pendingDiplomas: pendingDiplomaCount }));
 
       setPendingActions(actions);
 
