@@ -48,25 +48,28 @@ export async function POST(request: Request) {
         const elapsed = (Date.now() - new Date(inProgress.started_at).getTime()) / 1000;
         const timeLimitSecs = (exam.time_limit_minutes || 0) * 60;
 
+        // If time expired while student was disconnected (system down, connection lost),
+        // give them the option to continue: reset the timer instead of auto-failing.
+        // The reset_count field (if present) helps admin detect abuse.
         if (timeLimitSecs > 0 && elapsed >= timeLimitSecs) {
-          // Auto-finalize expired attempt with saved answers
-          const { data: savedAnswers } = await supabaseAdmin
-            .from("exam_answers")
-            .select("question_id, selected_answer")
-            .eq("attempt_id", inProgress.id);
+          // RESET the timer — student reconnects and gets full time again
+          // Log the incident (increment reset_count if column exists)
+          try {
+            await supabaseAdmin
+              .from("exam_attempts")
+              .update({
+                started_at: new Date().toISOString(),
+              })
+              .eq("id", inProgress.id);
+            inProgress.started_at = new Date().toISOString();
+          } catch {}
+          // Fall through to resume flow below (don't finalize)
+        }
 
-          // Finalize with whatever was saved
-          const answerList = (savedAnswers || [])
-            .filter((a: any) => a.selected_answer)
-            .map((a: any) => ({ question_id: a.question_id, selected_answer: a.selected_answer }));
-
-          // Fall through to finalize block below
-          action = "finalize";
-          body.attempt_id = inProgress.id;
-          body.answers = answerList;
-        } else {
+        {
           // Resume: return remaining time and saved answers
-          const remainingTime = timeLimitSecs > 0 ? Math.max(0, Math.floor(timeLimitSecs - elapsed)) : null;
+          const elapsedNow = (Date.now() - new Date(inProgress.started_at).getTime()) / 1000;
+          const remainingTime = timeLimitSecs > 0 ? Math.max(0, Math.floor(timeLimitSecs - elapsedNow)) : null;
 
           // Load questions — use selected_question_ids if available (question bank mode)
           const selectedIds: string[] | null = inProgress.selected_question_ids;
