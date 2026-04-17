@@ -180,6 +180,9 @@ export default function EvaluacionesPage({
         }
       }
 
+      // Auto-link grade_items to exams based on module matching
+      await linkGradeItemsToExams();
+
       // Reload from DB to ensure state matches reality
       await loadItems();
       setMessage("Evaluaciones guardadas correctamente");
@@ -187,6 +190,68 @@ export default function EvaluacionesPage({
       setMessage("Error al guardar: " + (err.message || "desconocido"));
     }
     setSaving(false);
+  }
+
+  // Link grade_items to exams via module title matching
+  async function linkGradeItemsToExams() {
+    // Get current grade_items
+    const { data: currentItems } = await supabase
+      .from("grade_items")
+      .select("id, name")
+      .eq("course_id", courseId);
+
+    if (!currentItems || currentItems.length === 0) return;
+
+    // Get all modules of this course
+    const { data: modules } = await supabase
+      .from("course_modules")
+      .select("id, title, sort_order")
+      .eq("course_id", courseId)
+      .order("sort_order");
+
+    if (!modules || modules.length === 0) return;
+
+    // Get all exam activities in these modules
+    const { data: activities } = await supabase
+      .from("module_activities")
+      .select("id, module_id, type")
+      .in("module_id", modules.map((m: any) => m.id))
+      .eq("type", "exam");
+
+    if (!activities || activities.length === 0) return;
+
+    // Get all exams linked to these activities
+    const { data: exams } = await supabase
+      .from("exams")
+      .select("id, activity_id")
+      .in("activity_id", activities.map((a: any) => a.id));
+
+    if (!exams || exams.length === 0) return;
+
+    // For each exam, find the corresponding grade_item by module matching
+    for (const exam of exams) {
+      const activity = activities.find((a: any) => a.id === exam.activity_id);
+      if (!activity) continue;
+      const moduleOfExam = modules.find((m: any) => m.id === activity.module_id);
+      if (!moduleOfExam) continue;
+
+      const moduleIdx = modules.findIndex((m: any) => m.id === moduleOfExam.id);
+      const modNumStr = `modulo ${moduleIdx + 1}`;
+
+      // Find grade_item matching by module title OR "Modulo N"
+      const matchingItem = currentItems.find((gi: any) => {
+        const nameLower = gi.name.toLowerCase();
+        const titleLower = moduleOfExam.title.toLowerCase();
+        return nameLower.includes(titleLower) || nameLower.includes(modNumStr);
+      });
+
+      if (matchingItem) {
+        await supabase
+          .from("exams")
+          .update({ grade_item_id: matchingItem.id })
+          .eq("id", exam.id);
+      }
+    }
   }
 
   if (loading) return <div className="text-center py-12 text-gray-400">Cargando...</div>;
