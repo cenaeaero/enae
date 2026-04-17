@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     // Verify registration belongs to user and is completed
     const { data: registration } = await supabaseAdmin
       .from("registrations")
-      .select("id, status, email")
+      .select("id, status, email, course_id")
       .eq("id", registrationId)
       .single();
 
@@ -70,7 +70,40 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
-    if (registration.status !== "completed") {
+    // Allow survey if course status is completed OR student has finished 100% of activities
+    let canAnswerSurvey = registration.status === "completed";
+
+    if (!canAnswerSurvey && registration.course_id) {
+      // Check actual course progress
+      const { data: modules } = await supabaseAdmin
+        .from("course_modules")
+        .select("id")
+        .eq("course_id", registration.course_id);
+
+      const moduleIds = (modules || []).map((m: any) => m.id);
+      if (moduleIds.length > 0) {
+        const { data: activities } = await supabaseAdmin
+          .from("module_activities")
+          .select("id")
+          .in("module_id", moduleIds);
+
+        const activityIds = (activities || []).map((a: any) => a.id);
+        const totalActivities = activityIds.length;
+
+        if (totalActivities > 0) {
+          const { count: completedCount } = await supabaseAdmin
+            .from("activity_progress")
+            .select("id", { count: "exact", head: true })
+            .eq("registration_id", registrationId)
+            .eq("status", "completed")
+            .in("activity_id", activityIds);
+
+          canAnswerSurvey = (completedCount || 0) >= totalActivities;
+        }
+      }
+    }
+
+    if (!canAnswerSurvey) {
       return NextResponse.json(
         { error: "El curso debe estar completado para responder la encuesta" },
         { status: 403 }
