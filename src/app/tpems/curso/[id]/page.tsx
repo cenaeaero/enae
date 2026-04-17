@@ -820,14 +820,12 @@ export default function TpemsCourseDetail() {
           .maybeSingle();
         if (diplomaData) setDiploma(diplomaData as DiplomaRow);
 
-        // Load survey responses if completed
-        if (r.status === "completed") {
-          const { data: responses } = await supabase
-            .from("survey_responses")
-            .select("id, questionnaire_type, module_name, created_at")
-            .eq("registration_id", r.id);
-          if (responses) setSurveyResponses(responses);
-        }
+        // Load survey responses always (alumno may have responded even if status is confirmed)
+        const { data: responses } = await supabase
+          .from("survey_responses")
+          .select("id, questionnaire_type, module_name, created_at")
+          .eq("registration_id", r.id);
+        if (responses) setSurveyResponses(responses);
       }
       // Log course access directly via Supabase client
       (async () => {
@@ -940,6 +938,9 @@ export default function TpemsCourseDetail() {
   const completedCount = progress.filter((p) => p.status === "completed").length;
   const totalModules = modules.length;
   const progressPercent = totalModules > 0 ? Math.round((completedCount / totalModules) * 100) : 0;
+
+  // Course is "completed" for survey/diploma purposes if status is completed OR 100% progress
+  const courseCompleted = course?.status === "completed" || progressPercent === 100;
 
   const selectedModule = modules.find((m) => m.id === selectedModuleId);
 
@@ -1845,11 +1846,11 @@ d.addEventListener('mousedown',function(e){if(e.detail>1)e.preventDefault();},tr
         {/* ============ EVALUATION TAB ============ */}
         {activeTab === "evaluation" && (
           <>
-            {course.status !== "completed" ? (
+            {!courseCompleted ? (
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center">
                 <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl">🔒</div>
                 <p className="text-gray-700 font-semibold">Los cuestionarios estarán disponibles al finalizar el curso</p>
-                <p className="text-sm text-gray-400 mt-2 max-w-md mx-auto">Una vez que el curso sea marcado como completado, podrás responder las encuestas de evaluación.</p>
+                <p className="text-sm text-gray-400 mt-2 max-w-md mx-auto">Una vez que completes el 100% del curso, podrás responder las encuestas de evaluación.</p>
               </div>
             ) : (
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
