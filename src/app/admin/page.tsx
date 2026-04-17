@@ -124,10 +124,11 @@ export default function AdminDashboard() {
         );
       }
 
-      // Recent payments (last 5)
+      // Recent payments (last 5 APPROVED only — pending payments aren't real payments yet)
       const { data: recentPay } = await supabase
         .from("payments")
         .select("id, amount, status, created_at, registrations(first_name, last_name, email, courses(title))")
+        .eq("status", "approved")
         .order("created_at", { ascending: false })
         .limit(5);
 
