@@ -321,6 +321,7 @@ export default function TpemsCourseDetail() {
     const notaCenterX = 148;
     const estadoCenterX = 175;
     const rowH = 10;
+    const bottomLimit = ph - 22; // reserve space for footer
     let y = infoY + 40;
 
     // Section label
@@ -329,20 +330,51 @@ export default function TpemsCourseDetail() {
     doc.text("DETALLE DE MODULOS", tableX, y);
     y += 5;
 
-    // Table header
-    const headerH = 12;
-    doc.setFillColor(0, 51, 102);
-    doc.roundedRect(tableX, y, contentW, headerH, 2, 2, "F");
-    doc.setFontSize(8);
-    doc.setTextColor(255, 255, 255);
-    doc.text("Modulo", tableX + 6, y + 8);
-    doc.text("Tipo", tipoCenterX, y + 8, { align: "center" });
-    doc.text("Nota", notaCenterX, y + 8, { align: "center" });
-    doc.text("Estado", estadoCenterX, y + 8, { align: "center" });
-    y += headerH + 3;
+    // Helper to draw table header (reusable on new pages)
+    const drawTableHeader = () => {
+      const headerH = 12;
+      doc.setFillColor(0, 51, 102);
+      doc.roundedRect(tableX, y, contentW, headerH, 2, 2, "F");
+      doc.setFontSize(8);
+      doc.setTextColor(255, 255, 255);
+      doc.text("Modulo", tableX + 6, y + 8);
+      doc.text("Tipo", tipoCenterX, y + 8, { align: "center" });
+      doc.text("Nota", notaCenterX, y + 8, { align: "center" });
+      doc.text("Estado", estadoCenterX, y + 8, { align: "center" });
+      y += headerH + 3;
+    };
 
-    // Table rows
+    // Helper to draw footer on current page
+    const drawFooter = () => {
+      doc.setDrawColor(0, 51, 102);
+      doc.setLineWidth(0.3);
+      doc.line(mx, ph - 18, pw - mx, ph - 18);
+      doc.setFontSize(7);
+      doc.setTextColor(160, 160, 160);
+      doc.text("ENAE - Escuela de Navegacion Aerea  |  www.enae.cl", pw / 2, ph - 13, { align: "center" });
+      doc.text("Documento generado automaticamente por el sistema TPEMS", pw / 2, ph - 9, { align: "center" });
+    };
+
+    drawTableHeader();
+
+    // Table rows — with pagination
     rows.forEach((row, i) => {
+      // Check if we need a page break (row would overlap footer)
+      if (y + rowH > bottomLimit) {
+        drawFooter();
+        doc.addPage();
+        // Top accent bar on new page
+        doc.setFillColor(0, 51, 102);
+        doc.rect(0, 0, pw, 4, "F");
+        y = 20;
+        // Section label
+        doc.setFontSize(9);
+        doc.setTextColor(0, 51, 102);
+        doc.text("DETALLE DE MODULOS (continuacion)", tableX, y);
+        y += 5;
+        drawTableHeader();
+      }
+
       // Alternating background
       if (i % 2 === 0) {
         doc.setFillColor(247, 249, 252);
@@ -442,6 +474,15 @@ export default function TpemsCourseDetail() {
         y += 4;
         const boxH = 16;
         const passed = finalScore >= 80;
+
+        // If the final score box would overlap footer, add new page
+        if (y + boxH > bottomLimit) {
+          drawFooter();
+          doc.addPage();
+          doc.setFillColor(0, 51, 102);
+          doc.rect(0, 0, pw, 4, "F");
+          y = 20;
+        }
         doc.setFillColor(passed ? 240 : 254, passed ? 253 : 242, passed ? 244 : 242);
         doc.roundedRect(mx, y, contentW, boxH, 2, 2, "F");
         doc.setDrawColor(passed ? 34 : 239, passed ? 197 : 68, passed ? 94 : 68);
@@ -472,14 +513,8 @@ export default function TpemsCourseDetail() {
       }
     }
 
-    // ── Footer ──
-    doc.setDrawColor(0, 51, 102);
-    doc.setLineWidth(0.3);
-    doc.line(mx, ph - 18, pw - mx, ph - 18);
-    doc.setFontSize(7);
-    doc.setTextColor(160, 160, 160);
-    doc.text("ENAE - Escuela de Navegacion Aerea  |  www.enae.cl", pw / 2, ph - 13, { align: "center" });
-    doc.text("Documento generado automaticamente por el sistema TPEMS", pw / 2, ph - 9, { align: "center" });
+    // ── Footer on last page ──
+    drawFooter();
 
     doc.save(`Calificaciones_${course.course_code || "curso"}.pdf`);
   }
