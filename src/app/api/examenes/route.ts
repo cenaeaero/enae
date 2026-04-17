@@ -430,7 +430,32 @@ export async function POST(request: Request) {
         if (reg) {
           const { data: courseData } = await supabaseAdmin.from("courses").select("title").eq("id", reg.course_id).single();
           const examTitle = exam?.title || "Examen";
-          sendAdminExamNotification(`${reg.first_name} ${reg.last_name}`, reg.email, courseData?.title || "", examTitle, score, score >= (exam?.passing_score || 80)).catch(() => {});
+
+          // Fetch module info for richer admin notification
+          let moduleName: string | null = null;
+          if (exam?.activity_id) {
+            const { data: activityInfo } = await supabaseAdmin
+              .from("module_activities")
+              .select("course_modules(title, sort_order)")
+              .eq("id", exam.activity_id)
+              .single();
+            const mod: any = activityInfo?.course_modules;
+            if (mod) {
+              moduleName = `Modulo ${(mod.sort_order ?? 0) + 1}: ${mod.title}`;
+            }
+          }
+
+          sendAdminExamNotification(
+            `${reg.first_name} ${reg.last_name}`,
+            reg.email,
+            courseData?.title || "",
+            examTitle,
+            score,
+            score >= (exam?.passing_score || 80),
+            moduleName,
+            exam?.is_final_exam || false,
+            exam?.is_dgac_simulator || false,
+          ).catch(() => {});
         }
       } catch {}
 

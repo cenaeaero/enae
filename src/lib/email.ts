@@ -283,19 +283,40 @@ export async function sendAdminExamNotification(
   courseName: string,
   examName: string,
   score: number,
-  passed: boolean
+  passed: boolean,
+  moduleName?: string | null,
+  isFinalExam?: boolean,
+  isDgacSimulator?: boolean
 ) {
+  // Build exam type label
+  let examTypeBadge = "";
+  if (isDgacSimulator) {
+    examTypeBadge = `<span style="background: #F3E8FF; color: #6B21A8; padding: 3px 10px; border-radius: 10px; font-size: 12px; font-weight: 600; margin-left: 6px;">Simulador DGAC</span>`;
+  } else if (isFinalExam) {
+    examTypeBadge = `<span style="background: #FEF3C7; color: #92400E; padding: 3px 10px; border-radius: 10px; font-size: 12px; font-weight: 600; margin-left: 6px;">Examen Final</span>`;
+  } else {
+    examTypeBadge = `<span style="background: #DBEAFE; color: #1E40AF; padding: 3px 10px; border-radius: 10px; font-size: 12px; font-weight: 600; margin-left: 6px;">Modulo</span>`;
+  }
+
+  const subjectPrefix = isDgacSimulator
+    ? "Simulador DGAC"
+    : isFinalExam
+    ? "Examen Final"
+    : "Examen de Modulo";
+
   await transporter.sendMail({
     from: `"ENAE Sistema" <${FROM}>`,
     to: ADMIN_EMAIL,
-    subject: `Examen ${passed ? "aprobado" : "reprobado"}: ${studentName} - ${examName}`,
+    subject: `${subjectPrefix} ${passed ? "aprobado" : "reprobado"}: ${studentName} - ${examName}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px;">
-        <h2 style="color: #003366;">Resultado de Examen</h2>
+        <h2 style="color: #003366;">Resultado de Examen ${examTypeBadge}</h2>
         <table style="width: 100%; border-collapse: collapse;">
           <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Alumno:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${studentName}</td></tr>
           <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Email:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${studentEmail}</td></tr>
           <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Curso:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${courseName}</td></tr>
+          ${moduleName ? `<tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Modulo:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${moduleName}</td></tr>` : ""}
+          <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Tipo:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${isDgacSimulator ? "Simulador Examen DGAC" : isFinalExam ? "Examen Final del Curso" : "Examen de Modulo"}</td></tr>
           <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Examen:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${examName}</td></tr>
           <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Nota:</td><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold; font-size: 18px;">${score}%</td></tr>
           <tr><td style="padding: 8px; font-weight: bold;">Estado:</td><td style="padding: 8px;"><span style="background: ${passed ? "#D1FAE5" : "#FEE2E2"}; color: ${passed ? "#065F46" : "#991B1B"}; padding: 2px 8px; border-radius: 10px; font-size: 13px;">${passed ? "Aprobado" : "Reprobado"}</span></td></tr>
