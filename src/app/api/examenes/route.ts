@@ -68,11 +68,26 @@ export async function POST(request: Request) {
           // Resume: return remaining time and saved answers
           const remainingTime = timeLimitSecs > 0 ? Math.max(0, Math.floor(timeLimitSecs - elapsed)) : null;
 
-          let { data: questions } = await supabaseAdmin
+          // Load questions — use selected_question_ids if available (question bank mode)
+          const selectedIds: string[] | null = inProgress.selected_question_ids;
+          let questionQuery = supabaseAdmin
             .from("exam_questions")
-            .select("id, sort_order, question_type, question_text, options, points")
-            .eq("exam_id", realExamId)
-            .order("sort_order");
+            .select("id, sort_order, question_type, question_text, options, points");
+
+          if (selectedIds && selectedIds.length > 0) {
+            questionQuery = questionQuery.in("id", selectedIds);
+          } else {
+            questionQuery = questionQuery.eq("exam_id", realExamId);
+          }
+
+          let { data: questions } = await questionQuery.order("sort_order");
+
+          // Preserve the original order of selected_question_ids if set
+          if (selectedIds && selectedIds.length > 0 && questions) {
+            const byId: Record<string, any> = {};
+            questions.forEach((q: any) => { byId[q.id] = q; });
+            questions = selectedIds.map((id) => byId[id]).filter(Boolean);
+          }
 
           // Load saved answers
           const { data: savedAnswers } = await supabaseAdmin
@@ -110,25 +125,43 @@ export async function POST(request: Request) {
           return NextResponse.json({ error: "Intentos maximos alcanzados" }, { status: 400 });
         }
 
-        // Create attempt
-        const { data: attempt, error: attemptErr } = await supabaseAdmin
-          .from("exam_attempts")
-          .insert({ exam_id: realExamId, registration_id, attempt_number: (count || 0) + 1 })
-          .select()
-          .single();
-
-        if (attemptErr) return NextResponse.json({ error: attemptErr.message }, { status: 500 });
-
-        // Load questions (strip correct answers)
+        // Load all questions from the bank (strip correct answers)
         let { data: questions } = await supabaseAdmin
           .from("exam_questions")
           .select("id, sort_order, question_type, question_text, options, points")
           .eq("exam_id", realExamId)
           .order("sort_order");
 
-        if (exam.shuffle_questions && questions) {
+        // Question bank: randomly select N questions if configured
+        const questionsPerAttempt = exam.questions_per_attempt;
+        if (questionsPerAttempt && questions && questions.length > questionsPerAttempt) {
+          // Fisher-Yates shuffle for proper randomness
+          const shuffled = [...questions];
+          for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+          }
+          questions = shuffled.slice(0, questionsPerAttempt);
+        } else if (exam.shuffle_questions && questions) {
           questions = questions.sort(() => Math.random() - 0.5);
         }
+
+        // Save selected question IDs so resumed attempt shows same questions
+        const selectedIds = (questions || []).map((q: any) => q.id);
+
+        // Create attempt with selected questions
+        const { data: attempt, error: attemptErr } = await supabaseAdmin
+          .from("exam_attempts")
+          .insert({
+            exam_id: realExamId,
+            registration_id,
+            attempt_number: (count || 0) + 1,
+            selected_question_ids: selectedIds,
+          })
+          .select()
+          .single();
+
+        if (attemptErr) return NextResponse.json({ error: attemptErr.message }, { status: 500 });
 
         return NextResponse.json({
           attempt_id: attempt.id,
@@ -181,11 +214,19 @@ export async function POST(request: Request) {
       if (!attempt) return NextResponse.json({ error: "Intento no encontrado" }, { status: 404 });
       if (attempt.status === "completed") return NextResponse.json({ error: "Examen ya finalizado" }, { status: 400 });
 
-      // Load correct answers
-      const { data: questions } = await supabaseAdmin
+      // Load correct answers — only for selected questions if in bank mode
+      const selectedIds: string[] | null = attempt.selected_question_ids;
+      let questionsQuery = supabaseAdmin
         .from("exam_questions")
-        .select("id, correct_answer, points")
-        .eq("exam_id", attempt.exam_id);
+        .select("id, correct_answer, points");
+
+      if (selectedIds && selectedIds.length > 0) {
+        questionsQuery = questionsQuery.in("id", selectedIds);
+      } else {
+        questionsQuery = questionsQuery.eq("exam_id", attempt.exam_id);
+      }
+
+      const { data: questions } = await questionsQuery;
 
       const questionMap = new Map((questions || []).map((q: any) => [q.id, q]));
 
@@ -207,7 +248,7 @@ export async function POST(request: Request) {
         });
       }
 
-      // Also count unanswered questions
+      // Also count unanswered questions (only from selected ones if in bank mode)
       for (const q of questions || []) {
         if (!answers?.find((a: any) => a.question_id === q.id)) {
           totalPoints += q.points;

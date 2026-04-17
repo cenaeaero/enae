@@ -27,6 +27,7 @@ type Exam = {
   is_final_exam: boolean;
   is_dgac_simulator: boolean;
   grade_item_id: string | null;
+  questions_per_attempt: number | null;
 };
 
 function ExamEditorContent({ courseId }: { courseId: string }) {
@@ -272,7 +273,7 @@ function ExamEditorContent({ courseId }: { courseId: string }) {
       {exam && (
         <div className="bg-white rounded-lg border border-gray-200 p-5 mb-6">
           <h2 className="font-semibold text-gray-800 mb-3">Configuracion del Examen</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Tiempo limite (min)</label>
               <input type="number" value={exam.time_limit_minutes || ""} onChange={(e) => setExam({ ...exam, time_limit_minutes: parseInt(e.target.value) || null })} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" placeholder="Sin limite" />
@@ -284,6 +285,18 @@ function ExamEditorContent({ courseId }: { courseId: string }) {
             <div>
               <label className="block text-xs text-gray-500 mb-1">Intentos maximos</label>
               <input type="number" value={exam.max_attempts} onChange={(e) => setExam({ ...exam, max_attempts: parseInt(e.target.value) || 1 })} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Preguntas por intento</label>
+              <input
+                type="number"
+                value={exam.questions_per_attempt || ""}
+                onChange={(e) => setExam({ ...exam, questions_per_attempt: parseInt(e.target.value) || null })}
+                className="w-full border border-gray-200 rounded px-3 py-2 text-sm"
+                placeholder="Todas"
+                min="1"
+              />
+              <p className="text-[10px] text-gray-400 mt-0.5">Banco de preguntas: selecciona N aleatorias de todas las disponibles. Deja vacio para mostrar todas.</p>
             </div>
             <div className="flex items-end gap-4">
               <label className="flex items-center gap-2 text-sm text-gray-700">
