@@ -18,13 +18,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
 
-    // Verify registration belongs to user
+    // Verify registration belongs to user OR user is admin
     const { data: registration } = await supabaseAdmin
       .from("registrations")
       .select("id, email")
       .eq("id", registration_id)
       .single();
-    if (!registration || registration.email !== user.email) {
+
+    if (!registration) {
+      return NextResponse.json({ error: "Registro no encontrado" }, { status: 404 });
+    }
+
+    const isOwner = registration.email === user.email;
+    let isAdmin = false;
+    if (!isOwner) {
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("role")
+        .eq("email", user.email!)
+        .maybeSingle();
+      isAdmin = profile?.role === "admin";
+    }
+
+    if (!isOwner && !isAdmin) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 

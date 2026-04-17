@@ -160,6 +160,19 @@ export default function CalificacionesPage() {
     setSaving(true);
     setMessage("");
 
+    // Load exams linked to grade_items (to auto-mark activity as completed)
+    const gradeItemIds = gradeItems.map((g) => g.id);
+    const { data: linkedExams } = await supabase
+      .from("exams")
+      .select("activity_id, grade_item_id")
+      .in("grade_item_id", gradeItemIds);
+    const examsByGradeItem: Record<string, string> = {};
+    (linkedExams || []).forEach((e: any) => {
+      if (e.grade_item_id && e.activity_id) {
+        examsByGradeItem[e.grade_item_id] = e.activity_id;
+      }
+    });
+
     for (const student of students) {
       // Upsert each grade
       for (const item of gradeItems) {
@@ -173,6 +186,35 @@ export default function CalificacionesPage() {
             },
             { onConflict: "registration_id,grade_item_id" }
           );
+
+          // Auto-mark the linked exam activity as completed so student can progress
+          const activityId = examsByGradeItem[item.id];
+          if (activityId) {
+            // Use the student progress API to properly cascade module completion + unlock next
+            try {
+              await fetch("/api/actividades/progreso", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  registration_id: student.registrationId,
+                  activity_id: activityId,
+                  status: "completed",
+                }),
+              });
+            } catch {
+              // Fallback: upsert directly
+              await supabase.from("activity_progress").upsert(
+                {
+                  registration_id: student.registrationId,
+                  activity_id: activityId,
+                  status: "completed",
+                  started_at: new Date().toISOString(),
+                  completed_at: new Date().toISOString(),
+                },
+                { onConflict: "registration_id,activity_id" }
+              );
+            }
+          }
         }
       }
 

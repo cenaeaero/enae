@@ -277,6 +277,17 @@ export default function AdminModulosPage({ params }: { params: Promise<{ id: str
               {expandedIdx === mi && (
                 <div className="border-t border-gray-100 px-5 py-4 space-y-4">
                   <div>
+                    <label className="block text-xs text-gray-500 mb-1">Titulo del Modulo</label>
+                    <input
+                      type="text"
+                      value={mod.title}
+                      onChange={(e) => updateModule(mi, "title", e.target.value)}
+                      className="w-full border border-gray-200 rounded px-3 py-2 text-sm font-medium"
+                      placeholder="Nombre del modulo"
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1">Este es el nombre que veran los alumnos en el LMS. Se guarda al presionar &quot;Guardar Todo&quot;.</p>
+                  </div>
+                  <div>
                     <label className="block text-xs text-gray-500 mb-1">Objetivos del Modulo</label>
                     <textarea value={mod.objectives} onChange={(e) => updateModule(mi, "objectives", e.target.value)} rows={2} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" placeholder="Objetivos de aprendizaje..." />
                   </div>
