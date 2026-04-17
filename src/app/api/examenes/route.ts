@@ -412,12 +412,18 @@ export async function POST(request: Request) {
         }
       } catch {}
 
-      // Build review data with correct answers
-      const { data: fullQuestions } = await supabaseAdmin
+      // Build review data with correct answers — only for questions in this attempt
+      let reviewQuery = supabaseAdmin
         .from("exam_questions")
-        .select("id, question_text, question_type, options, correct_answer, points")
-        .eq("exam_id", attempt.exam_id)
-        .order("sort_order");
+        .select("id, question_text, question_type, options, correct_answer, points");
+
+      if (selectedIds && selectedIds.length > 0) {
+        reviewQuery = reviewQuery.in("id", selectedIds);
+      } else {
+        reviewQuery = reviewQuery.eq("exam_id", attempt.exam_id);
+      }
+
+      const { data: fullQuestions } = await reviewQuery.order("sort_order");
 
       const review = (fullQuestions || []).map((q: any) => {
         const studentAns = (answers || []).find((a: any) => a.question_id === q.id);
