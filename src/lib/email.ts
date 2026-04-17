@@ -50,6 +50,99 @@ export async function sendStudentCredentials(
   });
 }
 
+export async function sendPaymentReminder(
+  email: string,
+  studentName: string,
+  courseName: string,
+  registrationId: string,
+  amount: string | null
+) {
+  const amountText = amount || "tu curso";
+  await transporter.sendMail({
+    from: `"ENAE - Escuela de Navegacion Aerea" <${FROM}>`,
+    to: email,
+    replyTo: ADMIN_EMAIL,
+    subject: `Te estamos esperando en ${courseName} - ENAE`,
+    text: `Hola ${studentName},
+
+Nos entusiasma muchisimo que hayas elegido formarte con nosotros en el curso "${courseName}".
+
+Para que puedas comenzar cuanto antes, te recordamos que aun tienes pendiente el pago del curso. Puedes realizarlo directamente desde nuestra plataforma, es rapido y seguro:
+
+${SITE_URL}/tpems
+
+Una vez confirmado tu pago, tendras acceso inmediato al material del curso, los videos, las actividades y todas las herramientas que hemos preparado para ti.
+
+Si tienes alguna duda o necesitas ayuda, no dudes en escribirnos. Estamos aqui para apoyarte.
+
+Saludos cordiales,
+Equipo ENAE
+${ADMIN_EMAIL}
+`,
+    html: `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Te esperamos en ${courseName}</title>
+</head>
+<body style="margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;background-color:#f4f4f4;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f4f4f4;padding:20px 0;">
+<tr>
+<td align="center">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="background-color:#ffffff;border-collapse:collapse;max-width:600px;">
+<tr>
+<td style="background-color:#003366;padding:30px;text-align:center;">
+<h1 style="color:#ffffff;margin:0;font-size:22px;font-weight:normal;">Estamos ansiosos de verte comenzar</h1>
+<p style="color:#93C5FD;margin:5px 0 0;font-size:13px;">Escuela de Navegacion Aerea</p>
+</td>
+</tr>
+<tr>
+<td style="padding:35px 30px;color:#333333;line-height:1.6;">
+<p style="margin:0 0 15px;font-size:16px;">Hola <strong>${studentName}</strong>,</p>
+<p style="margin:0 0 20px;font-size:15px;">Nos entusiasma muchisimo que hayas elegido formarte con nosotros. Tu inscripcion ha sido recibida exitosamente.</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin:25px 0;">
+<tr>
+<td style="background-color:#f0f9ff;padding:20px;border-left:3px solid #0072CE;">
+<p style="margin:0 0 5px;color:#003366;font-size:17px;font-weight:bold;">${courseName}</p>
+<p style="margin:0;color:#666666;font-size:14px;">Monto: <strong>${amountText}</strong></p>
+</td>
+</tr>
+</table>
+
+<p style="margin:20px 0 15px;font-size:15px;">Para que puedas comenzar cuanto antes, te recordamos que aun tienes pendiente el pago del curso. Puedes realizarlo directamente desde nuestra plataforma de forma rapida y segura.</p>
+
+<p style="margin:20px 0;font-size:15px;">Una vez confirmado tu pago, tendras <strong>acceso inmediato</strong> al material, videos, actividades y todas las herramientas que hemos preparado para ti.</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:30px 0;">
+<tr>
+<td align="center">
+<a href="${SITE_URL}/tpems" style="display:inline-block;background:#E91E63;color:#ffffff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:15px;">Realizar Pago Ahora</a>
+</td>
+</tr>
+</table>
+
+<p style="margin:25px 0 10px;font-size:14px;color:#666;">Si tienes alguna duda o necesitas ayuda, no dudes en escribirnos. Estamos aqui para apoyarte.</p>
+
+<p style="margin:15px 0 0;font-size:14px;">Saludos cordiales,</p>
+<p style="margin:5px 0 0;font-size:14px;"><strong>Equipo ENAE</strong></p>
+</td>
+</tr>
+<tr>
+<td style="background-color:#f4f4f4;padding:20px 30px;text-align:center;font-size:12px;color:#888888;border-top:1px solid #e0e0e0;">
+<p style="margin:0 0 5px;">Escuela de Navegacion Aerea SpA | AOC 1521 DGAC</p>
+<p style="margin:0;">Contacto: <a href="mailto:${ADMIN_EMAIL}" style="color:#003366;">${ADMIN_EMAIL}</a></p>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</body>
+</html>`,
+  });
+}
+
 export async function sendReturningStudentWelcome(
   email: string,
   studentName: string,

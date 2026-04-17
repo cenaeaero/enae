@@ -231,6 +231,7 @@ export async function POST(request: Request) {
         how_found: howFound,
         comments,
         status: "pending",
+        source: "self",
       })
       .select()
       .single();

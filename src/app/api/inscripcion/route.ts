@@ -123,6 +123,7 @@ export async function POST(request: Request) {
           phone: student.phone || null,
           address: student.address || null,
           status: "confirmed",
+          source: "admin",
         };
 
         // Try with theoretical_start/practical_end first
