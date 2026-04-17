@@ -33,7 +33,7 @@ export async function POST(request: Request) {
       const realExamId = exam.id;
 
       // Check for existing in-progress attempt (resume)
-      const { data: inProgress } = await supabaseAdmin
+      const { data: inProgressRaw } = await supabaseAdmin
         .from("exam_attempts")
         .select("*")
         .eq("exam_id", realExamId)
@@ -42,6 +42,18 @@ export async function POST(request: Request) {
         .order("started_at", { ascending: false })
         .limit(1)
         .maybeSingle();
+
+      let inProgress: any = inProgressRaw;
+
+      if (inProgress) {
+        // CRITICAL: If attempt has empty selected_question_ids (legacy bug),
+        // delete it so student can start fresh
+        const selIds: string[] | null = inProgress.selected_question_ids;
+        if (selIds !== null && Array.isArray(selIds) && selIds.length === 0) {
+          await supabaseAdmin.from("exam_attempts").delete().eq("id", inProgress.id);
+          inProgress = null;
+        }
+      }
 
       if (inProgress) {
         // Check if time has expired server-side
@@ -134,6 +146,13 @@ export async function POST(request: Request) {
           .select("id, sort_order, question_type, question_text, options, points")
           .eq("exam_id", realExamId)
           .order("sort_order");
+
+        // CRITICAL: Don't create an attempt if there are no questions configured
+        if (!questions || questions.length === 0) {
+          return NextResponse.json({
+            error: "Este examen aun no tiene preguntas configuradas. Contacta al instructor.",
+          }, { status: 400 });
+        }
 
         // Question bank: randomly select N questions if configured
         const questionsPerAttempt = exam.questions_per_attempt;
