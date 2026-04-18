@@ -391,3 +391,61 @@ export async function sendStudentCourseAccess(
     `,
   });
 }
+
+export async function sendGradeNotificationToStudent(
+  studentName: string,
+  studentEmail: string,
+  courseName: string,
+  gradeItemName: string,
+  score: number,
+) {
+  const scoreColor = score >= 80 ? "#16a34a" : "#dc2626";
+  const statusLabel = score >= 80 ? "APROBADO" : "REPROBADO";
+
+  return transporter.sendMail({
+    from: `"ENAE - Escuela de Navegación Aérea" <${FROM}>`,
+    to: studentEmail,
+    subject: `Nueva calificación registrada: ${gradeItemName}`,
+    html: `
+      <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #003366; padding: 20px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 22px;">Nueva Calificación Registrada</h1>
+        </div>
+        <div style="padding: 30px; background: #f9fafb;">
+          <p style="font-size: 16px; color: #111827;">Hola <strong>${studentName}</strong>,</p>
+          <p style="color: #374151;">Tu instructor ha registrado una nueva calificación en tu curso.</p>
+
+          <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #e5e7eb; margin: 20px 0;">
+            <p style="margin: 0 0 8px 0; color: #6b7280; font-size: 13px;">Curso</p>
+            <p style="margin: 0 0 15px 0; font-weight: 600; color: #111827;">${courseName}</p>
+
+            <p style="margin: 0 0 8px 0; color: #6b7280; font-size: 13px;">Evaluación</p>
+            <p style="margin: 0 0 15px 0; font-weight: 600; color: #111827;">${gradeItemName}</p>
+
+            <div style="padding-top: 15px; border-top: 1px solid #f3f4f6;">
+              <p style="margin: 0 0 4px 0; color: #6b7280; font-size: 13px;">Calificación</p>
+              <p style="margin: 0; font-size: 32px; font-weight: 700; color: ${scoreColor};">${score}%</p>
+              <span style="display: inline-block; background: ${scoreColor}; color: white; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 12px; margin-top: 8px;">${statusLabel}</span>
+            </div>
+          </div>
+
+          <p style="color: #374151; font-size: 14px;">
+            Puedes ver todas tus calificaciones ingresando a tu portal de alumno.
+          </p>
+          <div style="text-align: center; margin: 20px 0;">
+            <a href="${SITE_URL}/tpems" style="display: inline-block; background: #0072CE; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600;">
+              Ir a mi portal
+            </a>
+          </div>
+
+          <p style="color: #6b7280; font-size: 13px; margin-top: 30px;">
+            Si tienes dudas sobre esta calificación, contacta a tu instructor o escríbenos a <a href="mailto:${ADMIN_EMAIL}">${ADMIN_EMAIL}</a>.
+          </p>
+        </div>
+        <div style="background: #001d3d; padding: 15px; text-align: center;">
+          <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegación Aérea | AOC 1521 DGAC</p>
+        </div>
+      </div>
+    `,
+  });
+}

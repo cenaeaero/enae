@@ -16,6 +16,8 @@ export async function proxy(request: NextRequest) {
   const isTpemsRoute = pathname.startsWith("/tpems");
   const isTpemsLogin = pathname === "/tpems/login";
   const isTpemsPublic = pathname === "/tpems/login" || pathname === "/tpems/restablecer-clave";
+  const isInstructorRoute = pathname.startsWith("/instructor");
+  const isInstructorLogin = pathname === "/instructor/login";
 
   // Admin routes
   if (isAdminRoute && !isAdminLogin && !user) {
@@ -33,9 +35,17 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/tpems", request.url));
   }
 
+  // Instructor routes (reuses admin auth — role is checked inside the page/API)
+  if (isInstructorRoute && !isInstructorLogin && !user) {
+    return NextResponse.redirect(new URL("/instructor/login", request.url));
+  }
+  if (isInstructorLogin && user) {
+    return NextResponse.redirect(new URL("/instructor", request.url));
+  }
+
   return response();
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/tpems/:path*"],
+  matcher: ["/admin/:path*", "/tpems/:path*", "/instructor/:path*"],
 };
