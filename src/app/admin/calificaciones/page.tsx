@@ -26,14 +26,54 @@ export default function CalificacionesPage() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    supabase
-      .from("courses")
-      .select("id, title, code")
-      .eq("is_active", true)
-      .order("title")
-      .then(({ data }) => {
-        if (data) setCourses(data as CourseOption[]);
-      });
+    let cancelled = false;
+
+    async function loadCourses(attempt = 1) {
+      // Wait for the Supabase session to be hydrated before querying.
+      // Fire-and-forget without this sometimes runs before cookies are ready
+      // → RLS returns empty and the dropdown never populates.
+      await supabase.auth.getSession();
+
+      const { data, error } = await supabase
+        .from("courses")
+        .select("id, title, code")
+        .eq("is_active", true)
+        .order("title");
+
+      if (cancelled) return;
+
+      if (error) {
+        console.warn("[calificaciones] error loading courses:", error.message);
+        if (attempt < 3) {
+          setTimeout(() => loadCourses(attempt + 1), 500 * attempt);
+        }
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        // No rows — retry up to 3 times in case session was still hydrating
+        if (attempt < 3) {
+          setTimeout(() => loadCourses(attempt + 1), 500 * attempt);
+          return;
+        }
+      }
+
+      setCourses((data as CourseOption[]) || []);
+    }
+
+    loadCourses();
+
+    // Also reload when auth state changes (e.g. session just got hydrated)
+    const { data: authSub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        loadCourses();
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      authSub.subscription.unsubscribe();
+    };
   }, []);
 
   async function loadGrades(courseId: string) {

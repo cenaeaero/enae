@@ -59,7 +59,7 @@ type Message = {
 
 type Tab = "info" | "modules" | "grades" | "evaluation" | "messages";
 
-type GradeItemRow = { id: string; name: string; weight: number };
+type GradeItemRow = { id: string; name: string; weight: number; is_practical?: boolean };
 type GradeRow = { grade_item_id: string; score: number | null };
 type DiplomaRow = { verification_code: string; final_score: number | null; status: string; issued_date: string };
 
@@ -284,10 +284,18 @@ export default function TpemsCourseDetail() {
     doc.text(course.course_code || "", pw - mx - 5, infoY + 27, { align: "right" });
 
     // ── Build module data ──
-    type PdfRow = { name: string; hasExam: boolean; score: number | null; weight: number };
+    type PdfRow = {
+      name: string;
+      hasExam: boolean;
+      typeLabel: string; // "Examen" | "Práctico" | "Contenido"
+      showScore: boolean;
+      score: number | null;
+      weight: number;
+    };
     const rows: PdfRow[] = [];
     const examGradeItems: { weight: number; score: number | null }[] = [];
 
+    const matchedGradeItemIds = new Set<string>();
     modules.forEach((mod, idx) => {
       const modLessons = lessons.filter((l) => l.module_id === mod.id);
       const hasExam = modLessons.some((l) => l.type === "exam");
@@ -296,6 +304,7 @@ export default function TpemsCourseDetail() {
         gi.name.toLowerCase().includes(`modulo ${idx + 1}`) ||
         gi.name.toLowerCase().includes(`módulo ${idx + 1}`)
       );
+      if (gradeItem) matchedGradeItemIds.add(gradeItem.id);
       const grade = gradeItem ? studentGrades.find((g) => g.grade_item_id === gradeItem.id) : null;
       // Fallback: get score from exam_attempts
       let score: number | null = null;
@@ -310,9 +319,37 @@ export default function TpemsCourseDetail() {
           }
         }
       }
-      rows.push({ name: `${idx + 1}. ${mod.title}`, hasExam, score, weight: gradeItem?.weight || 0 });
+      rows.push({
+        name: `${idx + 1}. ${mod.title}`,
+        hasExam,
+        typeLabel: hasExam ? "Examen" : "Contenido",
+        showScore: hasExam,
+        score,
+        weight: gradeItem?.weight || 0,
+      });
       if (hasExam) examGradeItems.push({ weight: gradeItem?.weight || 0, score });
     });
+
+    // Append grade_items that weren't linked to any course_module — these are
+    // typically practical evaluations (is_practical=true) that live outside the
+    // module hierarchy but still count towards the final grade.
+    gradeItems
+      .filter((gi) => !matchedGradeItemIds.has(gi.id))
+      .forEach((gi) => {
+        const grade = studentGrades.find((g) => g.grade_item_id === gi.id);
+        const score = grade?.score ?? null;
+        const rowNum = rows.length + 1;
+        const isPractical = gi.is_practical === true;
+        rows.push({
+          name: `${rowNum}. ${gi.name}`,
+          hasExam: false,
+          typeLabel: isPractical ? "Practico" : "Evaluacion",
+          showScore: true,
+          score,
+          weight: gi.weight || 0,
+        });
+        examGradeItems.push({ weight: gi.weight || 0, score });
+      });
 
     // ── Table ──
     const tableX = mx;
@@ -400,12 +437,17 @@ export default function TpemsCourseDetail() {
 
       // Tipo badge (centered)
       doc.setFontSize(7);
-      const tipoText = row.hasExam ? "Examen" : "Contenido";
+      const tipoText = row.typeLabel || (row.hasExam ? "Examen" : "Contenido");
       const tipoBadgeW = doc.getTextWidth(tipoText) + 5;
+      const isPracticoBadge = tipoText === "Practico";
       if (row.hasExam) {
         doc.setFillColor(219, 234, 254);
         doc.roundedRect(tipoCenterX - tipoBadgeW / 2, y - 4, tipoBadgeW, 6, 1, 1, "F");
         doc.setTextColor(30, 64, 175);
+      } else if (isPracticoBadge) {
+        doc.setFillColor(220, 252, 231);
+        doc.roundedRect(tipoCenterX - tipoBadgeW / 2, y - 4, tipoBadgeW, 6, 1, 1, "F");
+        doc.setTextColor(21, 128, 61);
       } else {
         doc.setFillColor(229, 231, 235);
         doc.roundedRect(tipoCenterX - tipoBadgeW / 2, y - 4, tipoBadgeW, 6, 1, 1, "F");
@@ -415,7 +457,7 @@ export default function TpemsCourseDetail() {
 
       // Nota (centered)
       doc.setFontSize(9);
-      if (row.hasExam && row.score != null) {
+      if (row.showScore && row.score != null) {
         doc.setTextColor(row.score >= 80 ? 22 : 220, row.score >= 80 ? 163 : 38, row.score >= 80 ? 74 : 38);
         doc.text(`${row.score}%`, notaCenterX, y, { align: "center" });
       } else {
@@ -426,7 +468,7 @@ export default function TpemsCourseDetail() {
       // Estado badge (centered)
       doc.setFontSize(7);
       let estadoText = "";
-      if (row.hasExam && row.score != null) {
+      if (row.showScore && row.score != null) {
         estadoText = row.score >= 80 ? "Aprobado" : "Reprobado";
         const estadoBadgeW = doc.getTextWidth(estadoText) + 5;
         if (row.score >= 80) {
@@ -779,7 +821,7 @@ export default function TpemsCourseDetail() {
         // Load grades and diploma
         const { data: gItems } = await supabase
           .from("grade_items")
-          .select("id, name, weight")
+          .select("id, name, weight, is_practical")
           .eq("course_id", r.course_id)
           .order("sort_order");
         if (gItems) setGradeItems(gItems as GradeItemRow[]);
