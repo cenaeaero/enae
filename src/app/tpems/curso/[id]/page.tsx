@@ -422,9 +422,12 @@ export default function TpemsCourseDetail() {
       doc.setLineWidth(0.2);
       doc.line(tableX, y + rowH - 6, tableRight, y + rowH - 6);
 
-      // Left border accent for exam rows
+      // Left border accent: blue for exams, green for practical evaluations
       if (row.hasExam) {
         doc.setFillColor(0, 114, 206);
+        doc.rect(tableX, y - 6, 2, rowH, "F");
+      } else if (row.typeLabel === "Practico") {
+        doc.setFillColor(22, 163, 74);
         doc.rect(tableX, y - 6, 2, rowH, "F");
       }
 
@@ -1774,8 +1777,13 @@ d.addEventListener('mousedown',function(e){if(e.detail>1)e.preventDefault();},tr
                           : row.isPractical
                           ? "bg-emerald-100 text-emerald-700"
                           : "bg-gray-100 text-gray-500";
+                        const borderClass = row.hasExam
+                          ? "border-l-4 border-l-[#0072CE]"
+                          : row.isPractical
+                          ? "border-l-4 border-l-emerald-500"
+                          : "border-l-4 border-l-transparent";
                         return (
-                        <tr key={row.key} className={`border-t border-gray-50 ${highlightClass}`}>
+                        <tr key={row.key} className={`border-t border-gray-50 ${highlightClass} ${borderClass}`}>
                           <td className="px-6 py-3 text-gray-700">
                             <span className="text-gray-400 mr-1">{row.idx + 1}.</span>
                             {row.title}
