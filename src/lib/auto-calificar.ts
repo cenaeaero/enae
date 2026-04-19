@@ -7,8 +7,9 @@ import { supabaseAdmin } from "@/lib/supabase-service";
 export async function linkExamsToGradeItems(courseId: string) {
   const { data: items } = await supabaseAdmin
     .from("grade_items")
-    .select("id, name")
-    .eq("course_id", courseId);
+    .select("id, name, sort_order")
+    .eq("course_id", courseId)
+    .order("sort_order");
   if (!items || items.length === 0) return;
 
   const { data: modules } = await supabaseAdmin
@@ -41,12 +42,23 @@ export async function linkExamsToGradeItems(courseId: string) {
 
     const modIdx = modules.findIndex((m: any) => m.id === mod.id);
     const modNumStr = `modulo ${modIdx + 1}`;
+    const modNumAccented = `módulo ${modIdx + 1}`;
+    const t = (mod.title || "").toLowerCase();
 
-    const matching = items.find((gi: any) => {
-      const n = gi.name.toLowerCase();
-      const t = mod.title.toLowerCase();
-      return n.includes(t) || n.includes(modNumStr);
-    });
+    // Priority: same sort_order > title match > "modulo N" match > solo item fallback
+    const bySortOrder = items.find((gi: any) => gi.sort_order === mod.sort_order);
+    const byTitle = !bySortOrder && t
+      ? items.find((gi: any) => gi.name.toLowerCase().includes(t))
+      : null;
+    const byNumber = !bySortOrder && !byTitle
+      ? items.find((gi: any) => {
+          const n = gi.name.toLowerCase();
+          return n.includes(modNumStr) || n.includes(modNumAccented);
+        })
+      : null;
+    const soloItem = !bySortOrder && !byTitle && !byNumber && items.length === 1 ? items[0] : null;
+
+    const matching = bySortOrder || byTitle || byNumber || soloItem;
 
     if (matching) {
       await supabaseAdmin.from("exams").update({ grade_item_id: matching.id }).eq("id", exam.id);

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-service";
+import { sendStudentMessageNotification } from "@/lib/email";
+
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "escuela@enae.cl";
 
 export async function POST(request: Request) {
   try {
@@ -62,6 +65,66 @@ export async function POST(request: Request) {
         { error: "Error al enviar mensaje: " + error.message },
         { status: 500 }
       );
+    }
+
+    // Notify instructor(s) + admin when a STUDENT sends a message.
+    // Don't block the response if email fails — fire-and-forget.
+    if (profile.role === "student") {
+      (async () => {
+        try {
+          const { data: reg } = await supabaseAdmin
+            .from("registrations")
+            .select("id, first_name, last_name, email, course_id")
+            .eq("id", registrationId)
+            .single();
+          if (!reg?.course_id) return;
+
+          const { data: course } = await supabaseAdmin
+            .from("courses")
+            .select("title")
+            .eq("id", reg.course_id)
+            .single();
+
+          const { data: assignments } = await supabaseAdmin
+            .from("course_instructors")
+            .select("instructor_email")
+            .eq("course_id", reg.course_id);
+
+          // Collect unique recipients: instructors + admin (dedup)
+          const recipients = new Set<string>();
+          (assignments || []).forEach((a: any) => {
+            if (a.instructor_email) recipients.add(a.instructor_email.toLowerCase());
+          });
+          recipients.add(ADMIN_EMAIL.toLowerCase());
+
+          const studentName = `${reg.first_name || ""} ${reg.last_name || ""}`.trim() || reg.email;
+          const courseName = course?.title || "Curso ENAE";
+
+          for (const email of recipients) {
+            // Best-effort: look up instructor name for personalization
+            const { data: rProf } = await supabaseAdmin
+              .from("profiles")
+              .select("first_name, last_name")
+              .eq("email", email)
+              .maybeSingle();
+            const recipientName = rProf
+              ? `${rProf.first_name || ""} ${rProf.last_name || ""}`.trim() || "Instructor"
+              : "Instructor";
+
+            await sendStudentMessageNotification(
+              email,
+              recipientName,
+              studentName,
+              reg.email,
+              courseName,
+              message.trim(),
+              reg.id,
+            ).catch((err) => console.warn("[mensajes] email notify failed:", err));
+          }
+        } catch (err) {
+          console.warn("[mensajes] notify block error:", err);
+        }
+      })();
     }
 
     return NextResponse.json({ success: true, message: data });

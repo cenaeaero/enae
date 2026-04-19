@@ -300,27 +300,51 @@ export async function POST(request: Request) {
       const exam = attempt.exams;
       let gradeItemId = exam?.grade_item_id;
 
-      // If no grade_item_id on exam, auto-find by matching module → grade_item
+      // If no grade_item_id on exam, auto-find by matching module → grade_item.
+      // Strategy (in priority order):
+      //   1) grade_item with the SAME sort_order as the module (by value, not index)
+      //   2) grade_item whose name includes the module title (case-insensitive)
+      //   3) grade_item whose name includes "modulo N" where N = module_number
+      //   4) fallback: the only grade_item if the course has exactly one
       if (!gradeItemId && exam?.activity_id) {
         const { data: activity } = await supabaseAdmin
           .from("module_activities")
-          .select("module_id, course_modules(sort_order, course_id)")
+          .select("module_id, course_modules(sort_order, course_id, title)")
           .eq("id", exam.activity_id)
           .single();
 
         if (activity?.course_modules) {
           const mod = activity.course_modules as any;
-          // Find grade_item matching this module's sort_order
           const { data: gradeItems } = await supabaseAdmin
             .from("grade_items")
-            .select("id")
+            .select("id, name, sort_order")
             .eq("course_id", mod.course_id)
             .order("sort_order");
 
-          if (gradeItems && gradeItems[mod.sort_order]) {
-            gradeItemId = gradeItems[mod.sort_order].id;
-            // Auto-link the exam for future attempts
+          const items = gradeItems || [];
+          const modTitleLower = (mod.title || "").toLowerCase();
+          const modNumber = (mod.sort_order ?? 0) + 1;
+
+          const bySortOrder = items.find((gi: any) => gi.sort_order === mod.sort_order);
+          const byTitle = !bySortOrder && modTitleLower
+            ? items.find((gi: any) => gi.name.toLowerCase().includes(modTitleLower))
+            : null;
+          const byNumber = !bySortOrder && !byTitle
+            ? items.find((gi: any) => gi.name.toLowerCase().includes(`modulo ${modNumber}`) || gi.name.toLowerCase().includes(`módulo ${modNumber}`))
+            : null;
+          const soloItem = !bySortOrder && !byTitle && !byNumber && items.length === 1 ? items[0] : null;
+
+          const match = bySortOrder || byTitle || byNumber || soloItem;
+          if (match) {
+            gradeItemId = match.id;
             await supabaseAdmin.from("exams").update({ grade_item_id: gradeItemId }).eq("id", exam.id);
+          } else {
+            console.warn("[examenes finalize] could not auto-link grade_item", {
+              exam_id: exam.id,
+              course_id: mod.course_id,
+              module_sort_order: mod.sort_order,
+              grade_items_count: items.length,
+            });
           }
         }
       }

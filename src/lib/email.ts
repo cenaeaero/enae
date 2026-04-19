@@ -392,6 +392,58 @@ export async function sendStudentCourseAccess(
   });
 }
 
+export async function sendStudentMessageNotification(
+  recipientEmail: string,
+  recipientName: string,
+  studentName: string,
+  studentEmail: string,
+  courseName: string,
+  messagePreview: string,
+  registrationId: string,
+) {
+  const portalUrl = `${SITE_URL}/admin/registros/${registrationId}`;
+  const cleanPreview = messagePreview.length > 400 ? messagePreview.substring(0, 400) + "..." : messagePreview;
+
+  return transporter.sendMail({
+    from: `"ENAE - Escuela de Navegación Aérea" <${FROM}>`,
+    to: recipientEmail,
+    replyTo: studentEmail,
+    subject: `Nuevo mensaje de ${studentName} - ${courseName}`,
+    html: `
+      <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #003366; padding: 20px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 20px;">Nuevo Mensaje del Alumno</h1>
+          <p style="color: #93C5FD; margin: 4px 0 0; font-size: 12px;">ENAE LMS</p>
+        </div>
+        <div style="padding: 25px; background: #f9fafb;">
+          <p style="font-size: 15px; color: #111827;">Hola <strong>${recipientName}</strong>,</p>
+          <p style="color: #374151;">
+            <strong>${studentName}</strong> (<a href="mailto:${studentEmail}">${studentEmail}</a>)
+            te envió un mensaje en el curso <strong>${courseName}</strong>.
+          </p>
+
+          <div style="background: white; padding: 18px 20px; border-left: 4px solid #0072CE; border-radius: 4px; margin: 18px 0; color: #1f2937;">
+            <p style="margin: 0; white-space: pre-wrap; line-height: 1.5;">${cleanPreview.replace(/</g, "&lt;")}</p>
+          </div>
+
+          <div style="text-align: center; margin: 22px 0;">
+            <a href="${portalUrl}" style="display: inline-block; background: #0072CE; color: white; padding: 11px 22px; border-radius: 6px; text-decoration: none; font-weight: 600;">
+              Responder al alumno
+            </a>
+          </div>
+
+          <p style="color: #6b7280; font-size: 12px; margin-top: 20px;">
+            Puedes responder directamente a este correo; llegará al alumno. O haz clic en el botón para gestionar desde el panel.
+          </p>
+        </div>
+        <div style="background: #001d3d; padding: 12px; text-align: center;">
+          <p style="color: #93C5FD; margin: 0; font-size: 11px;">Escuela de Navegación Aérea | AOC 1521 DGAC</p>
+        </div>
+      </div>
+    `,
+  });
+}
+
 export async function sendDgacCertificate(
   studentName: string,
   studentEmail: string,
