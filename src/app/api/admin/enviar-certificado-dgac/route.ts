@@ -47,8 +47,11 @@ export async function POST(request: Request) {
 
     let contentList: string[] | null = null;
     if (course.dgac_content_list) {
-      contentList = course.dgac_content_list.split("\n").map((l: string) => l.trim()).filter(Boolean);
-      if (contentList.length === 0) contentList = null;
+      const list = course.dgac_content_list
+        .split("\n")
+        .map((l: string) => l.trim())
+        .filter(Boolean);
+      if (list.length > 0) contentList = list;
     }
 
     const pdfBuffer = generateDgacCertificatePdf({

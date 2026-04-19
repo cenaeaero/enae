@@ -62,11 +62,11 @@ export async function GET(request: Request) {
     // Parse content list (stored as newline-delimited text)
     let contentList: string[] | null = null;
     if (course.dgac_content_list) {
-      contentList = course.dgac_content_list
+      const list = course.dgac_content_list
         .split("\n")
         .map((l: string) => l.trim())
         .filter(Boolean);
-      if (contentList.length === 0) contentList = null;
+      if (list.length > 0) contentList = list;
     }
 
     const pdfBuffer = generateDgacCertificatePdf({
