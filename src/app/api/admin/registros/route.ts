@@ -35,7 +35,7 @@ export async function GET() {
     // Fetch all registrations using admin client (bypasses RLS)
     const { data, error } = await supabaseAdmin
       .from("registrations")
-      .select("id, first_name, last_name, email, company, status, created_at, course_id, courses(title)")
+      .select("id, first_name, last_name, email, company, delivery_mode, status, created_at, course_id, courses(title)")
       .order("created_at", { ascending: false });
 
     if (error) {

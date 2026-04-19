@@ -37,6 +37,7 @@ export default function AdminInscripcionPage() {
   const [selectedSession, setSelectedSession] = useState("");
   const [theoreticalStart, setTheoreticalStart] = useState("");
   const [practicalEnd, setPracticalEnd] = useState("");
+  const [deliveryMode, setDeliveryMode] = useState<"online" | "presencial">("online");
   const [students, setStudents] = useState<Student[]>([emptyStudent()]);
   const [submitting, setSubmitting] = useState(false);
   const [results, setResults] = useState<
@@ -190,6 +191,7 @@ export default function AdminInscripcionPage() {
           sessionId: selectedSession || null,
           theoreticalStart: theoreticalStart || null,
           practicalEnd: practicalEnd || null,
+          deliveryMode,
         }),
       });
       const data = await res.json();
@@ -264,6 +266,30 @@ export default function AdminInscripcionPage() {
             <label className="block text-xs text-gray-500 uppercase mb-1">Fin Práctico</label>
             <input type="date" value={practicalEnd} onChange={(e) => setPracticalEnd(e.target.value)} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
           </div>
+        </div>
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <label className="block text-xs text-gray-500 uppercase mb-2">Modalidad</label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setDeliveryMode("online")}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition border ${deliveryMode === "online" ? "bg-[#0072CE] text-white border-[#0072CE]" : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"}`}
+            >
+              Online (plataforma)
+            </button>
+            <button
+              type="button"
+              onClick={() => setDeliveryMode("presencial")}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition border ${deliveryMode === "presencial" ? "bg-[#F57C00] text-white border-[#F57C00]" : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"}`}
+            >
+              Presencial
+            </button>
+          </div>
+          {deliveryMode === "presencial" && (
+            <p className="text-xs text-gray-500 mt-2">
+              El alumno presencial se marca automáticamente como completado. No verá módulos online. Deberás ingresar sus calificaciones manualmente en el detalle del registro.
+            </p>
+          )}
         </div>
       </div>
 

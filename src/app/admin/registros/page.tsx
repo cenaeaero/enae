@@ -10,6 +10,7 @@ type Registration = {
   last_name: string;
   email: string;
   company?: string | null;
+  delivery_mode?: string | null;
   status: string;
   created_at: string;
   course_title?: string;
@@ -73,6 +74,7 @@ export default function AdminRegistrosPage() {
             last_name: r.last_name,
             email: r.email,
             company: r.company,
+            delivery_mode: r.delivery_mode,
             status: r.status,
             created_at: r.created_at,
             course_title: r.courses?.title,
@@ -86,7 +88,7 @@ export default function AdminRegistrosPage() {
     if (baseRegs.length === 0) {
       const { data } = await supabase
         .from("registrations")
-        .select("id, first_name, last_name, email, company, status, created_at, course_id, courses(title)")
+        .select("id, first_name, last_name, email, company, delivery_mode, status, created_at, course_id, courses(title)")
         .order("created_at", { ascending: false });
 
       if (data) {
@@ -381,9 +383,10 @@ export default function AdminRegistrosPage() {
             </thead>
             <tbody>
               {filtered.map((reg) => {
-                const progressPercent = reg.progressPercent ?? 0;
-                // "No iniciado" only if NO access logs AND NO progress
-                const hasNeverAccessed = (!reg.lastAccess || reg.accessCount === 0) && progressPercent === 0;
+                const isPresencial = reg.delivery_mode === "presencial";
+                const progressPercent = isPresencial ? 100 : (reg.progressPercent ?? 0);
+                // "No iniciado" only if NO access logs AND NO progress (not applicable to presencial)
+                const hasNeverAccessed = !isPresencial && (!reg.lastAccess || reg.accessCount === 0) && progressPercent === 0;
                 const progressColor = progressPercent === 100
                   ? "bg-green-500"
                   : progressPercent >= 50
@@ -398,12 +401,19 @@ export default function AdminRegistrosPage() {
                   className="border-t border-gray-100 hover:bg-gray-50"
                 >
                   <td className="px-4 py-3 text-sm font-medium">
-                    <Link
-                      href={`/admin/registros/${reg.id}`}
-                      className="text-[#0072CE] hover:text-[#003366] hover:underline"
-                    >
-                      {reg.first_name} {reg.last_name}
-                    </Link>
+                    <div className="flex items-center gap-2">
+                      <Link
+                        href={`/admin/registros/${reg.id}`}
+                        className="text-[#0072CE] hover:text-[#003366] hover:underline"
+                      >
+                        {reg.first_name} {reg.last_name}
+                      </Link>
+                      {reg.delivery_mode === "presencial" && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 uppercase tracking-wider">
+                          Presencial
+                        </span>
+                      )}
+                    </div>
                     {reg.company && (
                       <div className="text-[11px] text-gray-400 mt-0.5 truncate max-w-[180px]">{reg.company}</div>
                     )}

@@ -13,6 +13,7 @@ import QRCode from "qrcode";
 type CourseDelivery = {
   id: string;
   status: string;
+  delivery_mode: "online" | "presencial";
   course_id: string;
   course_title: string;
   course_code: string;
@@ -729,6 +730,7 @@ export default function TpemsCourseDetail() {
           `
           id,
           status,
+          delivery_mode,
           first_name,
           last_name,
           course_id,
@@ -753,6 +755,7 @@ export default function TpemsCourseDetail() {
         const courseData: CourseDelivery = {
           id: r.id,
           status: r.status,
+          delivery_mode: r.delivery_mode === "presencial" ? "presencial" : "online",
           course_id: r.course_id,
           course_title: r.courses?.title || "",
           course_code: r.courses?.code || "",
@@ -974,12 +977,14 @@ export default function TpemsCourseDetail() {
   }
 
   // Progress calculation
+  const isPresencial = course?.delivery_mode === "presencial";
   const completedCount = progress.filter((p) => p.status === "completed").length;
   const totalModules = modules.length;
-  const progressPercent = totalModules > 0 ? Math.round((completedCount / totalModules) * 100) : 0;
+  const rawProgress = totalModules > 0 ? Math.round((completedCount / totalModules) * 100) : 0;
+  const progressPercent = isPresencial ? 100 : rawProgress;
 
-  // Course is "completed" for survey/diploma purposes if status is completed OR 100% progress
-  const courseCompleted = course?.status === "completed" || progressPercent === 100;
+  // Course is "completed" for survey/diploma purposes if status is completed OR 100% progress OR presencial
+  const courseCompleted = isPresencial || course?.status === "completed" || progressPercent === 100;
 
   const selectedModule = modules.find((m) => m.id === selectedModuleId);
 
@@ -1136,7 +1141,12 @@ export default function TpemsCourseDetail() {
               {course.course_description && (
                 <p className="text-sm text-gray-600 leading-relaxed mb-6">{course.course_description}</p>
               )}
-              {modules.length > 0 && (
+              {isPresencial ? (
+                <div className="inline-flex items-center gap-2 bg-orange-50 border border-orange-200 text-orange-700 text-sm font-medium px-5 py-3 rounded-xl">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                  Curso presencial — contenido fuera de la plataforma
+                </div>
+              ) : modules.length > 0 && (
                 courseCompleted ? (
                   <button disabled className="inline-flex items-center gap-2 bg-green-100 text-green-700 text-sm font-semibold px-6 py-3 rounded-xl cursor-not-allowed">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
