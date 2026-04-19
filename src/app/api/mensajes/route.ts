@@ -71,19 +71,19 @@ export async function POST(request: Request) {
     // sends a message. We check email match instead of role because admins may
     // be enrolled as students in other courses and still need to receive
     // notifications when they message from the student portal.
-    (async () => {
-      try {
-        const { data: reg } = await supabaseAdmin
-          .from("registrations")
-          .select("id, first_name, last_name, email, course_id")
-          .eq("id", registrationId)
-          .single();
-        if (!reg?.course_id) return;
+    // IMPORTANT: We AWAIT the notification so the serverless function doesn't
+    // exit before email sends — Vercel Functions terminate on `return`.
+    let notified = 0;
+    try {
+      const { data: reg } = await supabaseAdmin
+        .from("registrations")
+        .select("id, first_name, last_name, email, course_id")
+        .eq("id", registrationId)
+        .single();
 
-        // Only fire notification when the sender is the student (owner)
-        const isStudentSender = reg.email?.toLowerCase() === user.email?.toLowerCase();
-        if (!isStudentSender) return;
+      const isStudentSender = reg?.email?.toLowerCase() === user.email?.toLowerCase();
 
+      if (reg?.course_id && isStudentSender) {
         const { data: course } = await supabaseAdmin
           .from("courses")
           .select("title")
@@ -95,7 +95,6 @@ export async function POST(request: Request) {
           .select("instructor_email")
           .eq("course_id", reg.course_id);
 
-        // Collect unique recipients: instructors + admin (dedup)
         const recipients = new Set<string>();
         (assignments || []).forEach((a: any) => {
           if (a.instructor_email) recipients.add(a.instructor_email.toLowerCase());
@@ -106,7 +105,6 @@ export async function POST(request: Request) {
         const courseName = course?.title || "Curso ENAE";
 
         for (const email of recipients) {
-          // Best-effort: look up instructor name for personalization
           const { data: rProf } = await supabaseAdmin
             .from("profiles")
             .select("first_name, last_name")
@@ -116,22 +114,30 @@ export async function POST(request: Request) {
             ? `${rProf.first_name || ""} ${rProf.last_name || ""}`.trim() || "Instructor"
             : "Instructor";
 
-          await sendStudentMessageNotification(
-            email,
-            recipientName,
-            studentName,
-            reg.email,
-            courseName,
-            message.trim(),
-            reg.id,
-          ).catch((err) => console.warn("[mensajes] email notify failed:", err));
+          try {
+            await sendStudentMessageNotification(
+              email,
+              recipientName,
+              studentName,
+              reg.email,
+              courseName,
+              message.trim(),
+              reg.id,
+            );
+            notified++;
+            console.log(`[mensajes] notified ${email} about message from ${studentName}`);
+          } catch (err: any) {
+            console.warn(`[mensajes] email notify failed for ${email}:`, err?.message || err);
+          }
         }
-      } catch (err) {
-        console.warn("[mensajes] notify block error:", err);
+      } else {
+        console.log(`[mensajes] skip notification — isStudentSender=${isStudentSender} course_id=${reg?.course_id}`);
       }
-    })();
+    } catch (err: any) {
+      console.warn("[mensajes] notify block error:", err?.message || err);
+    }
 
-    return NextResponse.json({ success: true, message: data });
+    return NextResponse.json({ success: true, message: data, notified });
   } catch (error: any) {
     return NextResponse.json(
       { error: "Error interno: " + (error?.message || String(error)) },
