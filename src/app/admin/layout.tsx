@@ -128,7 +128,7 @@ export default function AdminLayout({
               )}
             </button>
             {notifOpen && (
-              <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 text-gray-800">
+              <div className="absolute left-full top-0 ml-3 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 text-gray-800">
                 <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
                   <h3 className="text-sm font-semibold">Registros pendientes</h3>
                   {unread > 0 && (
