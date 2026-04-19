@@ -54,6 +54,8 @@ export default function AdminRegistrosPage() {
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState("all");
   const [companyFilter, setCompanyFilter] = useState("all");
+  const [bulkDownloading, setBulkDownloading] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
 
   useEffect(() => {
     loadRegistrations();
@@ -326,6 +328,57 @@ export default function AdminRegistrosPage() {
             className="text-xs text-gray-500 hover:text-[#0072CE] underline self-center"
           >
             Limpiar filtros
+          </button>
+        )}
+        {courseFilter !== "all" && (
+          <button
+            onClick={async () => {
+              const targets = filtered.filter((r) => r.status === "confirmed" || r.status === "completed");
+              if (targets.length === 0) {
+                alert("No hay alumnos confirmados o completados para este curso.");
+                return;
+              }
+              if (!confirm(`Descargar ${targets.length} certificado(s) DGAC sin validar calificaciones (para firma presencial)?`)) return;
+              setBulkDownloading(true);
+              setBulkProgress({ done: 0, total: targets.length });
+              let errors = 0;
+              for (let i = 0; i < targets.length; i++) {
+                const r = targets[i];
+                try {
+                  const res = await fetch(`/api/certificado-dgac?registration_id=${r.id}&skip_grade_check=true`);
+                  if (!res.ok) {
+                    errors++;
+                    console.warn(`Error descargando cert de ${r.first_name} ${r.last_name}`);
+                  } else {
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    const safe = `${r.first_name}_${r.last_name}`.replace(/[^A-Za-z0-9]+/g, "_");
+                    a.download = `Certificado_DGAC_${safe}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  }
+                } catch {
+                  errors++;
+                }
+                setBulkProgress({ done: i + 1, total: targets.length });
+                await new Promise((res) => setTimeout(res, 400));
+              }
+              setBulkDownloading(false);
+              setBulkProgress(null);
+              if (errors > 0) alert(`Descarga completada con ${errors} error(es). Revisa la consola.`);
+            }}
+            disabled={bulkDownloading}
+            className="inline-flex items-center gap-2 text-xs font-medium px-3 py-2.5 rounded-lg bg-[#0072CE] hover:bg-[#005BA1] disabled:bg-gray-300 text-white transition"
+            title="Descarga los certificados DGAC de todos los alumnos filtrados (para firma presencial)"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+            {bulkDownloading && bulkProgress
+              ? `Descargando ${bulkProgress.done}/${bulkProgress.total}...`
+              : "Descargar certificados (firma presencial)"}
           </button>
         )}
       </div>

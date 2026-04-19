@@ -10,6 +10,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const registrationId = searchParams.get("registration_id");
+    const skipGradeCheck = searchParams.get("skip_grade_check") === "true";
     if (!registrationId) {
       return NextResponse.json({ error: "registration_id requerido" }, { status: 400 });
     }
@@ -36,15 +37,12 @@ export async function GET(request: Request) {
       .maybeSingle();
 
     const isOwner = reg.email === user.email;
-    let isAdmin = false;
-    if (!isOwner) {
-      const { data: profile } = await supabaseAdmin
-        .from("profiles")
-        .select("role")
-        .eq("email", user.email)
-        .maybeSingle();
-      isAdmin = profile?.role === "admin";
-    }
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("role")
+      .eq("email", user.email)
+      .maybeSingle();
+    const isAdmin = profile?.role === "admin";
     if (!isOwner && !isAdmin) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
@@ -53,17 +51,22 @@ export async function GET(request: Request) {
     // (including the practical evaluation entered manually). Apply to both
     // admin and student — a certificate for an incomplete record must not
     // leave the platform.
-    const grades = await allGradesEntered(reg.id, reg.course_id);
-    if (!grades.allGraded) {
-      return NextResponse.json(
-        {
-          error: "No se puede generar el certificado: faltan calificaciones por ingresar.",
-          missing: grades.missing,
-          filled: grades.filled,
-          total: grades.total,
-        },
-        { status: 400 }
-      );
+    //
+    // Exception: admins can pre-print certificates for presencial courses
+    // with ?skip_grade_check=true (certificates get signed at training).
+    if (!(isAdmin && skipGradeCheck)) {
+      const grades = await allGradesEntered(reg.id, reg.course_id);
+      if (!grades.allGraded) {
+        return NextResponse.json(
+          {
+            error: "No se puede generar el certificado: faltan calificaciones por ingresar.",
+            missing: grades.missing,
+            filled: grades.filled,
+            total: grades.total,
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // Load course (SELECT * avoids breaking when an expected column doesn't exist)

@@ -132,6 +132,10 @@ export default function RegistroDetailPage() {
   const [savingCert, setSavingCert] = useState(false);
   const [sendingCert, setSendingCert] = useState(false);
   const [markingAlumni, setMarkingAlumni] = useState(false);
+  const [apendiceRequired, setApendiceRequired] = useState(false);
+  const [habilitationText, setHabilitationText] = useState("");
+  const [apendiceAdminMsg, setApendiceAdminMsg] = useState("");
+  const [apendiceAdminUploading, setApendiceAdminUploading] = useState(false);
 
   const loadData = useCallback(async () => {
     // Load registration
@@ -156,10 +160,12 @@ export default function RegistroDetailPage() {
       if (regData.course_id) {
         const { data: courseRow } = await supabase
           .from("courses")
-          .select("has_dgac_certificate")
+          .select("has_dgac_certificate, apendice_c_required, apendice_c_habilitation_text")
           .eq("id", regData.course_id)
           .maybeSingle();
         setHasDgacCert((courseRow as any)?.has_dgac_certificate === true);
+        setApendiceRequired((courseRow as any)?.apendice_c_required === true);
+        setHabilitationText((courseRow as any)?.apendice_c_habilitation_text || "");
       }
 
       // Try to get full profile data
@@ -1086,34 +1092,112 @@ export default function RegistroDetailPage() {
               </div>
             )}
             {/* Apéndice C firmado subido por el alumno */}
-            <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between gap-3 flex-wrap">
-              <div>
-                <p className="text-sm font-medium text-gray-700">Apéndice C firmado</p>
-                {procedure.apendice_c_file_url ? (
-                  <p className="text-xs text-gray-500">
-                    Subido {procedure.apendice_c_uploaded_at ? new Date(procedure.apendice_c_uploaded_at).toLocaleString("es-CL") : ""}
-                  </p>
-                ) : (
-                  <p className="text-xs text-gray-400">El alumno aún no ha subido el Apéndice C firmado</p>
-                )}
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Apéndice C firmado</p>
+                  {procedure.apendice_c_file_url ? (
+                    <p className="text-xs text-gray-500">
+                      Subido {procedure.apendice_c_uploaded_at ? new Date(procedure.apendice_c_uploaded_at).toLocaleString("es-CL") : ""}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-400">Aún no se ha subido el Apéndice C firmado</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {apendiceRequired && (
+                    <button
+                      onClick={async () => {
+                        setApendiceAdminMsg("");
+                        try {
+                          const prepRes = await fetch("/api/apendice-c/prepare", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ registration_id: id }),
+                          });
+                          const prepJson = await prepRes.json();
+                          if (!prepRes.ok) throw new Error(prepJson?.error || "Error preparando codigo");
+                          const verificationCode = prepJson.verification_code as string;
+                          const verificationUrl = `${window.location.origin}/verify/apendice-c/${verificationCode}`;
+
+                          const { generateApendiceCPDF } = await import("@/lib/apendice-c-pdf");
+                          const pdf = await generateApendiceCPDF({
+                            student_name: `${profile.first_name} ${profile.last_name}`.trim(),
+                            rut: profile.rut || "",
+                            profession: profile.job_title || "",
+                            address: profile.address || "",
+                            city: profile.city || "",
+                            date: new Date(),
+                            habilitation_text: habilitationText || "",
+                            verification_code: verificationCode,
+                            verification_url: verificationUrl,
+                          });
+                          const safe = `${profile.first_name}_${profile.last_name}`.replace(/\s+/g, "_");
+                          pdf.save(`Apendice_C_${safe}.pdf`);
+                          setApendiceAdminMsg("PDF pre-llenado descargado.");
+                        } catch (err: any) {
+                          setApendiceAdminMsg("Error generando PDF: " + (err?.message || "desconocido"));
+                        }
+                      }}
+                      className="inline-flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                      Descargar pre-llenado
+                    </button>
+                  )}
+                  <label className={`inline-flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg transition cursor-pointer ${apendiceAdminUploading ? "bg-gray-200 text-gray-400 cursor-wait" : "bg-green-600 hover:bg-green-700 text-white"}`}>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                    {apendiceAdminUploading ? "Subiendo..." : "Subir firmado"}
+                    <input
+                      type="file"
+                      accept="application/pdf,image/*"
+                      className="hidden"
+                      disabled={apendiceAdminUploading}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setApendiceAdminUploading(true);
+                        setApendiceAdminMsg("");
+                        try {
+                          const fd = new FormData();
+                          fd.append("file", file);
+                          fd.append("registration_id", id);
+                          const res = await fetch("/api/apendice-c/upload", { method: "POST", body: fd });
+                          const json = await res.json();
+                          if (!res.ok) throw new Error(json?.error || "Upload falló");
+                          setApendiceAdminMsg("Apéndice C firmado subido correctamente.");
+                          await loadData();
+                        } catch (err: any) {
+                          setApendiceAdminMsg("Error subiendo: " + (err?.message || "desconocido"));
+                        } finally {
+                          setApendiceAdminUploading(false);
+                          (e.target as HTMLInputElement).value = "";
+                        }
+                      }}
+                    />
+                  </label>
+                  {procedure.apendice_c_file_url && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`/api/apendice-c/download?registration_id=${id}`);
+                          const json = await res.json();
+                          if (!res.ok) throw new Error(json?.error || "Error");
+                          window.open(json.url, "_blank");
+                        } catch (err: any) {
+                          alert("Error descargando: " + (err?.message || "desconocido"));
+                        }
+                      }}
+                      className="inline-flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg bg-[#0072CE] hover:bg-[#005BA1] text-white transition"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                      Descargar firmado
+                    </button>
+                  )}
+                </div>
               </div>
-              {procedure.apendice_c_file_url && (
-                <button
-                  onClick={async () => {
-                    try {
-                      const res = await fetch(`/api/apendice-c/download?registration_id=${id}`);
-                      const json = await res.json();
-                      if (!res.ok) throw new Error(json?.error || "Error");
-                      window.open(json.url, "_blank");
-                    } catch (err: any) {
-                      alert("Error descargando: " + (err?.message || "desconocido"));
-                    }
-                  }}
-                  className="inline-flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg bg-[#0072CE] hover:bg-[#005BA1] text-white transition"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                  Descargar PDF
-                </button>
+              {apendiceAdminMsg && (
+                <p className={`mt-2 text-xs ${apendiceAdminMsg.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>{apendiceAdminMsg}</p>
               )}
             </div>
           </div>
