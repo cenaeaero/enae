@@ -85,17 +85,27 @@ export async function GET(request: Request) {
     const completedAt = reg.completed_at || new Date().toISOString();
     const startAt = reg.created_at || completedAt;
 
-    // Parse content list (stored as newline-delimited text)
-    let contentList: string[] | null = null;
-    if (c.dgac_content_list) {
-      const list = c.dgac_content_list
-        .split("\n")
-        .map((l: string) => l.trim())
-        .filter(Boolean);
-      if (list.length > 0) contentList = list;
-    }
+    // Load course modules for page 2 (the certificate lists them as course contents)
+    const { data: modules } = await supabaseAdmin
+      .from("course_modules")
+      .select("sort_order, title")
+      .eq("course_id", reg.course_id)
+      .order("sort_order");
 
-    const pdfBuffer = generateDgacCertificatePdf({
+    // Verification URL: uses the diploma's verification code if present, otherwise
+    // falls back to a registration-based URL on the public /verificar page.
+    const { data: diploma } = await supabaseAdmin
+      .from("diplomas")
+      .select("verification_code")
+      .eq("registration_id", reg.id)
+      .maybeSingle();
+
+    const site = process.env.NEXT_PUBLIC_SITE_URL || "https://www.enae.cl";
+    const verificationUrl = diploma?.verification_code
+      ? `${site}/verificar?code=${diploma.verification_code}`
+      : `${site}/verificar?reg=${reg.id}`;
+
+    const pdfBuffer = await generateDgacCertificatePdf({
       studentName: `${reg.first_name || ""} ${reg.last_name || ""}`.trim(),
       rut: prof?.rut || null,
       courseName: c.title,
@@ -106,7 +116,8 @@ export async function GET(request: Request) {
       folio: prof?.folio_enae || null,
       year: new Date(completedAt).getFullYear(),
       habilitaciones: c.dgac_habilitaciones || null,
-      contentList,
+      modules: modules || null,
+      verificationUrl,
     });
 
     const safeName = `${reg.first_name || ""}_${reg.last_name || ""}`.replace(/[^A-Za-z0-9]+/g, "_");
