@@ -240,6 +240,19 @@ export default function CalificacionesPage() {
       student.gradeStatus = gradeStatus;
     }
 
+    // Trigger the full cascade: link exams to grade_items, recompute final_score,
+    // set status=completed when all graded, and auto-issue diploma if approved.
+    // This is what unlocks the survey and closes the course for the student.
+    try {
+      await fetch("/api/admin/auto-calificar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ course_id: selectedCourse }),
+      });
+    } catch {
+      // Non-fatal; per-student final_score was already written above
+    }
+
     setStudents([...students]);
     setMessage("Calificaciones guardadas correctamente");
     setSaving(false);

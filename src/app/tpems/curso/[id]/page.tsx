@@ -731,11 +731,12 @@ export default function TpemsCourseDetail() {
         };
         setCourse(courseData);
 
-        // Load course modules
+        // Load course modules (hide instructor-only modules from student view)
         const { data: modulesData } = await supabase
           .from("course_modules")
           .select("*")
           .eq("course_id", r.course_id)
+          .or("is_instructor_only.is.null,is_instructor_only.eq.false")
           .order("sort_order");
 
         if (modulesData && modulesData.length > 0) {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-service";
 import { createSupabaseServer } from "@/lib/supabase-server";
 import { sendGradeNotificationToStudent } from "@/lib/email";
+import { runAutoCalificar } from "@/lib/auto-calificar";
 
 async function authorizeInstructor(courseId: string) {
   const supabase = await createSupabaseServer();
@@ -156,6 +157,14 @@ export async function POST(request: Request) {
       g.score,
     ).catch(() => {});
     notified++;
+  }
+
+  // Trigger cascade: recompute final_score, set status=completed if all graded,
+  // auto-issue diploma if approved. This unlocks the survey for each student.
+  try {
+    await runAutoCalificar({ course_id });
+  } catch (err) {
+    console.warn("[instructor calificaciones] auto-calificar failed:", err);
   }
 
   return NextResponse.json({ ok: true, saved: validGrades.length, notified });
