@@ -34,6 +34,8 @@ type DgacProcedure = {
   registro_sipa: boolean;
   solicitud_credencial: boolean;
   apendice_c: boolean;
+  apendice_c_file_url: string | null;
+  apendice_c_uploaded_at: string | null;
   pago_tasa: boolean;
   coordinacion_examen: boolean;
   exam_datetime: string | null;
@@ -1083,6 +1085,37 @@ export default function RegistroDetailPage() {
                 </div>
               </div>
             )}
+            {/* Apéndice C firmado subido por el alumno */}
+            <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <p className="text-sm font-medium text-gray-700">Apéndice C firmado</p>
+                {procedure.apendice_c_file_url ? (
+                  <p className="text-xs text-gray-500">
+                    Subido {procedure.apendice_c_uploaded_at ? new Date(procedure.apendice_c_uploaded_at).toLocaleString("es-CL") : ""}
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-400">El alumno aún no ha subido el Apéndice C firmado</p>
+                )}
+              </div>
+              {procedure.apendice_c_file_url && (
+                <button
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(`/api/apendice-c/download?registration_id=${id}`);
+                      const json = await res.json();
+                      if (!res.ok) throw new Error(json?.error || "Error");
+                      window.open(json.url, "_blank");
+                    } catch (err: any) {
+                      alert("Error descargando: " + (err?.message || "desconocido"));
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg bg-[#0072CE] hover:bg-[#005BA1] text-white transition"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  Descargar PDF
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>

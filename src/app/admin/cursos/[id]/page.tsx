@@ -53,6 +53,8 @@ export default function EditCoursePage({
   const [prerequisites, setPrerequisites] = useState<string[]>([""]);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isActive, setIsActive] = useState(true);
+  const [apendiceCRequired, setApendiceCRequired] = useState(false);
+  const [apendiceCHabilitationText, setApendiceCHabilitationText] = useState("");
 
   // Sessions
   const [sessions, setSessions] = useState<SessionData[]>([]);
@@ -83,6 +85,8 @@ export default function EditCoursePage({
       setPrerequisites(data.prerequisites?.length ? data.prerequisites : [""]);
       setImageUrl(data.image_url || null);
       setIsActive(data.is_active);
+      setApendiceCRequired(!!data.apendice_c_required);
+      setApendiceCHabilitationText(data.apendice_c_habilitation_text || "");
       setSessions(
         data.sessions?.map((s: SessionData) => ({
           id: s.id,
@@ -131,6 +135,8 @@ export default function EditCoursePage({
         target_audience: targetAudience.filter((t) => t.trim()),
         prerequisites: prerequisites.filter((p) => p.trim()),
         is_active: isActive,
+        apendice_c_required: apendiceCRequired,
+        apendice_c_habilitation_text: apendiceCRequired ? (apendiceCHabilitationText || null) : null,
       });
 
       // Sync module names with course_modules table (LMS)
@@ -536,6 +542,39 @@ export default function EditCoursePage({
               />
             </div>
           </div>
+        </div>
+
+        {/* Apéndice C (DGAC) */}
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-[#003366] mb-4">
+            Apéndice C (DGAC)
+          </h2>
+          <label className="flex items-center gap-2 cursor-pointer mb-4">
+            <input
+              type="checkbox"
+              checked={apendiceCRequired}
+              onChange={(e) => setApendiceCRequired(e.target.checked)}
+              className="rounded border-gray-300 text-[#0072CE]"
+            />
+            <span className="text-sm text-gray-700">Este curso requiere Apéndice C</span>
+          </label>
+          {apendiceCRequired && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Texto de habilitación
+              </label>
+              <p className="text-xs text-gray-500 mb-2">
+                Texto que aparece en el punto 1 del Apéndice C. Ejemplo: <em>&quot;INSTRUCCIÓN TEÓRICA DE OPERADOR RPAS Y PRÁCTICA RESPECTO AL USO DE UNA AERONAVE NO TRIPULADA RPA MODELO: MAVIC SERIES, PHANTOM SERIES...&quot;</em>
+              </p>
+              <textarea
+                value={apendiceCHabilitationText}
+                onChange={(e) => setApendiceCHabilitationText(e.target.value)}
+                rows={4}
+                className="w-full py-2.5 px-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0072CE]"
+                placeholder="INSTRUCCIÓN TEÓRICA..."
+              />
+            </div>
+          )}
         </div>
 
         {/* Dynamic lists */}
