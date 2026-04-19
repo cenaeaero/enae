@@ -30,18 +30,64 @@ export default function AdminAlumniPage() {
 
   async function load() {
     setLoading(true);
-    // Wait for session to hydrate
+    setMessage("");
     await supabase.auth.getSession();
 
-    const { data } = await supabase
+    // Step 1: load registrations WITHOUT the nested course join.
+    // PostgREST silently returns empty data if any referenced column is
+    // unknown; separating the queries avoids that failure mode.
+    const { data: regs, error } = await supabase
       .from("registrations")
       .select(
-        "id, first_name, last_name, email, final_score, grade_status, completed_at, alumni_at, instruction_city, folio_enae, course:courses(id, title, code, has_dgac_certificate)",
+        "id, first_name, last_name, email, final_score, grade_status, completed_at, alumni_at, instruction_city, course_id",
       )
       .eq("is_alumni", true)
       .order("alumni_at", { ascending: false });
 
-    setRows((data as any) || []);
+    if (error) {
+      setMessage(`Error cargando alumni: ${error.message}`);
+      setRows([]);
+      setLoading(false);
+      return;
+    }
+
+    // Step 2: hydrate courses separately. Try the full select first; fall back
+    // to a minimal select if has_dgac_certificate isn't recognized yet.
+    const courseIds = Array.from(new Set((regs || []).map((r: any) => r.course_id).filter(Boolean)));
+    let courseMap: Record<string, any> = {};
+    if (courseIds.length > 0) {
+      const full = await supabase
+        .from("courses")
+        .select("id, title, code, has_dgac_certificate")
+        .in("id", courseIds);
+      let crs = full.data as any[] | null;
+      if (!crs || full.error) {
+        const fallback = await supabase
+          .from("courses")
+          .select("id, title, code")
+          .in("id", courseIds);
+        crs = (fallback.data as any[]) || [];
+      }
+      courseMap = Object.fromEntries((crs || []).map((c: any) => [c.id, c]));
+    }
+
+    // Step 3: hydrate folio_enae from profiles (lives there, not on registrations)
+    const emails = Array.from(new Set((regs || []).map((r: any) => r.email).filter(Boolean)));
+    let folioMap: Record<string, string | null> = {};
+    if (emails.length > 0) {
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("email, folio_enae")
+        .in("email", emails);
+      folioMap = Object.fromEntries((profs || []).map((p: any) => [p.email, p.folio_enae]));
+    }
+
+    const hydrated = (regs || []).map((r: any) => ({
+      ...r,
+      course: courseMap[r.course_id] || null,
+      folio_enae: folioMap[r.email] ?? null,
+    }));
+    setRows(hydrated);
     setLoading(false);
   }
 
