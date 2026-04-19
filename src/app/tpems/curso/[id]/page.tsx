@@ -1000,7 +1000,7 @@ export default function TpemsCourseDetail() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "info", label: "Info" },
-    ...(modules.length > 0 && lessons.length > 0 ? [{ key: "modules" as Tab, label: `Módulos (${totalModules})` }] : []),
+    ...(modules.length > 0 && lessons.length > 0 && !courseCompleted ? [{ key: "modules" as Tab, label: `Módulos (${totalModules})` }] : []),
     { key: "grades", label: "Calificaciones" },
     { key: "evaluation", label: "Encuesta" },
     { key: "messages", label: "Mensajes" },
@@ -1137,10 +1137,17 @@ export default function TpemsCourseDetail() {
                 <p className="text-sm text-gray-600 leading-relaxed mb-6">{course.course_description}</p>
               )}
               {modules.length > 0 && (
-                <button onClick={() => setActiveTab("modules")} className="inline-flex items-center gap-2 bg-gradient-to-r from-[#0072CE] to-[#005BA1] hover:from-[#005BA1] hover:to-[#003366] text-white text-sm font-semibold px-6 py-3 rounded-xl transition shadow-sm shadow-blue-200">
-                  {completedCount > 0 ? "Continuar Curso" : "Iniciar Curso"}
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-                </button>
+                courseCompleted ? (
+                  <button disabled className="inline-flex items-center gap-2 bg-green-100 text-green-700 text-sm font-semibold px-6 py-3 rounded-xl cursor-not-allowed">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                    Curso Completado
+                  </button>
+                ) : (
+                  <button onClick={() => setActiveTab("modules")} className="inline-flex items-center gap-2 bg-gradient-to-r from-[#0072CE] to-[#005BA1] hover:from-[#005BA1] hover:to-[#003366] text-white text-sm font-semibold px-6 py-3 rounded-xl transition shadow-sm shadow-blue-200">
+                    {completedCount > 0 ? "Continuar Curso" : "Iniciar Curso"}
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                  </button>
+                )
               )}
             </div>
           </div>
