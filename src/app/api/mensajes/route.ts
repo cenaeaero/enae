@@ -67,65 +67,69 @@ export async function POST(request: Request) {
       );
     }
 
-    // Notify instructor(s) + admin when a STUDENT sends a message.
-    // Don't block the response if email fails — fire-and-forget.
-    if (profile.role === "student") {
-      (async () => {
-        try {
-          const { data: reg } = await supabaseAdmin
-            .from("registrations")
-            .select("id, first_name, last_name, email, course_id")
-            .eq("id", registrationId)
-            .single();
-          if (!reg?.course_id) return;
+    // Notify instructor(s) + admin when the STUDENT (owner of the registration)
+    // sends a message. We check email match instead of role because admins may
+    // be enrolled as students in other courses and still need to receive
+    // notifications when they message from the student portal.
+    (async () => {
+      try {
+        const { data: reg } = await supabaseAdmin
+          .from("registrations")
+          .select("id, first_name, last_name, email, course_id")
+          .eq("id", registrationId)
+          .single();
+        if (!reg?.course_id) return;
 
-          const { data: course } = await supabaseAdmin
-            .from("courses")
-            .select("title")
-            .eq("id", reg.course_id)
-            .single();
+        // Only fire notification when the sender is the student (owner)
+        const isStudentSender = reg.email?.toLowerCase() === user.email?.toLowerCase();
+        if (!isStudentSender) return;
 
-          const { data: assignments } = await supabaseAdmin
-            .from("course_instructors")
-            .select("instructor_email")
-            .eq("course_id", reg.course_id);
+        const { data: course } = await supabaseAdmin
+          .from("courses")
+          .select("title")
+          .eq("id", reg.course_id)
+          .single();
 
-          // Collect unique recipients: instructors + admin (dedup)
-          const recipients = new Set<string>();
-          (assignments || []).forEach((a: any) => {
-            if (a.instructor_email) recipients.add(a.instructor_email.toLowerCase());
-          });
-          recipients.add(ADMIN_EMAIL.toLowerCase());
+        const { data: assignments } = await supabaseAdmin
+          .from("course_instructors")
+          .select("instructor_email")
+          .eq("course_id", reg.course_id);
 
-          const studentName = `${reg.first_name || ""} ${reg.last_name || ""}`.trim() || reg.email;
-          const courseName = course?.title || "Curso ENAE";
+        // Collect unique recipients: instructors + admin (dedup)
+        const recipients = new Set<string>();
+        (assignments || []).forEach((a: any) => {
+          if (a.instructor_email) recipients.add(a.instructor_email.toLowerCase());
+        });
+        recipients.add(ADMIN_EMAIL.toLowerCase());
 
-          for (const email of recipients) {
-            // Best-effort: look up instructor name for personalization
-            const { data: rProf } = await supabaseAdmin
-              .from("profiles")
-              .select("first_name, last_name")
-              .eq("email", email)
-              .maybeSingle();
-            const recipientName = rProf
-              ? `${rProf.first_name || ""} ${rProf.last_name || ""}`.trim() || "Instructor"
-              : "Instructor";
+        const studentName = `${reg.first_name || ""} ${reg.last_name || ""}`.trim() || reg.email;
+        const courseName = course?.title || "Curso ENAE";
 
-            await sendStudentMessageNotification(
-              email,
-              recipientName,
-              studentName,
-              reg.email,
-              courseName,
-              message.trim(),
-              reg.id,
-            ).catch((err) => console.warn("[mensajes] email notify failed:", err));
-          }
-        } catch (err) {
-          console.warn("[mensajes] notify block error:", err);
+        for (const email of recipients) {
+          // Best-effort: look up instructor name for personalization
+          const { data: rProf } = await supabaseAdmin
+            .from("profiles")
+            .select("first_name, last_name")
+            .eq("email", email)
+            .maybeSingle();
+          const recipientName = rProf
+            ? `${rProf.first_name || ""} ${rProf.last_name || ""}`.trim() || "Instructor"
+            : "Instructor";
+
+          await sendStudentMessageNotification(
+            email,
+            recipientName,
+            studentName,
+            reg.email,
+            courseName,
+            message.trim(),
+            reg.id,
+          ).catch((err) => console.warn("[mensajes] email notify failed:", err));
         }
-      })();
-    }
+      } catch (err) {
+        console.warn("[mensajes] notify block error:", err);
+      }
+    })();
 
     return NextResponse.json({ success: true, message: data });
   } catch (error: any) {
