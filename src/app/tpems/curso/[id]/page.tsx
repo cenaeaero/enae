@@ -503,13 +503,6 @@ export default function TpemsCourseDetail() {
 
         doc.setFontSize(9);
         doc.text(passed ? "APROBADO" : "REPROBADO", estadoCenterX, y + 11, { align: "center" });
-
-        if (scoredExams.length > 1) {
-          y += boxH + 3;
-          doc.setFontSize(7);
-          doc.setTextColor(150, 150, 150);
-          doc.text(`Ponderacion: ${examGradeItems.map((e, i) => `Examen ${i + 1}: ${e.weight}%`).join("  |  ")}`, mx + 4, y);
-        }
       }
     }
 
