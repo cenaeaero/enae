@@ -66,23 +66,29 @@ export async function GET(request: Request) {
       );
     }
 
-    // Load course
-    const { data: course } = await supabaseAdmin
+    // Load course (SELECT * avoids breaking when an expected column doesn't exist)
+    const { data: course, error: courseErr } = await supabaseAdmin
       .from("courses")
-      .select("title, code, theoretical_hours, practical_hours, dgac_habilitaciones, dgac_content_list")
+      .select("*")
       .eq("id", reg.course_id)
       .single();
 
-    if (!course) return NextResponse.json({ error: "Curso no encontrado" }, { status: 404 });
+    if (courseErr || !course) {
+      console.error("[certificado-dgac] course lookup failed", { course_id: reg.course_id, err: courseErr });
+      return NextResponse.json({ error: "Curso no encontrado" }, { status: 404 });
+    }
 
-    const totalHours = (course.theoretical_hours || 0) + (course.practical_hours || 0);
+    const c: any = course;
+    const theoretical = c.theoretical_hours ?? c.horas_teoricas ?? 0;
+    const practical = c.practical_hours ?? c.horas_practicas ?? 0;
+    const totalHours = (theoretical + practical) || c.total_hours || c.hours || 34;
     const completedAt = reg.completed_at || new Date().toISOString();
     const startAt = reg.created_at || completedAt;
 
     // Parse content list (stored as newline-delimited text)
     let contentList: string[] | null = null;
-    if (course.dgac_content_list) {
-      const list = course.dgac_content_list
+    if (c.dgac_content_list) {
+      const list = c.dgac_content_list
         .split("\n")
         .map((l: string) => l.trim())
         .filter(Boolean);
@@ -92,14 +98,14 @@ export async function GET(request: Request) {
     const pdfBuffer = generateDgacCertificatePdf({
       studentName: `${reg.first_name || ""} ${reg.last_name || ""}`.trim(),
       rut: prof?.rut || null,
-      courseName: course.title,
+      courseName: c.title,
       city: reg.instruction_city || "Antofagasta",
       startDate: startAt,
       endDate: completedAt,
       totalHours,
       folio: prof?.folio_enae || null,
       year: new Date(completedAt).getFullYear(),
-      habilitaciones: course.dgac_habilitaciones || null,
+      habilitaciones: c.dgac_habilitaciones || null,
       contentList,
     });
 
