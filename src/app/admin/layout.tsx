@@ -14,6 +14,7 @@ const navItems = [
   { href: "/admin/diplomas", label: "Diplomas", icon: "📜" },
   { href: "/admin/pagos", label: "Pagos", icon: "💳" },
   { href: "/admin/encuestas", label: "Encuestas", icon: "📝" },
+  { href: "/admin/mensajes", label: "Mensajes", icon: "💬" },
   { href: "/admin/perfiles", label: "Perfiles", icon: "👥" },
   { href: "/admin/instructores", label: "Instructores", icon: "🧑‍🏫" },
   { href: "/admin/alumni", label: "Alumni", icon: "🎓" },
