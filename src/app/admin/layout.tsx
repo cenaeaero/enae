@@ -16,6 +16,7 @@ const navItems = [
   { href: "/admin/encuestas", label: "Encuestas", icon: "📝" },
   { href: "/admin/perfiles", label: "Perfiles", icon: "👥" },
   { href: "/admin/instructores", label: "Instructores", icon: "🧑‍🏫" },
+  { href: "/admin/alumni", label: "Alumni", icon: "🎓" },
 ];
 
 export default function AdminLayout({

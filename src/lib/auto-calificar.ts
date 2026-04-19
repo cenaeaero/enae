@@ -137,7 +137,10 @@ export async function autoGradeRegistration(registrationId: string, courseId: st
   const gradeStatus = allGraded ? (finalScore >= 80 ? "approved" : "failed") : "pending";
 
   const updatePayload: any = { final_score: finalScore, grade_status: gradeStatus };
-  if (allGraded) updatePayload.status = "completed";
+  if (allGraded) {
+    updatePayload.status = "completed";
+    updatePayload.completed_at = new Date().toISOString();
+  }
 
   await supabaseAdmin
     .from("registrations")

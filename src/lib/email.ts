@@ -392,6 +392,48 @@ export async function sendStudentCourseAccess(
   });
 }
 
+export async function sendDgacCertificate(
+  studentName: string,
+  studentEmail: string,
+  courseName: string,
+  pdfBuffer: Buffer,
+  fileName: string,
+) {
+  return transporter.sendMail({
+    from: `"ENAE - Escuela de Navegación Aérea" <${FROM}>`,
+    to: studentEmail,
+    subject: `Certificado DGAC - ${courseName}`,
+    attachments: [{ filename: fileName, content: pdfBuffer, contentType: "application/pdf" }],
+    html: `
+      <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #001d3d; padding: 24px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 22px;">Certificado DGAC</h1>
+          <p style="color: #93C5FD; margin: 6px 0 0; font-size: 12px;">Escuela de Navegación Aérea SpA</p>
+        </div>
+        <div style="padding: 30px; background: #f9fafb;">
+          <p style="font-size: 16px; color: #111827;">Estimado(a) <strong>${studentName}</strong>,</p>
+          <p style="color: #374151; line-height: 1.6;">
+            Adjunto encontrarás tu <strong>Certificado DGAC</strong> del curso <strong>${courseName}</strong>.
+            Este documento acredita que has cursado y aprobado el programa conforme a la normativa aeronáutica DAN 151,
+            y puedes presentarlo ante la <strong>Dirección General de Aeronáutica Civil (DGAC)</strong> para la gestión
+            de tu Credencial de Operador de Aeronaves Pilotadas a Distancia (RPA).
+          </p>
+          <p style="color: #374151; line-height: 1.6;">
+            Guarda este certificado en un lugar seguro. Si necesitas una copia adicional o tienes dudas, escríbenos a
+            <a href="mailto:${ADMIN_EMAIL}">${ADMIN_EMAIL}</a>.
+          </p>
+          <p style="color: #6b7280; font-size: 13px; margin-top: 30px;">
+            ¡Felicitaciones y buenos vuelos!
+          </p>
+        </div>
+        <div style="background: #001d3d; padding: 15px; text-align: center;">
+          <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegación Aérea | AOC 1521 DGAC</p>
+        </div>
+      </div>
+    `,
+  });
+}
+
 export async function sendGradeNotificationToStudent(
   studentName: string,
   studentEmail: string,

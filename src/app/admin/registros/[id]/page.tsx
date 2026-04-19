@@ -121,6 +121,14 @@ export default function RegistroDetailPage() {
   const [lastAccess, setLastAccess] = useState<string | null>(null);
   const [recentLogs, setRecentLogs] = useState<{ accessed_at: string }[]>([]);
 
+  // Certificate / Alumni state
+  const [instructionCity, setInstructionCity] = useState("");
+  const [isAlumni, setIsAlumni] = useState(false);
+  const [certMsg, setCertMsg] = useState("");
+  const [savingCert, setSavingCert] = useState(false);
+  const [sendingCert, setSendingCert] = useState(false);
+  const [markingAlumni, setMarkingAlumni] = useState(false);
+
   const loadData = useCallback(async () => {
     // Load registration
     const { data: regData } = await supabase
@@ -135,6 +143,8 @@ export default function RegistroDetailPage() {
       setCourseTitle(regData.courses?.title || "");
       setCourseCode(regData.courses?.code || "");
       setCourseId(regData.course_id || "");
+      setInstructionCity(regData.instruction_city || "");
+      setIsAlumni(regData.is_alumni === true);
 
       // Try to get full profile data
       const { data: prof } = await supabase
@@ -376,6 +386,57 @@ export default function RegistroDetailPage() {
       day: "2-digit", month: "short", year: "numeric",
       hour: "2-digit", minute: "2-digit",
     });
+  }
+
+  async function saveCertSettings() {
+    setSavingCert(true);
+    setCertMsg("");
+    const { error } = await supabase
+      .from("registrations")
+      .update({ instruction_city: instructionCity || null })
+      .eq("id", id);
+    if (error) setCertMsg(`Error: ${error.message}`);
+    else setCertMsg("Guardado.");
+    setSavingCert(false);
+  }
+
+  async function downloadDgacCert() {
+    window.open(`/api/certificado-dgac?registration_id=${id}`, "_blank");
+  }
+
+  async function sendDgacCertByEmail() {
+    if (!confirm(`Enviar el certificado DGAC por email a ${profile.email}?`)) return;
+    setSendingCert(true);
+    setCertMsg("");
+    try {
+      const res = await fetch("/api/admin/enviar-certificado-dgac", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registration_id: id }),
+      });
+      const json = await res.json();
+      if (!res.ok) setCertMsg(`Error: ${json.error || "No se pudo enviar"}`);
+      else setCertMsg(`Certificado enviado a ${json.sent_to}.`);
+    } catch (err: any) {
+      setCertMsg(`Error: ${err.message || "Sin conexion"}`);
+    }
+    setSendingCert(false);
+  }
+
+  async function markAsAlumni() {
+    if (!confirm("Marcar a este alumno como Egresado? Aparecerá en la sección Alumni.")) return;
+    setMarkingAlumni(true);
+    setCertMsg("");
+    const { error } = await supabase
+      .from("registrations")
+      .update({ is_alumni: true, alumni_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) setCertMsg(`Error: ${error.message}`);
+    else {
+      setIsAlumni(true);
+      setCertMsg("Alumno marcado como Egresado.");
+    }
+    setMarkingAlumni(false);
   }
 
   async function handleDelete() {
@@ -707,6 +768,83 @@ export default function RegistroDetailPage() {
             </div>
           </details>
         )}
+      </div>
+
+      {/* Certificaciones del Curso */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+        <h2 className="font-semibold text-gray-800 mb-4">Certificaciones del Curso</h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+          <div>
+            <label className="block text-xs text-gray-500 uppercase mb-1">Ciudad de Instrucción</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={instructionCity}
+                onChange={(e) => setInstructionCity(e.target.value)}
+                placeholder="Ej: Antofagasta"
+                className="flex-1 border border-gray-200 rounded px-3 py-2 text-sm"
+              />
+              <button
+                onClick={saveCertSettings}
+                disabled={savingCert}
+                className="bg-[#003366] hover:bg-[#004B87] disabled:bg-gray-300 text-white px-4 py-2 rounded text-sm font-medium"
+              >
+                {savingCert ? "..." : "Guardar"}
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-400 mt-1">Aparece en el Certificado DGAC como ciudad donde se cursó el programa.</p>
+          </div>
+
+          <div>
+            <label className="block text-xs text-gray-500 uppercase mb-1">Estado</label>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs px-2 py-1 rounded ${regStatus === "completed" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}`}>
+                {regStatus === "completed" ? "Completado" : regStatus}
+              </span>
+              {isAlumni && (
+                <span className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-800">Egresado</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {certMsg && (
+          <div className={`text-sm mb-3 ${certMsg.startsWith("Error") ? "text-red-600" : "text-green-700"}`}>
+            {certMsg}
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={downloadDgacCert}
+            disabled={regStatus !== "completed"}
+            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded text-sm font-medium"
+            title={regStatus !== "completed" ? "Disponible cuando el curso esté completado" : ""}
+          >
+            📄 Descargar Certificado DGAC
+          </button>
+          <button
+            onClick={sendDgacCertByEmail}
+            disabled={regStatus !== "completed" || sendingCert}
+            className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 text-white px-4 py-2 rounded text-sm font-medium"
+          >
+            {sendingCert ? "Enviando..." : "✉️ Enviar por Email"}
+          </button>
+          {!isAlumni && (
+            <button
+              onClick={markAsAlumni}
+              disabled={regStatus !== "completed" || markingAlumni}
+              className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white px-4 py-2 rounded text-sm font-medium"
+            >
+              {markingAlumni ? "..." : "🎓 Pasar a Egresado"}
+            </button>
+          )}
+        </div>
+        <p className="text-[11px] text-gray-400 mt-3">
+          Estas acciones están disponibles solo cuando el alumno ha completado el curso al 100%.
+          Al pasar a Egresado el alumno aparecerá en la sección <strong>Alumni</strong>.
+        </p>
       </div>
 
       {/* Password Reset & Delete */}
