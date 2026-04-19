@@ -1675,6 +1675,7 @@ d.addEventListener('mousedown',function(e){if(e.detail>1)e.preventDefault();},tr
               </div>
             ) : (() => {
               // Build module rows with exam info
+              const matchedGradeItemIds = new Set<string>();
               const moduleRows = modules.map((mod, idx) => {
                 const modLessons = lessons.filter((l) => l.module_id === mod.id);
                 const hasExam = modLessons.some((l) => l.type === "exam");
@@ -1683,6 +1684,7 @@ d.addEventListener('mousedown',function(e){if(e.detail>1)e.preventDefault();},tr
                   gi.name.toLowerCase().includes(`modulo ${idx + 1}`) ||
                   gi.name.toLowerCase().includes(`módulo ${idx + 1}`)
                 );
+                if (gradeItem) matchedGradeItemIds.add(gradeItem.id);
                 const grade = gradeItem ? studentGrades.find((g) => g.grade_item_id === gradeItem.id) : null;
                 // Fallback: get score from exam_attempts if no student_grade
                 let score: number | null = null;
@@ -1698,19 +1700,52 @@ d.addEventListener('mousedown',function(e){if(e.detail>1)e.preventDefault();},tr
                     }
                   }
                 }
-                return { mod, idx, hasExam, gradeItem, score, weight: gradeItem?.weight || 0 };
+                return {
+                  key: mod.id,
+                  title: mod.title,
+                  idx,
+                  hasExam,
+                  isPractical: false,
+                  showScore: hasExam,
+                  typeLabel: hasExam ? "Examen" : "Contenido",
+                  score,
+                  weight: gradeItem?.weight || 0,
+                };
               });
-              const examModules = moduleRows.filter((r) => r.hasExam && r.score !== null);
+
+              // Append grade_items without a matching module (practical evaluations)
+              const extraRows = gradeItems
+                .filter((gi) => !matchedGradeItemIds.has(gi.id))
+                .map((gi) => {
+                  const grade = studentGrades.find((g) => g.grade_item_id === gi.id);
+                  const isPractical = gi.is_practical === true;
+                  return {
+                    key: `gi-${gi.id}`,
+                    title: gi.name,
+                    idx: moduleRows.length, // placeholder, row number computed below
+                    hasExam: false,
+                    isPractical,
+                    showScore: true,
+                    typeLabel: isPractical ? "Práctico" : "Evaluación",
+                    score: grade?.score ?? null,
+                    weight: gi.weight || 0,
+                  };
+                });
+
+              // Combined rows with continuous 1-based numbering
+              const allRows = [...moduleRows, ...extraRows].map((r, i) => ({ ...r, idx: i }));
+
+              // Final score: include any scored row (exam or practical)
+              const scoredRows = allRows.filter((r) => r.showScore && r.score !== null);
               let finalScore: number | null = null;
-              if (examModules.length > 0) {
-                if (examModules.length === 1) {
-                  finalScore = examModules[0].score;
-                } else {
-                  let wSum = 0, totalW = 0;
-                  examModules.forEach((e) => { wSum += e.score! * e.weight; totalW += e.weight; });
-                  finalScore = totalW > 0 ? Math.round((wSum / totalW) * 100) / 100 : 0;
-                }
+              if (scoredRows.length === 1) {
+                finalScore = scoredRows[0].score;
+              } else if (scoredRows.length > 1) {
+                let wSum = 0, totalW = 0;
+                scoredRows.forEach((e) => { wSum += e.score! * e.weight; totalW += e.weight; });
+                finalScore = totalW > 0 ? Math.round((wSum / totalW) * 100) / 100 : 0;
               }
+              const examModules = scoredRows; // kept for label logic below
 
               return (
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -1728,19 +1763,30 @@ d.addEventListener('mousedown',function(e){if(e.detail>1)e.preventDefault();},tr
                       </tr>
                     </thead>
                     <tbody>
-                      {moduleRows.map((row) => (
-                        <tr key={row.mod.id} className={`border-t border-gray-50 ${row.hasExam ? "bg-blue-50/30" : ""}`}>
+                      {allRows.map((row) => {
+                        const highlightClass = row.hasExam
+                          ? "bg-blue-50/30"
+                          : row.isPractical
+                          ? "bg-emerald-50/30"
+                          : "";
+                        const tipoClass = row.hasExam
+                          ? "bg-blue-100 text-blue-700"
+                          : row.isPractical
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-gray-100 text-gray-500";
+                        return (
+                        <tr key={row.key} className={`border-t border-gray-50 ${highlightClass}`}>
                           <td className="px-6 py-3 text-gray-700">
                             <span className="text-gray-400 mr-1">{row.idx + 1}.</span>
-                            {row.mod.title}
+                            {row.title}
                           </td>
                           <td className="px-6 py-3 text-center">
-                            <span className={`text-xs font-medium px-2 py-0.5 rounded ${row.hasExam ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"}`}>
-                              {row.hasExam ? "Examen" : "Contenido"}
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded ${tipoClass}`}>
+                              {row.typeLabel}
                             </span>
                           </td>
                           <td className="px-6 py-3 text-center">
-                            {row.hasExam ? (
+                            {row.showScore ? (
                               row.score !== null ? (
                                 <span className={`font-bold ${row.score >= 80 ? "text-green-600" : "text-red-600"}`}>{row.score}%</span>
                               ) : (
@@ -1751,7 +1797,7 @@ d.addEventListener('mousedown',function(e){if(e.detail>1)e.preventDefault();},tr
                             )}
                           </td>
                           <td className="px-6 py-3 text-center">
-                            {row.hasExam ? (
+                            {row.showScore ? (
                               row.score !== null ? (
                                 <span className={`text-xs font-medium px-2 py-1 rounded ${row.score >= 80 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
                                   {row.score >= 80 ? "Aprobado" : "Reprobado"}
@@ -1764,7 +1810,8 @@ d.addEventListener('mousedown',function(e){if(e.detail>1)e.preventDefault();},tr
                             )}
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
 
