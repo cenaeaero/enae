@@ -9,6 +9,7 @@ type Registration = {
   first_name: string;
   last_name: string;
   email: string;
+  company?: string | null;
   status: string;
   created_at: string;
   course_title?: string;
@@ -50,6 +51,8 @@ export default function AdminRegistrosPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [courseFilter, setCourseFilter] = useState("all");
+  const [companyFilter, setCompanyFilter] = useState("all");
 
   useEffect(() => {
     loadRegistrations();
@@ -69,6 +72,7 @@ export default function AdminRegistrosPage() {
             first_name: r.first_name,
             last_name: r.last_name,
             email: r.email,
+            company: r.company,
             status: r.status,
             created_at: r.created_at,
             course_title: r.courses?.title,
@@ -82,7 +86,7 @@ export default function AdminRegistrosPage() {
     if (baseRegs.length === 0) {
       const { data } = await supabase
         .from("registrations")
-        .select("id, first_name, last_name, email, status, created_at, course_id, courses(title)")
+        .select("id, first_name, last_name, email, company, status, created_at, course_id, courses(title)")
         .order("created_at", { ascending: false });
 
       if (data) {
@@ -91,6 +95,7 @@ export default function AdminRegistrosPage() {
           first_name: r.first_name,
           last_name: r.last_name,
           email: r.email,
+          company: r.company,
           status: r.status,
           created_at: r.created_at,
           course_title: r.courses?.title,
@@ -225,16 +230,30 @@ export default function AdminRegistrosPage() {
     setUpdatingId(null);
   }
 
+  const uniqueCourses = Array.from(
+    new Set(registrations.map((r) => r.course_title).filter(Boolean) as string[])
+  ).sort();
+
+  const uniqueCompanies = Array.from(
+    new Set(
+      registrations
+        .map((r) => (r.company || "").trim())
+        .filter((c) => c.length > 0)
+    )
+  ).sort();
+
   const filtered = registrations.filter((r) => {
-    const matchesFilter = filter === "all" || r.status === filter;
-    if (!matchesFilter) return false;
+    if (filter !== "all" && r.status !== filter) return false;
+    if (courseFilter !== "all" && r.course_title !== courseFilter) return false;
+    if (companyFilter !== "all" && (r.company || "").trim() !== companyFilter) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return (
       r.first_name.toLowerCase().includes(q) ||
       r.last_name.toLowerCase().includes(q) ||
       r.email.toLowerCase().includes(q) ||
-      (r.course_title || "").toLowerCase().includes(q)
+      (r.course_title || "").toLowerCase().includes(q) ||
+      (r.company || "").toLowerCase().includes(q)
     );
   });
 
@@ -270,15 +289,43 @@ export default function AdminRegistrosPage() {
         </span>
       </div>
 
-      {/* Search */}
-      <div className="mb-4">
+      {/* Search + dropdown filters */}
+      <div className="mb-4 flex flex-wrap gap-3">
         <input
           type="text"
-          placeholder="Buscar por nombre, email o curso..."
+          placeholder="Buscar por nombre, email, curso o empresa..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full md:w-96 border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0072CE] focus:border-transparent"
+          className="flex-1 min-w-[240px] md:max-w-md border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0072CE] focus:border-transparent"
         />
+        <select
+          value={courseFilter}
+          onChange={(e) => setCourseFilter(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0072CE] focus:border-transparent min-w-[180px]"
+        >
+          <option value="all">Todos los cursos</option>
+          {uniqueCourses.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        <select
+          value={companyFilter}
+          onChange={(e) => setCompanyFilter(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0072CE] focus:border-transparent min-w-[180px]"
+        >
+          <option value="all">Todas las empresas</option>
+          {uniqueCompanies.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        {(courseFilter !== "all" || companyFilter !== "all" || search) && (
+          <button
+            onClick={() => { setCourseFilter("all"); setCompanyFilter("all"); setSearch(""); }}
+            className="text-xs text-gray-500 hover:text-[#0072CE] underline self-center"
+          >
+            Limpiar filtros
+          </button>
+        )}
       </div>
 
       {/* Filter tabs */}
@@ -357,6 +404,9 @@ export default function AdminRegistrosPage() {
                     >
                       {reg.first_name} {reg.last_name}
                     </Link>
+                    {reg.company && (
+                      <div className="text-[11px] text-gray-400 mt-0.5 truncate max-w-[180px]">{reg.company}</div>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600 hidden lg:table-cell">
                     {reg.email}
