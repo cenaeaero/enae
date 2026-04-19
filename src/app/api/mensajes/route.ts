@@ -187,7 +187,7 @@ export async function GET(request: Request) {
 
     const { data, error } = await supabaseAdmin
       .from("course_messages")
-      .select("*, profiles:sender_profile_id (first_name, last_name, role)")
+      .select("*, profiles:sender_profile_id (first_name, last_name, role, email)")
       .eq("registration_id", registrationId)
       .order("created_at", { ascending: true });
 
