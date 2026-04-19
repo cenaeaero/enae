@@ -107,8 +107,10 @@ export async function POST(request: Request) {
       verificationUrl,
     });
 
-    const safeName = `${reg.first_name || ""}_${reg.last_name || ""}`.replace(/[^A-Za-z0-9]+/g, "_");
-    const fileName = `Certificado_DGAC_${safeName}.pdf`;
+    const folio = (prof?.folio_enae || "SIN_FOLIO").replace(/[^A-Za-z0-9]+/g, "_");
+    const nombre = `${reg.first_name || ""}_${reg.last_name || ""}`.replace(/[^A-Za-z0-9]+/g, "_");
+    const curso = (c.code || c.title || "").replace(/[^A-Za-z0-9]+/g, "_");
+    const fileName = `${folio}_${nombre}_${curso}.pdf`;
 
     await sendDgacCertificate(
       `${reg.first_name} ${reg.last_name}`,

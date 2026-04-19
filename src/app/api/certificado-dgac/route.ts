@@ -131,8 +131,10 @@ export async function GET(request: Request) {
       verificationUrl,
     });
 
-    const safeName = `${reg.first_name || ""}_${reg.last_name || ""}`.replace(/[^A-Za-z0-9]+/g, "_");
-    const fileName = `Certificado_DGAC_${safeName}.pdf`;
+    const folio = (prof?.folio_enae || "SIN_FOLIO").replace(/[^A-Za-z0-9]+/g, "_");
+    const nombre = `${reg.first_name || ""}_${reg.last_name || ""}`.replace(/[^A-Za-z0-9]+/g, "_");
+    const curso = ((c as any).code || (c as any).title || "").replace(/[^A-Za-z0-9]+/g, "_");
+    const fileName = `${folio}_${nombre}_${curso}.pdf`;
 
     // Convert ArrayBuffer to Uint8Array for proper Next.js response serialization
     const bytes = new Uint8Array(pdfBuffer);

@@ -354,8 +354,9 @@ export default function AdminRegistrosPage() {
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement("a");
                     a.href = url;
-                    const safe = `${r.first_name}_${r.last_name}`.replace(/[^A-Za-z0-9]+/g, "_");
-                    a.download = `Certificado_DGAC_${safe}.pdf`;
+                    const cd = res.headers.get("Content-Disposition") || "";
+                    const match = cd.match(/filename="([^"]+)"/);
+                    a.download = match?.[1] || `Certificado_${r.first_name}_${r.last_name}.pdf`;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
