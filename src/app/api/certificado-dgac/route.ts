@@ -79,6 +79,14 @@ export async function GET(request: Request) {
     }
 
     const c: any = course;
+
+    // Gate: this DGAC certificate only applies to courses that issue it
+    if (c.has_dgac_certificate !== true) {
+      return NextResponse.json(
+        { error: "Este curso no emite Certificado DGAC." },
+        { status: 400 }
+      );
+    }
     const theoretical = c.theoretical_hours ?? c.horas_teoricas ?? 0;
     const practical = c.practical_hours ?? c.horas_practicas ?? 0;
     const totalHours = (theoretical + practical) || c.total_hours || c.hours || 34;

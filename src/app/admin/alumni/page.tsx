@@ -15,7 +15,7 @@ type AlumniRow = {
   alumni_at: string | null;
   instruction_city: string | null;
   folio_enae: string | null;
-  course: { id: string; title: string; code: string | null } | null;
+  course: { id: string; title: string; code: string | null; has_dgac_certificate?: boolean } | null;
 };
 
 type CourseOption = { id: string; title: string };
@@ -36,7 +36,7 @@ export default function AdminAlumniPage() {
     const { data } = await supabase
       .from("registrations")
       .select(
-        "id, first_name, last_name, email, final_score, grade_status, completed_at, alumni_at, instruction_city, folio_enae, course:courses(id, title, code)",
+        "id, first_name, last_name, email, final_score, grade_status, completed_at, alumni_at, instruction_city, folio_enae, course:courses(id, title, code, has_dgac_certificate)",
       )
       .eq("is_alumni", true)
       .order("alumni_at", { ascending: false });
@@ -193,24 +193,28 @@ export default function AdminAlumniPage() {
                       >
                         Ver detalle
                       </Link>
-                      <button
-                        onClick={() => downloadCert("dgac", r.id)}
-                        className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded"
-                      >
-                        DGAC
-                      </button>
+                      {r.course?.has_dgac_certificate && (
+                        <>
+                          <button
+                            onClick={() => downloadCert("dgac", r.id)}
+                            className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded"
+                          >
+                            DGAC
+                          </button>
+                          <button
+                            onClick={() => sendCert(r.id, r.email)}
+                            className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 rounded"
+                          >
+                            Enviar DGAC
+                          </button>
+                        </>
+                      )}
                       <Link
                         href={`/admin/diplomas`}
                         className="text-xs bg-amber-600 hover:bg-amber-700 text-white px-2 py-1 rounded"
                       >
                         Diploma
                       </Link>
-                      <button
-                        onClick={() => sendCert(r.id, r.email)}
-                        className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 rounded"
-                      >
-                        Enviar DGAC
-                      </button>
                       <button
                         onClick={() => unmarkAlumni(r.id)}
                         className="text-xs bg-red-50 hover:bg-red-100 text-red-700 px-2 py-1 rounded"

@@ -124,6 +124,7 @@ export default function RegistroDetailPage() {
   // Certificate / Alumni state
   const [instructionCity, setInstructionCity] = useState("");
   const [isAlumni, setIsAlumni] = useState(false);
+  const [hasDgacCert, setHasDgacCert] = useState(false);
   const [certMsg, setCertMsg] = useState("");
   const [savingCert, setSavingCert] = useState(false);
   const [sendingCert, setSendingCert] = useState(false);
@@ -145,6 +146,16 @@ export default function RegistroDetailPage() {
       setCourseId(regData.course_id || "");
       setInstructionCity(regData.instruction_city || "");
       setIsAlumni(regData.is_alumni === true);
+
+      // Load whether this course issues the DGAC certificate
+      if (regData.course_id) {
+        const { data: courseRow } = await supabase
+          .from("courses")
+          .select("has_dgac_certificate")
+          .eq("id", regData.course_id)
+          .maybeSingle();
+        setHasDgacCert((courseRow as any)?.has_dgac_certificate === true);
+      }
 
       // Try to get full profile data
       const { data: prof } = await supabase
@@ -838,21 +849,25 @@ export default function RegistroDetailPage() {
         )}
 
         <div className="flex flex-wrap gap-2">
-          <button
-            onClick={downloadDgacCert}
-            disabled={regStatus !== "completed"}
-            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded text-sm font-medium"
-            title={regStatus !== "completed" ? "Disponible cuando el curso esté completado" : ""}
-          >
-            📄 Descargar Certificado DGAC
-          </button>
-          <button
-            onClick={sendDgacCertByEmail}
-            disabled={regStatus !== "completed" || sendingCert}
-            className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 text-white px-4 py-2 rounded text-sm font-medium"
-          >
-            {sendingCert ? "Enviando..." : "✉️ Enviar por Email"}
-          </button>
+          {hasDgacCert && (
+            <>
+              <button
+                onClick={downloadDgacCert}
+                disabled={regStatus !== "completed"}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded text-sm font-medium"
+                title={regStatus !== "completed" ? "Disponible cuando el curso esté completado" : ""}
+              >
+                📄 Descargar Certificado DGAC
+              </button>
+              <button
+                onClick={sendDgacCertByEmail}
+                disabled={regStatus !== "completed" || sendingCert}
+                className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 text-white px-4 py-2 rounded text-sm font-medium"
+              >
+                {sendingCert ? "Enviando..." : "✉️ Enviar por Email"}
+              </button>
+            </>
+          )}
           {!isAlumni && (
             <button
               onClick={markAsAlumni}
@@ -864,8 +879,10 @@ export default function RegistroDetailPage() {
           )}
         </div>
         <p className="text-[11px] text-gray-400 mt-3">
-          Estas acciones están disponibles solo cuando el alumno ha completado el curso al 100%.
-          Al pasar a Egresado el alumno aparecerá en la sección <strong>Alumni</strong>.
+          {hasDgacCert
+            ? "Estas acciones están disponibles solo cuando el alumno ha completado el curso al 100%."
+            : "Este curso no emite Certificado DGAC. Solo el Curso de Operador UAS Nivel 1 tiene este certificado."}
+          {" "}Al pasar a Egresado el alumno aparecerá en la sección <strong>Alumni</strong>.
         </p>
       </div>
 
