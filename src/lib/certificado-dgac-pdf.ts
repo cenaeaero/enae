@@ -354,9 +354,10 @@ function drawFooter(
 }
 
 /**
- * Writes a paragraph with full justification (inter-word spacing adjusted so
- * every line except the last fills the full width). Returns the new y after
- * drawing.
+ * Writes a paragraph with full justification by manually distributing the
+ * residual horizontal space evenly between words on every line except the
+ * last. Works reliably with jsPDF (its native align:"justify" is inconsistent
+ * for already-wrapped lines). Returns the new y after drawing.
  */
 function writeJustified(
   doc: jsPDF,
@@ -371,12 +372,33 @@ function writeJustified(
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const isLast = i === lines.length - 1;
-    // jsPDF supports native justify for non-last lines by distributing
-    // inter-word space to fill maxWidth.
-    if (!isLast && line.trim().split(/\s+/).length > 1) {
-      doc.text(line, x, y, { align: "justify", maxWidth: width });
-    } else {
+    const words = line.split(/\s+/).filter(Boolean);
+
+    if (isLast || words.length <= 1) {
+      // Last line or single-word line → left aligned
       doc.text(line, x, y);
+    } else {
+      const wordsTotalWidth = words.reduce(
+        (sum, w) => sum + doc.getTextWidth(w),
+        0
+      );
+      // Only justify if there's meaningful slack (avoid over-stretching short lines)
+      const slack = width - wordsTotalWidth;
+      const naturalSpace = doc.getTextWidth(" ");
+      const extra = slack - naturalSpace * (words.length - 1);
+      // If the line naturally fills <75% of width, left-align instead to avoid
+      // ugly stretched gaps (typically happens on paragraphs with a hard break).
+      const fillRatio = wordsTotalWidth / width;
+      if (extra < 0 || fillRatio < 0.65) {
+        doc.text(line, x, y);
+      } else {
+        const gap = slack / (words.length - 1);
+        let xCursor = x;
+        for (let j = 0; j < words.length; j++) {
+          doc.text(words[j], xCursor, y);
+          xCursor += doc.getTextWidth(words[j]) + gap;
+        }
+      }
     }
     y += lineHeight;
   }
