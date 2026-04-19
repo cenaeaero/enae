@@ -41,12 +41,12 @@ export default function AdminLayout({
   return (
     <div className="flex min-h-[calc(100vh-130px)]">
       {/* Sidebar */}
-      <aside className="w-64 bg-[#001d3d] text-white shrink-0 hidden lg:block relative">
-        <div className="p-5 border-b border-blue-800">
+      <aside className="w-64 bg-[#001d3d] text-white shrink-0 hidden lg:flex lg:flex-col min-h-[calc(100vh-130px)]">
+        <div className="p-5 border-b border-blue-800 shrink-0">
           <h2 className="font-bold text-lg">Panel Admin</h2>
           <p className="text-xs text-blue-300 mt-0.5">ENAE Training</p>
         </div>
-        <nav className="p-3 space-y-1">
+        <nav className="p-3 space-y-1 flex-1 overflow-y-auto">
           {navItems.map((item) => {
             const isActive =
               pathname === item.href ||
@@ -67,7 +67,7 @@ export default function AdminLayout({
             );
           })}
         </nav>
-        <div className="absolute bottom-4 left-4 right-4 space-y-1">
+        <div className="p-4 border-t border-blue-800 space-y-1 shrink-0">
           <Link
             href="/"
             className="flex items-center gap-2 px-4 py-2 text-xs text-blue-300 hover:text-white transition"

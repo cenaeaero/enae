@@ -123,6 +123,7 @@ export default function RegistroDetailPage() {
 
   // Certificate / Alumni state
   const [instructionCity, setInstructionCity] = useState("");
+  const [folioEnae, setFolioEnae] = useState("");
   const [isAlumni, setIsAlumni] = useState(false);
   const [hasDgacCert, setHasDgacCert] = useState(false);
   const [certMsg, setCertMsg] = useState("");
@@ -146,6 +147,8 @@ export default function RegistroDetailPage() {
       setCourseId(regData.course_id || "");
       setInstructionCity(regData.instruction_city || "");
       setIsAlumni(regData.is_alumni === true);
+
+      // Folio lives on profiles.folio_enae (hydrated below from prof object)
 
       // Load whether this course issues the DGAC certificate
       if (regData.course_id) {
@@ -185,6 +188,7 @@ export default function RegistroDetailPage() {
       };
       setProfile(p);
       setEditForm(p);
+      setFolioEnae((prof as any)?.folio_enae || "");
       if (prof) setProfileId(prof.id);
     }
 
@@ -402,12 +406,28 @@ export default function RegistroDetailPage() {
   async function saveCertSettings() {
     setSavingCert(true);
     setCertMsg("");
-    const { error } = await supabase
+
+    // City lives on registrations, folio_enae on profiles
+    const { error: regErr } = await supabase
       .from("registrations")
       .update({ instruction_city: instructionCity || null })
       .eq("id", id);
-    if (error) setCertMsg(`Error: ${error.message}`);
-    else setCertMsg("Guardado.");
+
+    const { error: profErr } = profile.email
+      ? await supabase
+          .from("profiles")
+          .update({ folio_enae: folioEnae || null })
+          .eq("email", profile.email)
+      : { error: null };
+
+    if (regErr) setCertMsg(`Error: ${regErr.message}`);
+    else if (profErr) setCertMsg(`Error: ${profErr.message}`);
+    else {
+      setCertMsg("Guardado.");
+      // Keep the profile card in sync
+      setProfile({ ...profile, folio_enae: folioEnae });
+      setEditForm({ ...editForm, folio_enae: folioEnae });
+    }
     setSavingCert(false);
   }
 
@@ -807,31 +827,34 @@ export default function RegistroDetailPage() {
       <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
         <h2 className="font-semibold text-gray-800 mb-4">Certificaciones del Curso</h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <div>
             <label className="block text-xs text-gray-500 uppercase mb-1">Ciudad de Instrucción</label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={instructionCity}
-                onChange={(e) => setInstructionCity(e.target.value)}
-                placeholder="Ej: Antofagasta"
-                className="flex-1 border border-gray-200 rounded px-3 py-2 text-sm"
-              />
-              <button
-                onClick={saveCertSettings}
-                disabled={savingCert}
-                className="bg-[#003366] hover:bg-[#004B87] disabled:bg-gray-300 text-white px-4 py-2 rounded text-sm font-medium"
-              >
-                {savingCert ? "..." : "Guardar"}
-              </button>
-            </div>
-            <p className="text-[10px] text-gray-400 mt-1">Aparece en el Certificado DGAC como ciudad donde se cursó el programa.</p>
+            <input
+              type="text"
+              value={instructionCity}
+              onChange={(e) => setInstructionCity(e.target.value)}
+              placeholder="Ej: Antofagasta"
+              className="w-full border border-gray-200 rounded px-3 py-2 text-sm"
+            />
+            <p className="text-[10px] text-gray-400 mt-1">Se usa en el Certificado DGAC.</p>
+          </div>
+
+          <div>
+            <label className="block text-xs text-gray-500 uppercase mb-1">N° Folio</label>
+            <input
+              type="text"
+              value={folioEnae}
+              onChange={(e) => setFolioEnae(e.target.value)}
+              placeholder="Ej: 642"
+              className="w-full border border-gray-200 rounded px-3 py-2 text-sm"
+            />
+            <p className="text-[10px] text-gray-400 mt-1">Folio del Registro de Certificaciones ENAE.</p>
           </div>
 
           <div>
             <label className="block text-xs text-gray-500 uppercase mb-1">Estado</label>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 pt-2">
               <span className={`text-xs px-2 py-1 rounded ${regStatus === "completed" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}`}>
                 {regStatus === "completed" ? "Completado" : regStatus}
               </span>
@@ -839,6 +862,13 @@ export default function RegistroDetailPage() {
                 <span className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-800">Egresado</span>
               )}
             </div>
+            <button
+              onClick={saveCertSettings}
+              disabled={savingCert}
+              className="mt-2 bg-[#003366] hover:bg-[#004B87] disabled:bg-gray-300 text-white px-4 py-2 rounded text-sm font-medium w-full"
+            >
+              {savingCert ? "..." : "💾 Guardar Ciudad y Folio"}
+            </button>
           </div>
         </div>
 
