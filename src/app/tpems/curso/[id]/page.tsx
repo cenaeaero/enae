@@ -1333,7 +1333,7 @@ export default function TpemsCourseDetail() {
         )}
 
         {/* ============ MODULES TAB ============ */}
-        {activeTab === "modules" && modules.length > 0 && (() => {
+        {activeTab === "modules" && modules.length > 0 && !courseCompleted && (() => {
           const moduleLessons = selectedModuleId ? lessons.filter((l) => l.module_id === selectedModuleId) : [];
 
           function getLessonStatus(lessonId: string) {

@@ -24,6 +24,17 @@ export default function CalificacionesPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [search, setSearch] = useState("");
+
+  const searchNorm = search.trim().toLowerCase();
+  const filteredStudents = searchNorm
+    ? students.filter(
+        (s) =>
+          s.name.toLowerCase().includes(searchNorm) ||
+          s.email.toLowerCase().includes(searchNorm) ||
+          (s.company ?? "").toLowerCase().includes(searchNorm)
+      )
+    : students;
 
   useEffect(() => {
     let cancelled = false;
@@ -306,8 +317,8 @@ export default function CalificacionesPage() {
 
       {/* Course selector */}
       <div className="bg-white rounded-lg border border-gray-200 p-5 mb-6">
-        <div className="flex items-end gap-4">
-          <div className="flex-1">
+        <div className="flex items-end gap-4 flex-wrap">
+          <div className="flex-1 min-w-[240px]">
             <label className="block text-xs text-gray-500 uppercase mb-1">
               Seleccionar Curso
             </label>
@@ -315,6 +326,7 @@ export default function CalificacionesPage() {
               value={selectedCourse}
               onChange={(e) => {
                 setSelectedCourse(e.target.value);
+                setSearch("");
                 if (e.target.value) loadGrades(e.target.value);
               }}
               className="w-full border border-gray-200 rounded px-3 py-2 text-sm"
@@ -328,6 +340,20 @@ export default function CalificacionesPage() {
             </select>
           </div>
           {selectedCourse && students.length > 0 && (
+            <div className="flex-1 min-w-[240px]">
+              <label className="block text-xs text-gray-500 uppercase mb-1">
+                Buscar Alumno
+              </label>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Nombre, email o empresa..."
+                className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#0072CE]"
+              />
+            </div>
+          )}
+          {selectedCourse && students.length > 0 && (
             <button
               onClick={saveAll}
               disabled={saving}
@@ -337,6 +363,11 @@ export default function CalificacionesPage() {
             </button>
           )}
         </div>
+        {selectedCourse && students.length > 0 && searchNorm && (
+          <p className="text-xs text-gray-500 mt-2">
+            Mostrando {filteredStudents.length} de {students.length} alumnos
+          </p>
+        )}
       </div>
 
       {message && (
@@ -394,7 +425,17 @@ export default function CalificacionesPage() {
               </tr>
             </thead>
             <tbody>
-              {students.map((student) => {
+              {filteredStudents.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={gradeItems.length + 3}
+                    className="px-4 py-8 text-center text-gray-400 text-sm"
+                  >
+                    No se encontraron alumnos que coincidan con &ldquo;{search}&rdquo;
+                  </td>
+                </tr>
+              ) : null}
+              {filteredStudents.map((student) => {
                 const final_ = calculateFinal(student.grades);
                 const status =
                   final_ !== null
