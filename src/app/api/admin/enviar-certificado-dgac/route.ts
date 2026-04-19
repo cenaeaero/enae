@@ -25,11 +25,17 @@ export async function POST(request: Request) {
 
     const { data: reg } = await supabaseAdmin
       .from("registrations")
-      .select("id, first_name, last_name, email, rut, instruction_city, folio_enae, created_at, completed_at, status, course_id")
+      .select("id, first_name, last_name, email, instruction_city, created_at, completed_at, status, course_id")
       .eq("id", registration_id)
       .maybeSingle();
 
     if (!reg) return NextResponse.json({ error: "Registro no encontrado" }, { status: 404 });
+
+    const { data: prof } = await supabaseAdmin
+      .from("profiles")
+      .select("rut, folio_enae")
+      .eq("email", reg.email)
+      .maybeSingle();
 
     // STRICT GATE: all grade_items (including practical) must have a score.
     const grades = await allGradesEntered(reg.id, reg.course_id);
@@ -68,13 +74,13 @@ export async function POST(request: Request) {
 
     const pdfBuffer = generateDgacCertificatePdf({
       studentName: `${reg.first_name || ""} ${reg.last_name || ""}`.trim(),
-      rut: reg.rut || null,
+      rut: prof?.rut || null,
       courseName: course.title,
       city: reg.instruction_city || "Antofagasta",
       startDate: startAt,
       endDate: completedAt,
       totalHours,
-      folio: reg.folio_enae || null,
+      folio: prof?.folio_enae || null,
       year: new Date(completedAt).getFullYear(),
       habilitaciones: course.dgac_habilitaciones || null,
       contentList,

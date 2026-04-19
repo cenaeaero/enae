@@ -19,14 +19,21 @@ export async function GET(request: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user?.email) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
 
-    // Load registration
+    // Load registration (rut and folio_enae live on profiles, not registrations)
     const { data: reg } = await supabaseAdmin
       .from("registrations")
-      .select("id, first_name, last_name, email, rut, instruction_city, organization, folio_enae, created_at, completed_at, status, final_score, course_id")
+      .select("id, first_name, last_name, email, instruction_city, organization, created_at, completed_at, status, final_score, course_id")
       .eq("id", registrationId)
       .maybeSingle();
 
     if (!reg) return NextResponse.json({ error: "Registro no encontrado" }, { status: 404 });
+
+    // Load RUT + folio from profiles by email
+    const { data: prof } = await supabaseAdmin
+      .from("profiles")
+      .select("rut, folio_enae")
+      .eq("email", reg.email)
+      .maybeSingle();
 
     const isOwner = reg.email === user.email;
     let isAdmin = false;
@@ -84,13 +91,13 @@ export async function GET(request: Request) {
 
     const pdfBuffer = generateDgacCertificatePdf({
       studentName: `${reg.first_name || ""} ${reg.last_name || ""}`.trim(),
-      rut: reg.rut || null,
+      rut: prof?.rut || null,
       courseName: course.title,
       city: reg.instruction_city || "Antofagasta",
       startDate: startAt,
       endDate: completedAt,
       totalHours,
-      folio: reg.folio_enae || null,
+      folio: prof?.folio_enae || null,
       year: new Date(completedAt).getFullYear(),
       habilitaciones: course.dgac_habilitaciones || null,
       contentList,
@@ -99,10 +106,13 @@ export async function GET(request: Request) {
     const safeName = `${reg.first_name || ""}_${reg.last_name || ""}`.replace(/[^A-Za-z0-9]+/g, "_");
     const fileName = `Certificado_DGAC_${safeName}.pdf`;
 
-    return new NextResponse(pdfBuffer as any, {
+    // Convert ArrayBuffer to Uint8Array for proper Next.js response serialization
+    const bytes = new Uint8Array(pdfBuffer);
+    return new NextResponse(bytes, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
+        "Content-Length": String(bytes.byteLength),
         "Content-Disposition": `inline; filename="${fileName}"`,
         "Cache-Control": "private, no-cache",
       },
