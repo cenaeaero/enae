@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase-service";
 import { createSupabaseServer } from "@/lib/supabase-server";
 import { generateDgacCertificatePdf } from "@/lib/certificado-dgac-pdf";
 import { sendDgacCertificate } from "@/lib/email";
+import { allGradesEntered } from "@/lib/grades-helper";
 
 export async function POST(request: Request) {
   try {
@@ -29,8 +30,19 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (!reg) return NextResponse.json({ error: "Registro no encontrado" }, { status: 404 });
-    if (reg.status !== "completed") {
-      return NextResponse.json({ error: "El alumno aún no ha completado el curso" }, { status: 400 });
+
+    // STRICT GATE: all grade_items (including practical) must have a score.
+    const grades = await allGradesEntered(reg.id, reg.course_id);
+    if (!grades.allGraded) {
+      return NextResponse.json(
+        {
+          error: "No se puede enviar el certificado: faltan calificaciones por ingresar.",
+          missing: grades.missing,
+          filled: grades.filled,
+          total: grades.total,
+        },
+        { status: 400 }
+      );
     }
 
     const { data: course } = await supabaseAdmin

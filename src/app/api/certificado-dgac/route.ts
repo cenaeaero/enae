@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-service";
 import { createSupabaseServer } from "@/lib/supabase-server";
 import { generateDgacCertificatePdf } from "@/lib/certificado-dgac-pdf";
+import { allGradesEntered } from "@/lib/grades-helper";
 
 // GET: download DGAC certificate as PDF.
 // Access: admins can download any; students can download only their own completed courses.
@@ -41,9 +42,21 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
-    // Students can only download their own completed courses
-    if (isOwner && reg.status !== "completed") {
-      return NextResponse.json({ error: "Curso aún no completado" }, { status: 400 });
+    // STRICT GATE: block download until every grade_item has a score
+    // (including the practical evaluation entered manually). Apply to both
+    // admin and student — a certificate for an incomplete record must not
+    // leave the platform.
+    const grades = await allGradesEntered(reg.id, reg.course_id);
+    if (!grades.allGraded) {
+      return NextResponse.json(
+        {
+          error: "No se puede generar el certificado: faltan calificaciones por ingresar.",
+          missing: grades.missing,
+          filled: grades.filled,
+          total: grades.total,
+        },
+        { status: 400 }
+      );
     }
 
     // Load course

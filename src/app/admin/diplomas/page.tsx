@@ -123,11 +123,12 @@ export default function AdminDiplomasPage() {
             ? Math.round((completedActivities / totalActivities) * 100)
             : 0;
 
-          // Diploma can be issued only if:
-          // 1. Student has completed 100% of activities (or course has no activities yet — legacy)
-          // 2. Grade is approved (final_score >= 80)
+          // Diploma can be issued only when grade_status is strictly "approved",
+          // which is set by auto-calificar ONLY when every grade_item (including
+          // the practical evaluation) has a score AND final_score >= 80.
+          // An incomplete grade book (missing practical) must never produce a diploma.
           const has100Progress = totalActivities === 0 || progressPercent === 100;
-          const gradeOk = r.grade_status === "approved" || (r.final_score !== null && r.final_score >= 80);
+          const gradeOk = r.grade_status === "approved";
           const canIssueDiploma = has100Progress && gradeOk;
 
           return {

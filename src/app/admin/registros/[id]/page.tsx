@@ -401,7 +401,25 @@ export default function RegistroDetailPage() {
   }
 
   async function downloadDgacCert() {
-    window.open(`/api/certificado-dgac?registration_id=${id}`, "_blank");
+    setCertMsg("");
+    try {
+      const res = await fetch(`/api/certificado-dgac?registration_id=${id}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const missingList = Array.isArray(data.missing) && data.missing.length > 0
+          ? ` Falta(n): ${data.missing.join(", ")}`
+          : "";
+        setCertMsg(`Error: ${data.error || "No se pudo generar"}.${missingList}`);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+      // Revoke after a delay so the new tab has time to load
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err: any) {
+      setCertMsg(`Error: ${err.message || "Sin conexión"}`);
+    }
   }
 
   async function sendDgacCertByEmail() {
@@ -415,8 +433,12 @@ export default function RegistroDetailPage() {
         body: JSON.stringify({ registration_id: id }),
       });
       const json = await res.json();
-      if (!res.ok) setCertMsg(`Error: ${json.error || "No se pudo enviar"}`);
-      else setCertMsg(`Certificado enviado a ${json.sent_to}.`);
+      if (!res.ok) {
+        const missingList = Array.isArray(json.missing) && json.missing.length > 0
+          ? ` Falta(n): ${json.missing.join(", ")}`
+          : "";
+        setCertMsg(`Error: ${json.error || "No se pudo enviar"}.${missingList}`);
+      } else setCertMsg(`Certificado enviado a ${json.sent_to}.`);
     } catch (err: any) {
       setCertMsg(`Error: ${err.message || "Sin conexion"}`);
     }
