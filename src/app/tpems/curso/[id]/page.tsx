@@ -1251,8 +1251,20 @@ export default function TpemsCourseDetail() {
                         city: apendiceForm.city || null,
                       }).eq("email", user.email);
                     }
+
+                    // Get/create verification code
+                    const prepRes = await fetch("/api/apendice-c/prepare", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ registration_id: course.id }),
+                    });
+                    const prepJson = await prepRes.json();
+                    if (!prepRes.ok) throw new Error(prepJson?.error || "Error preparando codigo");
+                    const verificationCode = prepJson.verification_code as string;
+                    const verificationUrl = `${window.location.origin}/verify/apendice-c/${verificationCode}`;
+
                     const { generateApendiceCPDF } = await import("@/lib/apendice-c-pdf");
-                    const pdf = generateApendiceCPDF({
+                    const pdf = await generateApendiceCPDF({
                       student_name: course.student_name,
                       rut: apendiceForm.rut,
                       profession: apendiceForm.profession,
@@ -1260,6 +1272,8 @@ export default function TpemsCourseDetail() {
                       city: apendiceForm.city,
                       date: new Date(),
                       habilitation_text: course.apendice_c_habilitation_text || "",
+                      verification_code: verificationCode,
+                      verification_url: verificationUrl,
                     });
                     pdf.save(`Apendice_C_${(course.student_name || "alumno").replace(/\s+/g, "_")}.pdf`);
                     setApendiceMsg("PDF descargado. Fírmalo, ponle la huella y súbelo aquí.");

@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import QRCode from "qrcode";
 
 export type ApendiceCData = {
   student_name: string;
@@ -9,6 +10,8 @@ export type ApendiceCData = {
   date: Date;
   habilitation_text: string;
   company_name?: string;
+  verification_code: string;
+  verification_url: string;
 };
 
 const MONTHS = [
@@ -16,9 +19,10 @@ const MONTHS = [
   "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
 ];
 
-export function generateApendiceCPDF(data: ApendiceCData): jsPDF {
+export async function generateApendiceCPDF(data: ApendiceCData): Promise<jsPDF> {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
   const pw = doc.internal.pageSize.getWidth();
+  const ph = doc.internal.pageSize.getHeight();
 
   const left = 25;
   const right = pw - 25;
@@ -35,58 +39,58 @@ export function generateApendiceCPDF(data: ApendiceCData): jsPDF {
   doc.text("DAN 151", left, 20);
 
   // Centered header
-  doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
   doc.text("APÉNDICE C", pw / 2, 50, { align: "center" });
 
   doc.setFontSize(13);
-  doc.text("DECLARACIÓN JURADA SIMPLE DE HABER RECIBIDO INSTRUCCIÓN", pw / 2, 62, { align: "center" });
+  doc.text("DECLARACIÓN JURADA SIMPLE DE HABER RECIBIDO INSTRUCCIÓN", pw / 2, 62, {
+    align: "center",
+    maxWidth: contentW,
+  });
 
-  // Lugar y fecha
+  // Body — justified paragraphs via maxWidth + align: "justify"
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
   let y = 82;
 
   const cityVal = data.city || "________________";
-  doc.text(`En  ${cityVal}  a  ${day}  de  ${month}  de  ${year}`, left, y);
-
-  y += 12;
   const nameVal = data.student_name || "_____________________________";
   const profVal = data.profession || "_____________________________";
-  doc.text(`Yo, ${nameVal}, profesión  ${profVal},`, left, y);
-  y += 7;
   const addrVal = data.address || "_____________________________";
-  doc.text(`domiciliado en  ${addrVal}, , Ciudad .  ${cityVal}`, left, y);
 
-  y += 14;
-  doc.text("DECLARO BAJO JURAMENTO que he recibido instrucción teórica y práctica del curso:", left, y);
-
-  // Habilitation text (numbered)
+  // Lugar y fecha (short — left align)
+  doc.text(`En  ${cityVal}  a  ${day}  de  ${month}  de  ${year}`, left, y, { maxWidth: contentW });
   y += 12;
+
+  // Datos personales — justify
+  const personalLine = `Yo, ${nameVal}, profesión ${profVal}, domiciliado en ${addrVal}, Ciudad ${cityVal}.`;
+  doc.text(personalLine, left, y, { maxWidth: contentW, align: "justify" });
+  y += doc.getTextDimensions(doc.splitTextToSize(personalLine, contentW)).h + 4;
+
+  // Declaración — justify
+  const declaration = "DECLARO BAJO JURAMENTO que he recibido instrucción teórica y práctica del curso:";
+  doc.text(declaration, left, y, { maxWidth: contentW, align: "justify" });
+  y += doc.getTextDimensions(doc.splitTextToSize(declaration, contentW)).h + 6;
+
+  // Habilitation (bold + justify)
   doc.setFont("helvetica", "bold");
   const habText = `1.- ${data.habilitation_text || ""}`.trim();
-  const habLines = doc.splitTextToSize(habText, contentW);
-  doc.text(habLines, left, y);
-  y += habLines.length * 6;
+  doc.text(habText, left, y, { maxWidth: contentW, align: "justify" });
+  y += doc.getTextDimensions(doc.splitTextToSize(habText, contentW)).h + 6;
 
-  // Empresa
-  y += 10;
+  // Empresa — justify
   doc.setFont("helvetica", "normal");
   const empresaLine = `Empresa con Certificado de Operador Aéreo (AOC) que impartió la instrucción: ${company}`;
-  const empresaLines = doc.splitTextToSize(empresaLine, contentW);
-  doc.text(empresaLines, left, y);
-  y += empresaLines.length * 6;
+  doc.text(empresaLine, left, y, { maxWidth: contentW, align: "justify" });
+  y += doc.getTextDimensions(doc.splitTextToSize(empresaLine, contentW)).h + 6;
 
-  // Firma / RUT / Huella area (right side)
-  const sigY = y + 50;
+  // Firma / RUT / Huella block (right side)
+  const sigY = Math.max(y + 50, ph - 100);
   const sigAreaX = right - 85;
 
-  // Firma line
-  doc.setFont("helvetica", "normal");
   doc.text("Firma:", sigAreaX, sigY);
   doc.line(sigAreaX + 14, sigY + 1, sigAreaX + 60, sigY + 1);
 
-  // RUT line
   const rutY = sigY + 10;
   const rutVal = data.rut || "________________";
   doc.text(`RUT:  ${rutVal}`, sigAreaX, rutY);
@@ -105,8 +109,29 @@ export function generateApendiceCPDF(data: ApendiceCData): jsPDF {
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(11);
 
+  // QR de verificación DGAC (bottom-left, above footer)
+  try {
+    const qrDataUrl = await QRCode.toDataURL(data.verification_url, {
+      errorCorrectionLevel: "M",
+      margin: 1,
+      width: 200,
+    });
+    const qrSize = 28;
+    const qrX = left;
+    const qrY = ph - qrSize - 25;
+    doc.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
+
+    doc.setFontSize(8);
+    doc.setTextColor(80, 80, 80);
+    doc.text("Verificación DGAC", qrX + qrSize + 4, qrY + 6);
+    doc.setFontSize(7);
+    doc.text(`Código: ${data.verification_code}`, qrX + qrSize + 4, qrY + 12);
+    doc.text("Escanea el QR para verificar la autenticidad", qrX + qrSize + 4, qrY + 18, { maxWidth: contentW - qrSize - 10 });
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(11);
+  } catch {}
+
   // Footer
-  const ph = doc.internal.pageSize.getHeight();
   doc.setFontSize(9);
   doc.setTextColor(80, 80, 80);
   doc.text("Ap.C. 1", left, ph - 15);
