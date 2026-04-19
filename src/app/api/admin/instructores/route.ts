@@ -38,7 +38,9 @@ export async function POST(request: Request) {
 
   const email = String(instructor_email).trim().toLowerCase();
 
-  // Ensure profile exists with role=instructor (or upgrade if already exists)
+  // Ensure profile exists with role=instructor (or upgrade if already exists).
+  // profiles.first_name / last_name are NOT NULL so we fill them with placeholders
+  // derived from the email — the instructor can update them when they log in.
   const { data: existingProfile } = await supabaseAdmin
     .from("profiles")
     .select("email, role")
@@ -46,7 +48,17 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   if (!existingProfile) {
-    await supabaseAdmin.from("profiles").insert({ email, role: "instructor" });
+    const localPart = email.split("@")[0] || "instructor";
+    const placeholder = localPart.replace(/[._-]+/g, " ").trim() || "Instructor";
+    const { error: profileErr } = await supabaseAdmin.from("profiles").insert({
+      email,
+      first_name: placeholder,
+      last_name: "(Instructor)",
+      role: "instructor",
+    });
+    if (profileErr) {
+      return NextResponse.json({ error: `No se pudo crear el perfil: ${profileErr.message}` }, { status: 500 });
+    }
   } else if (existingProfile.role !== "admin" && existingProfile.role !== "instructor") {
     await supabaseAdmin.from("profiles").update({ role: "instructor" }).eq("email", email);
   }
