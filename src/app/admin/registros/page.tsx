@@ -56,6 +56,7 @@ export default function AdminRegistrosPage() {
   const [companyFilter, setCompanyFilter] = useState("all");
   const [bulkDownloading, setBulkDownloading] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadRegistrations();
@@ -333,12 +334,15 @@ export default function AdminRegistrosPage() {
         {courseFilter !== "all" && (
           <button
             onClick={async () => {
-              const targets = filtered.filter((r) => r.status === "confirmed" || r.status === "completed");
+              const pool = filtered.filter((r) => r.status === "confirmed" || r.status === "completed");
+              const targets = selectedIds.size > 0
+                ? pool.filter((r) => selectedIds.has(r.id))
+                : pool;
               if (targets.length === 0) {
-                alert("No hay alumnos confirmados o completados para este curso.");
+                alert(selectedIds.size > 0 ? "Ningún alumno seleccionado tiene estado confirmado o completado." : "No hay alumnos confirmados o completados para este curso.");
                 return;
               }
-              if (!confirm(`Descargar ${targets.length} certificado(s) DGAC sin validar calificaciones (para firma presencial)?`)) return;
+              if (!confirm(`Descargar ${targets.length} certificado(s) DGAC${selectedIds.size === 0 ? " (todos)" : " (seleccionados)"}?`)) return;
               setBulkDownloading(true);
               setBulkProgress({ done: 0, total: targets.length });
               let errors = 0;
@@ -379,7 +383,9 @@ export default function AdminRegistrosPage() {
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
             {bulkDownloading && bulkProgress
               ? `Descargando ${bulkProgress.done}/${bulkProgress.total}...`
-              : "Descargar certificados (firma presencial)"}
+              : selectedIds.size > 0
+              ? `Descargar certificados (${selectedIds.size} seleccionados)`
+              : "Descargar certificados (todos)"}
           </button>
         )}
       </div>
@@ -425,6 +431,23 @@ export default function AdminRegistrosPage() {
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 text-left text-sm text-gray-500">
+                {courseFilter !== "all" && (
+                  <th className="pl-4 py-3 w-8">
+                    <input
+                      type="checkbox"
+                      className="rounded border-gray-300 text-[#0072CE] focus:ring-[#0072CE]"
+                      checked={filtered.length > 0 && filtered.every((r) => selectedIds.has(r.id))}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedIds(new Set(filtered.map((r) => r.id)));
+                        } else {
+                          setSelectedIds(new Set());
+                        }
+                      }}
+                      title="Seleccionar todos"
+                    />
+                  </th>
+                )}
                 <th className="px-4 py-3 font-medium">Nombre</th>
                 <th className="px-4 py-3 font-medium hidden lg:table-cell">Email</th>
                 <th className="px-4 py-3 font-medium hidden md:table-cell">Curso</th>
@@ -452,8 +475,25 @@ export default function AdminRegistrosPage() {
                 return (
                 <tr
                   key={reg.id}
-                  className="border-t border-gray-100 hover:bg-gray-50"
+                  className={`border-t border-gray-100 hover:bg-gray-50 ${selectedIds.has(reg.id) ? "bg-blue-50" : ""}`}
                 >
+                  {courseFilter !== "all" && (
+                    <td className="pl-4 py-3 w-8">
+                      <input
+                        type="checkbox"
+                        className="rounded border-gray-300 text-[#0072CE] focus:ring-[#0072CE]"
+                        checked={selectedIds.has(reg.id)}
+                        onChange={(e) => {
+                          setSelectedIds((prev) => {
+                            const next = new Set(prev);
+                            if (e.target.checked) next.add(reg.id);
+                            else next.delete(reg.id);
+                            return next;
+                          });
+                        }}
+                      />
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-sm font-medium">
                     <div className="flex items-center gap-2">
                       <Link
