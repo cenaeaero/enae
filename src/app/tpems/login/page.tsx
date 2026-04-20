@@ -1,10 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { createClient } from "@supabase/supabase-js";
 import Image from "next/image";
+import Script from "next/script";
+
+declare global {
+  interface Window {
+    turnstile: { render: (el: HTMLElement, opts: object) => string; reset: (id: string) => void; getResponse: (id: string) => string | undefined };
+    onTurnstileLoad: () => void;
+  }
+}
 
 // Separate client using implicit flow for password reset emails.
 // The default createBrowserClient forces PKCE, which requires a code verifier
@@ -24,6 +32,22 @@ export default function TpemsLoginPage() {
   const [loading, setLoading] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [tsToken, setTsToken] = useState("");
+  const tsRef = useRef<HTMLDivElement>(null);
+  const tsWidgetId = useRef<string>("");
+
+  useEffect(() => {
+    window.onTurnstileLoad = () => {
+      if (tsRef.current && !tsWidgetId.current) {
+        tsWidgetId.current = window.turnstile.render(tsRef.current, {
+          sitekey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
+          theme: "light",
+          callback: (token: string) => setTsToken(token),
+          "expired-callback": () => setTsToken(""),
+        });
+      }
+    };
+  }, []);
 
   async function handleForgotPassword() {
     if (!email) {
@@ -47,9 +71,29 @@ export default function TpemsLoginPage() {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+
+    if (!tsToken) {
+      setError("Completa la verificación de seguridad.");
+      return;
+    }
+
     setLoading(true);
 
     try {
+      const tsRes = await fetch("/api/turnstile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: tsToken }),
+      });
+      const tsData = await tsRes.json();
+      if (!tsData.success) {
+        setError("Verificación de seguridad fallida. Intenta nuevamente.");
+        if (tsWidgetId.current) window.turnstile.reset(tsWidgetId.current);
+        setTsToken("");
+        setLoading(false);
+        return;
+      }
+
       const { error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -61,6 +105,8 @@ export default function TpemsLoginPage() {
             ? "Credenciales incorrectas. Verifica tu email y contraseña."
             : authError.message
         );
+        if (tsWidgetId.current) window.turnstile.reset(tsWidgetId.current);
+        setTsToken("");
         setLoading(false);
         return;
       }
@@ -69,12 +115,18 @@ export default function TpemsLoginPage() {
       window.location.href = "/tpems";
     } catch (err: any) {
       setError("Error de conexion. Intenta nuevamente.");
+      if (tsWidgetId.current) window.turnstile.reset(tsWidgetId.current);
+      setTsToken("");
       setLoading(false);
     }
   }
 
   return (
     <div className="min-h-screen bg-[#ECEFF1] flex flex-col items-center justify-center px-4">
+      <Script
+        src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad"
+        strategy="afterInteractive"
+      />
       {/* Logo */}
       <div className="mb-10 flex items-center gap-3">
         <Image
@@ -158,9 +210,12 @@ export default function TpemsLoginPage() {
             </div>
           )}
 
+          {/* Turnstile widget */}
+          <div ref={tsRef} className="flex justify-center" />
+
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !tsToken}
             className="w-full py-3.5 bg-[#4FC3F7] hover:bg-[#29B6F6] disabled:bg-[#B3E5FC] text-white font-medium rounded-md transition text-base"
           >
             {loading ? "Ingresando..." : "Log in"}

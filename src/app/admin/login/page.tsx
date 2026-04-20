@@ -1,9 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import Image from "next/image";
+import Script from "next/script";
+
+declare global {
+  interface Window {
+    turnstile: { render: (el: HTMLElement, opts: object) => string; reset: (id: string) => void; getResponse: (id: string) => string | undefined };
+    onTurnstileLoad: () => void;
+  }
+}
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -11,8 +19,23 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [tsToken, setTsToken] = useState("");
+  const tsRef = useRef<HTMLDivElement>(null);
+  const tsWidgetId = useRef<string>("");
+
+  useEffect(() => {
+    window.onTurnstileLoad = () => {
+      if (tsRef.current && !tsWidgetId.current) {
+        tsWidgetId.current = window.turnstile.render(tsRef.current, {
+          sitekey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
+          theme: "light",
+          callback: (token: string) => setTsToken(token),
+          "expired-callback": () => setTsToken(""),
+        });
+      }
+    };
+  }, []);
 
   async function handleGoogleLogin() {
     setError("");
@@ -32,9 +55,29 @@ export default function AdminLoginPage() {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+
+    if (!tsToken) {
+      setError("Completa la verificación de seguridad.");
+      return;
+    }
+
     setLoading(true);
 
     try {
+      const tsRes = await fetch("/api/turnstile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: tsToken }),
+      });
+      const tsData = await tsRes.json();
+      if (!tsData.success) {
+        setError("Verificación de seguridad fallida. Intenta nuevamente.");
+        if (tsWidgetId.current) window.turnstile.reset(tsWidgetId.current);
+        setTsToken("");
+        setLoading(false);
+        return;
+      }
+
       const { error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -46,21 +89,28 @@ export default function AdminLoginPage() {
             ? "Credenciales incorrectas. Verifica tu email y contrasena."
             : authError.message
         );
+        if (tsWidgetId.current) window.turnstile.reset(tsWidgetId.current);
+        setTsToken("");
         setLoading(false);
         return;
       }
 
-      // Small delay to ensure cookies are set before redirect
       await new Promise((r) => setTimeout(r, 500));
       window.location.href = "/admin";
     } catch (err: any) {
       setError("Error de conexion. Intenta nuevamente.");
+      if (tsWidgetId.current) window.turnstile.reset(tsWidgetId.current);
+      setTsToken("");
       setLoading(false);
     }
   }
 
   return (
     <div className="min-h-screen bg-[#ECEFF1] flex flex-col items-center justify-center px-4">
+      <Script
+        src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad"
+        strategy="afterInteractive"
+      />
       {/* Logo */}
       <div className="mb-10 flex items-center gap-3">
         <Image
@@ -194,10 +244,13 @@ export default function AdminLoginPage() {
             </button>
           </div>
 
+          {/* Turnstile widget */}
+          <div ref={tsRef} className="flex justify-center" />
+
           {/* Submit */}
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !tsToken}
             className="w-full py-3.5 bg-[#4FC3F7] hover:bg-[#29B6F6] disabled:bg-[#B3E5FC] text-white font-medium rounded-md transition text-base"
           >
             {loading ? "Ingresando..." : "Log in"}
