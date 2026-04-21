@@ -1105,7 +1105,7 @@ export default function RegistroDetailPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  {apendiceRequired && (
+                  {procedure && (
                     <button
                       onClick={async () => {
                         setApendiceAdminMsg("");
