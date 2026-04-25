@@ -5,9 +5,8 @@ import crypto from "crypto";
 
 export async function POST(request: Request) {
   try {
-    const { students, courseId, sessionId, theoreticalStart, practicalEnd, deliveryMode } =
+    const { students, courseId, sessionId, theoreticalStart, practicalEnd } =
       await request.json();
-    const mode = deliveryMode === "presencial" ? "presencial" : "online";
 
     if (!students || !courseId) {
       return NextResponse.json(
@@ -99,19 +98,28 @@ export async function POST(request: Request) {
           }
         }
 
-        // Upsert profile
-        await supabaseAdmin.from("profiles").upsert(
-          {
-            user_id: userId,
-            first_name: firstName,
-            last_name: lastName,
-            email,
-            rut: rut || null,
-            organization: company || null,
-            role: "student",
-          },
-          { onConflict: "email" }
-        );
+        // Upsert profile with all available fields
+        const profilePayload: Record<string, any> = {
+          user_id: userId,
+          first_name: firstName,
+          last_name: lastName,
+          email,
+          rut: rut || null,
+          organization: company || null,
+          organization_type: student.organizationType || null,
+          job_title: student.jobTitle || null,
+          phone: student.phone || null,
+          secondary_phone: student.secondaryPhone || null,
+          address: student.address || null,
+          city: student.city || null,
+          state: student.state || null,
+          postal_code: student.postalCode || null,
+          country: student.country || null,
+          supervisor_name: student.supervisorName || null,
+          supervisor_email: student.supervisorEmail || null,
+          role: "student",
+        };
+        await supabaseAdmin.from("profiles").upsert(profilePayload, { onConflict: "email" });
 
         // Create registration — try with date columns, fallback without them
         const baseReg: Record<string, any> = {
@@ -121,11 +129,17 @@ export async function POST(request: Request) {
           last_name: lastName,
           email,
           organization: company || null,
-          company: company || null,
+          organization_type: student.organizationType || null,
+          job_title: student.jobTitle || null,
           phone: student.phone || null,
           address: student.address || null,
-          status: mode === "presencial" ? "completed" : "confirmed",
-          delivery_mode: mode,
+          city: student.city || null,
+          state: student.state || null,
+          postal_code: student.postalCode || null,
+          country: student.country || null,
+          supervisor_name: student.supervisorName || null,
+          supervisor_email: student.supervisorEmail || null,
+          status: "confirmed",
           source: "admin",
         };
 
@@ -136,10 +150,10 @@ export async function POST(request: Request) {
           practical_end: practicalEnd || null,
         });
 
-        // If optional columns don't exist, retry without them
+        // If columns don't exist, retry without them
         if (regResult.error && regResult.error.message.includes("schema cache")) {
-          const { delivery_mode: _dm, company: _co, ...fallback } = baseReg;
-          regResult = await supabaseAdmin.from("registrations").insert(fallback);
+          console.log("Date columns not found, retrying without them...");
+          regResult = await supabaseAdmin.from("registrations").insert(baseReg);
         }
 
         if (regResult.error) {

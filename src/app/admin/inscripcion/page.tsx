@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 
 type Student = {
@@ -9,8 +9,17 @@ type Student = {
   email: string;
   rut: string;
   company: string;
+  organizationType: string;
+  jobTitle: string;
   phone: string;
+  secondaryPhone: string;
   address: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  supervisorName: string;
+  supervisorEmail: string;
 };
 
 type CourseOption = { id: string; title: string; code: string | null };
@@ -23,8 +32,17 @@ const emptyStudent = (): Student => ({
   email: "",
   rut: "",
   company: "",
+  organizationType: "",
+  jobTitle: "",
   phone: "",
+  secondaryPhone: "",
   address: "",
+  city: "",
+  state: "",
+  postalCode: "",
+  country: "",
+  supervisorName: "",
+  supervisorEmail: "",
 });
 
 export default function AdminInscripcionPage() {
@@ -37,12 +55,12 @@ export default function AdminInscripcionPage() {
   const [selectedSession, setSelectedSession] = useState("");
   const [theoreticalStart, setTheoreticalStart] = useState("");
   const [practicalEnd, setPracticalEnd] = useState("");
-  const [deliveryMode, setDeliveryMode] = useState<"online" | "presencial">("online");
   const [students, setStudents] = useState<Student[]>([emptyStudent()]);
   const [submitting, setSubmitting] = useState(false);
   const [results, setResults] = useState<
     { email: string; success: boolean; error?: string }[] | null
   >(null);
+  const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -80,6 +98,16 @@ export default function AdminInscripcionPage() {
       .then(({ data }) => {
         if (data) setPrograms(data as ProgramOption[]);
       });
+
+    // Check sessionStorage for prefilled student data (from admin detail "Inscribir en otro curso")
+    try {
+      const prefillData = sessionStorage.getItem("prefillStudent");
+      if (prefillData) {
+        const student = JSON.parse(prefillData) as Student;
+        setStudents([student]);
+        sessionStorage.removeItem("prefillStudent");
+      }
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -118,8 +146,8 @@ export default function AdminInscripcionPage() {
   }
 
   function downloadCSVTemplate() {
-    const header = "Nombres,Apellidos,Email,RUT,Empresa,Telefono,Direccion";
-    const example = "Juan Carlos,Pérez Soto,juan@ejemplo.com,12.345.678-9,Empresa SpA,+56912345678,Av. Principal 123";
+    const header = "Nombres,Apellidos,Email,RUT,Empresa,TipoOrganizacion,Cargo,Telefono,TelefonoSecundario,Direccion,Ciudad,Region,CodigoPostal,Pais,Supervisor,EmailSupervisor";
+    const example = 'Juan Carlos,Pérez Soto,juan@ejemplo.com,12.345.678-9,Empresa SpA,Empresa privada,Operador,+56912345678,,Av. Principal 123,Santiago,Región Metropolitana,8320000,Chile,María López,maria@ejemplo.com';
     const csv = `${header}\n${example}`;
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -130,6 +158,29 @@ export default function AdminInscripcionPage() {
     URL.revokeObjectURL(url);
   }
 
+  // CSV parser that handles quoted fields with commas
+  function parseCSVLine(line: string): string[] {
+    const result: string[] = [];
+    let current = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"'; i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (ch === "," && !inQuotes) {
+        result.push(current.trim()); current = "";
+      } else {
+        current += ch;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  }
+
   function handleCSVUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -137,19 +188,29 @@ export default function AdminInscripcionPage() {
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
-      const lines = text.split("\n").filter((l) => l.trim());
+      const lines = text.split(/\r?\n/).filter((l) => l.trim());
       // Skip header
       const dataLines = lines.slice(1);
       const parsed: Student[] = dataLines.map((line) => {
-        const cols = line.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+        const cols = parseCSVLine(line);
+        // Support both old (7 cols) and new (16 cols) format
         return {
           firstName: cols[0] || "",
           lastName: cols[1] || "",
           email: cols[2] || "",
           rut: cols[3] || "",
           company: cols[4] || "",
-          phone: cols[5] || "",
-          address: cols[6] || "",
+          organizationType: cols[5] || "",
+          jobTitle: cols[6] || "",
+          phone: cols[7] || "",
+          secondaryPhone: cols[8] || "",
+          address: cols[9] || "",
+          city: cols[10] || "",
+          state: cols[11] || "",
+          postalCode: cols[12] || "",
+          country: cols[13] || "",
+          supervisorName: cols[14] || "",
+          supervisorEmail: cols[15] || "",
         };
       }).filter((s) => s.email);
 
@@ -191,7 +252,6 @@ export default function AdminInscripcionPage() {
           sessionId: selectedSession || null,
           theoreticalStart: theoreticalStart || null,
           practicalEnd: practicalEnd || null,
-          deliveryMode,
         }),
       });
       const data = await res.json();
@@ -267,30 +327,6 @@ export default function AdminInscripcionPage() {
             <input type="date" value={practicalEnd} onChange={(e) => setPracticalEnd(e.target.value)} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
           </div>
         </div>
-        <div className="mt-4 pt-4 border-t border-gray-100">
-          <label className="block text-xs text-gray-500 uppercase mb-2">Modalidad</label>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setDeliveryMode("online")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition border ${deliveryMode === "online" ? "bg-[#0072CE] text-white border-[#0072CE]" : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"}`}
-            >
-              Online (plataforma)
-            </button>
-            <button
-              type="button"
-              onClick={() => setDeliveryMode("presencial")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition border ${deliveryMode === "presencial" ? "bg-[#F57C00] text-white border-[#F57C00]" : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"}`}
-            >
-              Presencial
-            </button>
-          </div>
-          {deliveryMode === "presencial" && (
-            <p className="text-xs text-gray-500 mt-2">
-              El alumno presencial se marca automáticamente como completado. No verá módulos online. Deberás ingresar sus calificaciones manualmente en el detalle del registro.
-            </p>
-          )}
-        </div>
       </div>
 
       {/* Students list */}
@@ -331,17 +367,68 @@ export default function AdminInscripcionPage() {
             </thead>
             <tbody>
               {students.map((s, idx) => (
-                <tr key={idx} className="border-t border-gray-50">
-                  <td className="py-2 pr-2 text-gray-400 text-xs">{idx + 1}</td>
-                  <td className="py-2 pr-2"><input type="text" value={s.firstName} onChange={(e) => updateStudent(idx, "firstName", e.target.value)} className="w-full border border-gray-200 rounded px-2 py-1 text-sm" placeholder="Nombres" /></td>
-                  <td className="py-2 pr-2"><input type="text" value={s.lastName} onChange={(e) => updateStudent(idx, "lastName", e.target.value)} className="w-full border border-gray-200 rounded px-2 py-1 text-sm" placeholder="Apellidos" /></td>
-                  <td className="py-2 pr-2"><input type="email" value={s.email} onChange={(e) => updateStudent(idx, "email", e.target.value)} className="w-full border border-gray-200 rounded px-2 py-1 text-sm" placeholder="email@ejemplo.com" /></td>
-                  <td className="py-2 pr-2"><input type="text" value={s.rut} onChange={(e) => updateStudent(idx, "rut", e.target.value)} className="w-28 border border-gray-200 rounded px-2 py-1 text-sm" placeholder="12.345.678-9" /></td>
-                  <td className="py-2 pr-2"><input type="text" value={s.company} onChange={(e) => updateStudent(idx, "company", e.target.value)} className="w-full border border-gray-200 rounded px-2 py-1 text-sm" placeholder="Empresa" /></td>
-                  <td className="py-2 pr-2"><input type="tel" value={s.phone} onChange={(e) => updateStudent(idx, "phone", e.target.value)} className="w-32 border border-gray-200 rounded px-2 py-1 text-sm" placeholder="+56 9..." /></td>
-                  <td className="py-2 pr-2"><input type="text" value={s.address} onChange={(e) => updateStudent(idx, "address", e.target.value)} className="w-full border border-gray-200 rounded px-2 py-1 text-sm" placeholder="Dirección" /></td>
-                  <td className="py-2"><button onClick={() => removeStudent(idx)} className="text-red-400 hover:text-red-600 text-xs">✕</button></td>
-                </tr>
+                <React.Fragment key={idx}>
+                  <tr className="border-t border-gray-50">
+                    <td className="py-2 pr-2 text-gray-400 text-xs">{idx + 1}</td>
+                    <td className="py-2 pr-2"><input type="text" value={s.firstName} onChange={(e) => updateStudent(idx, "firstName", e.target.value)} className="w-full border border-gray-200 rounded px-2 py-1 text-sm" placeholder="Nombres" /></td>
+                    <td className="py-2 pr-2"><input type="text" value={s.lastName} onChange={(e) => updateStudent(idx, "lastName", e.target.value)} className="w-full border border-gray-200 rounded px-2 py-1 text-sm" placeholder="Apellidos" /></td>
+                    <td className="py-2 pr-2"><input type="email" value={s.email} onChange={(e) => updateStudent(idx, "email", e.target.value)} className="w-full border border-gray-200 rounded px-2 py-1 text-sm" placeholder="email@ejemplo.com" /></td>
+                    <td className="py-2 pr-2"><input type="text" value={s.rut} onChange={(e) => updateStudent(idx, "rut", e.target.value)} className="w-28 border border-gray-200 rounded px-2 py-1 text-sm" placeholder="12.345.678-9" /></td>
+                    <td className="py-2 pr-2"><input type="text" value={s.company} onChange={(e) => updateStudent(idx, "company", e.target.value)} className="w-full border border-gray-200 rounded px-2 py-1 text-sm" placeholder="Empresa" /></td>
+                    <td className="py-2 pr-2"><input type="tel" value={s.phone} onChange={(e) => updateStudent(idx, "phone", e.target.value)} className="w-32 border border-gray-200 rounded px-2 py-1 text-sm" placeholder="+56 9..." /></td>
+                    <td className="py-2 pr-2"><input type="text" value={s.address} onChange={(e) => updateStudent(idx, "address", e.target.value)} className="w-full border border-gray-200 rounded px-2 py-1 text-sm" placeholder="Dirección" /></td>
+                    <td className="py-2 flex gap-2">
+                      <button onClick={() => setExpandedRow(expandedRow === idx ? null : idx)} className="text-xs text-[#0072CE] hover:underline whitespace-nowrap" title="Más datos">
+                        {expandedRow === idx ? "−" : "+"}
+                      </button>
+                      <button onClick={() => removeStudent(idx)} className="text-red-400 hover:text-red-600 text-xs">✕</button>
+                    </td>
+                  </tr>
+                  {expandedRow === idx && (
+                    <tr className="bg-gray-50">
+                      <td colSpan={9} className="px-3 py-3">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                          <div>
+                            <label className="block text-gray-500 mb-0.5">Cargo</label>
+                            <input type="text" value={s.jobTitle} onChange={(e) => updateStudent(idx, "jobTitle", e.target.value)} className="w-full border border-gray-200 rounded px-2 py-1" placeholder="Cargo" />
+                          </div>
+                          <div>
+                            <label className="block text-gray-500 mb-0.5">Tipo Organización</label>
+                            <input type="text" value={s.organizationType} onChange={(e) => updateStudent(idx, "organizationType", e.target.value)} className="w-full border border-gray-200 rounded px-2 py-1" placeholder="Empresa privada / DGAC..." />
+                          </div>
+                          <div>
+                            <label className="block text-gray-500 mb-0.5">Tel. Secundario</label>
+                            <input type="tel" value={s.secondaryPhone} onChange={(e) => updateStudent(idx, "secondaryPhone", e.target.value)} className="w-full border border-gray-200 rounded px-2 py-1" placeholder="+56 9..." />
+                          </div>
+                          <div>
+                            <label className="block text-gray-500 mb-0.5">Ciudad</label>
+                            <input type="text" value={s.city} onChange={(e) => updateStudent(idx, "city", e.target.value)} className="w-full border border-gray-200 rounded px-2 py-1" placeholder="Santiago" />
+                          </div>
+                          <div>
+                            <label className="block text-gray-500 mb-0.5">Región</label>
+                            <input type="text" value={s.state} onChange={(e) => updateStudent(idx, "state", e.target.value)} className="w-full border border-gray-200 rounded px-2 py-1" placeholder="Región Metropolitana" />
+                          </div>
+                          <div>
+                            <label className="block text-gray-500 mb-0.5">Código Postal</label>
+                            <input type="text" value={s.postalCode} onChange={(e) => updateStudent(idx, "postalCode", e.target.value)} className="w-full border border-gray-200 rounded px-2 py-1" placeholder="8320000" />
+                          </div>
+                          <div>
+                            <label className="block text-gray-500 mb-0.5">País</label>
+                            <input type="text" value={s.country} onChange={(e) => updateStudent(idx, "country", e.target.value)} className="w-full border border-gray-200 rounded px-2 py-1" placeholder="Chile" />
+                          </div>
+                          <div>
+                            <label className="block text-gray-500 mb-0.5">Supervisor</label>
+                            <input type="text" value={s.supervisorName} onChange={(e) => updateStudent(idx, "supervisorName", e.target.value)} className="w-full border border-gray-200 rounded px-2 py-1" placeholder="Nombre supervisor" />
+                          </div>
+                          <div className="col-span-2">
+                            <label className="block text-gray-500 mb-0.5">Email Supervisor</label>
+                            <input type="email" value={s.supervisorEmail} onChange={(e) => updateStudent(idx, "supervisorEmail", e.target.value)} className="w-full border border-gray-200 rounded px-2 py-1" placeholder="supervisor@empresa.com" />
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               ))}
             </tbody>
           </table>

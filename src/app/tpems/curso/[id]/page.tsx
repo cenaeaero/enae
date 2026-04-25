@@ -13,7 +13,7 @@ import QRCode from "qrcode";
 type CourseDelivery = {
   id: string;
   status: string;
-  delivery_mode: "online" | "presencial";
+  is_alumni: boolean;
   course_id: string;
   course_title: string;
   course_code: string;
@@ -27,15 +27,6 @@ type CourseDelivery = {
   instructor_name: string | null;
   instructor_whatsapp: string | null;
   student_name: string;
-  apendice_c_required: boolean;
-  apendice_c_habilitation_text: string | null;
-};
-
-type ApendiceCProfile = {
-  rut: string;
-  profession: string;
-  address: string;
-  city: string;
 };
 
 type CourseModule = {
@@ -117,10 +108,6 @@ export default function TpemsCourseDetail() {
 
   const [course, setCourse] = useState<CourseDelivery | null>(null);
   const [loading, setLoading] = useState(true);
-  const [apendiceForm, setApendiceForm] = useState<ApendiceCProfile>({ rut: "", profession: "", address: "", city: "" });
-  const [apendiceFileUrl, setApendiceFileUrl] = useState<string | null>(null);
-  const [apendiceUploading, setApendiceUploading] = useState(false);
-  const [apendiceMsg, setApendiceMsg] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [modules, setModules] = useState<CourseModule[]>([]);
   const [progress, setProgress] = useState<ModuleProgress[]>([]);
@@ -743,11 +730,11 @@ export default function TpemsCourseDetail() {
           `
           id,
           status,
-          delivery_mode,
+          is_alumni,
           first_name,
           last_name,
           course_id,
-          courses (title, code, duration, description, modules, moodle_url, instructor_name, instructor_whatsapp, apendice_c_required, apendice_c_habilitation_text),
+          courses (title, code, duration, description, modules, moodle_url, instructor_name, instructor_whatsapp),
           sessions (dates, location, modality)
         `
         )
@@ -768,7 +755,7 @@ export default function TpemsCourseDetail() {
         const courseData: CourseDelivery = {
           id: r.id,
           status: r.status,
-          delivery_mode: r.delivery_mode === "presencial" ? "presencial" : "online",
+          is_alumni: !!r.is_alumni,
           course_id: r.course_id,
           course_title: r.courses?.title || "",
           course_code: r.courses?.code || "",
@@ -782,36 +769,8 @@ export default function TpemsCourseDetail() {
           instructor_name: r.courses?.instructor_name || null,
           instructor_whatsapp: r.courses?.instructor_whatsapp || null,
           student_name: `${r.first_name || ""} ${r.last_name || ""}`.trim(),
-          apendice_c_required: !!r.courses?.apendice_c_required,
-          apendice_c_habilitation_text: r.courses?.apendice_c_habilitation_text || null,
         };
         setCourse(courseData);
-
-        // Load profile + apendice C status if course requires it
-        if (courseData.apendice_c_required) {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user?.email) {
-            const { data: prof } = await supabase
-              .from("profiles")
-              .select("rut, job_title, address, city")
-              .eq("email", user.email)
-              .maybeSingle();
-            if (prof) {
-              setApendiceForm({
-                rut: prof.rut || "",
-                profession: prof.job_title || "",
-                address: prof.address || "",
-                city: prof.city || "",
-              });
-            }
-          }
-          const { data: proc } = await supabase
-            .from("dgac_procedures")
-            .select("apendice_c_file_url")
-            .eq("registration_id", r.id)
-            .maybeSingle();
-          if (proc?.apendice_c_file_url) setApendiceFileUrl(proc.apendice_c_file_url);
-        }
 
         // Load course modules (hide instructor-only modules from student view)
         const { data: modulesData } = await supabase
@@ -1018,14 +977,16 @@ export default function TpemsCourseDetail() {
   }
 
   // Progress calculation
-  const isPresencial = course?.delivery_mode === "presencial";
   const completedCount = progress.filter((p) => p.status === "completed").length;
   const totalModules = modules.length;
-  const rawProgress = totalModules > 0 ? Math.round((completedCount / totalModules) * 100) : 0;
-  const progressPercent = isPresencial ? 100 : rawProgress;
+  const progressPercent = totalModules > 0 ? Math.round((completedCount / totalModules) * 100) : 0;
 
-  // Course is "completed" for survey/diploma purposes if status is completed OR 100% progress OR presencial
-  const courseCompleted = isPresencial || course?.status === "completed" || progressPercent === 100;
+  // Course is "completed" for survey/diploma purposes if status is completed OR 100% progress
+  const courseCompleted = course?.status === "completed" || progressPercent === 100;
+
+  // Student is "egresado" once admin marked them as alumni, the course is finalized, or a diploma was issued.
+  // Egresados should not see the modules section nor the Continuar/Iniciar button.
+  const isEgresado = !!course?.is_alumni || course?.status === "completed" || !!diploma;
 
   const selectedModule = modules.find((m) => m.id === selectedModuleId);
 
@@ -1046,7 +1007,7 @@ export default function TpemsCourseDetail() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "info", label: "Info" },
-    ...(modules.length > 0 && lessons.length > 0 && !courseCompleted ? [{ key: "modules" as Tab, label: `Módulos (${totalModules})` }] : []),
+    ...(modules.length > 0 && lessons.length > 0 && !isEgresado ? [{ key: "modules" as Tab, label: `Módulos (${totalModules})` }] : []),
     { key: "grades", label: "Calificaciones" },
     { key: "evaluation", label: "Encuesta" },
     { key: "messages", label: "Mensajes" },
@@ -1182,158 +1143,18 @@ export default function TpemsCourseDetail() {
               {course.course_description && (
                 <p className="text-sm text-gray-600 leading-relaxed mb-6">{course.course_description}</p>
               )}
-              {isPresencial ? (
-                <div className="inline-flex items-center gap-2 bg-orange-50 border border-orange-200 text-orange-700 text-sm font-medium px-5 py-3 rounded-xl">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-                  Curso presencial — contenido fuera de la plataforma
-                </div>
-              ) : modules.length > 0 && (
-                courseCompleted ? (
-                  <button disabled className="inline-flex items-center gap-2 bg-green-100 text-green-700 text-sm font-semibold px-6 py-3 rounded-xl cursor-not-allowed">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                    Curso Completado
-                  </button>
-                ) : (
-                  <button onClick={() => setActiveTab("modules")} className="inline-flex items-center gap-2 bg-gradient-to-r from-[#0072CE] to-[#005BA1] hover:from-[#005BA1] hover:to-[#003366] text-white text-sm font-semibold px-6 py-3 rounded-xl transition shadow-sm shadow-blue-200">
-                    {completedCount > 0 ? "Continuar Curso" : "Iniciar Curso"}
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-                  </button>
-                )
+              {modules.length > 0 && !isEgresado && (
+                <button onClick={() => setActiveTab("modules")} className="inline-flex items-center gap-2 bg-gradient-to-r from-[#0072CE] to-[#005BA1] hover:from-[#005BA1] hover:to-[#003366] text-white text-sm font-semibold px-6 py-3 rounded-xl transition shadow-sm shadow-blue-200">
+                  {completedCount > 0 ? "Continuar Curso" : "Iniciar Curso"}
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                </button>
               )}
             </div>
-          </div>
-        )}
-
-        {/* ============ APENDICE C (inside Info tab) ============ */}
-        {activeTab === "info" && course?.apendice_c_required && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mt-4">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 text-lg">📄</div>
-              <div>
-                <h2 className="text-base font-bold text-[#003366]">Apéndice C (DGAC)</h2>
-                <p className="text-xs text-gray-500">Declaración jurada simple de haber recibido instrucción</p>
-              </div>
-            </div>
-            <p className="text-sm text-gray-600 mb-4">
-              Descarga el Apéndice C pre-llenado con tus datos, fírmalo, ponle la huella del pulgar, escanéalo y súbelo aquí. Después lo enviaremos a SIPA DGAC.
-            </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-              <div>
-                <label className="block text-xs text-gray-500 uppercase mb-1">RUT</label>
-                <input type="text" value={apendiceForm.rut} onChange={(e) => setApendiceForm({ ...apendiceForm, rut: e.target.value })} placeholder="12.345.678-9" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 uppercase mb-1">Profesión</label>
-                <input type="text" value={apendiceForm.profession} onChange={(e) => setApendiceForm({ ...apendiceForm, profession: e.target.value })} placeholder="Ingeniero, topógrafo..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 uppercase mb-1">Domicilio</label>
-                <input type="text" value={apendiceForm.address} onChange={(e) => setApendiceForm({ ...apendiceForm, address: e.target.value })} placeholder="Calle y número" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 uppercase mb-1">Ciudad</label>
-                <input type="text" value={apendiceForm.city} onChange={(e) => setApendiceForm({ ...apendiceForm, city: e.target.value })} placeholder="Santiago" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-3 items-center">
-              <button
-                onClick={async () => {
-                  try {
-                    // Save profile fields so next time they come pre-filled
-                    const { data: { user } } = await supabase.auth.getUser();
-                    if (user?.email) {
-                      await supabase.from("profiles").update({
-                        rut: apendiceForm.rut || null,
-                        job_title: apendiceForm.profession || null,
-                        address: apendiceForm.address || null,
-                        city: apendiceForm.city || null,
-                      }).eq("email", user.email);
-                    }
-
-                    // Get/create verification code
-                    const prepRes = await fetch("/api/apendice-c/prepare", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ registration_id: course.id }),
-                    });
-                    const prepJson = await prepRes.json();
-                    if (!prepRes.ok) throw new Error(prepJson?.error || "Error preparando codigo");
-                    const verificationCode = prepJson.verification_code as string;
-                    const verificationUrl = `${window.location.origin}/verify/apendice-c/${verificationCode}`;
-
-                    const { generateApendiceCPDF } = await import("@/lib/apendice-c-pdf");
-                    const pdf = await generateApendiceCPDF({
-                      student_name: course.student_name,
-                      rut: apendiceForm.rut,
-                      profession: apendiceForm.profession,
-                      address: apendiceForm.address,
-                      city: apendiceForm.city,
-                      date: new Date(),
-                      habilitation_text: course.apendice_c_habilitation_text || "",
-                      verification_code: verificationCode,
-                      verification_url: verificationUrl,
-                    });
-                    pdf.save(`Apendice_C_${(course.student_name || "alumno").replace(/\s+/g, "_")}.pdf`);
-                    setApendiceMsg("PDF descargado. Fírmalo, ponle la huella y súbelo aquí.");
-                  } catch (err: any) {
-                    setApendiceMsg("Error generando PDF: " + (err?.message || "desconocido"));
-                  }
-                }}
-                className="inline-flex items-center gap-2 bg-[#0072CE] hover:bg-[#005BA1] text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                Descargar Apéndice C
-              </button>
-
-              <label className={`inline-flex items-center gap-2 text-sm font-semibold px-5 py-2.5 rounded-xl transition cursor-pointer ${apendiceUploading ? "bg-gray-200 text-gray-400 cursor-wait" : "bg-green-600 hover:bg-green-700 text-white"}`}>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-                {apendiceUploading ? "Subiendo..." : "Subir Apéndice C firmado"}
-                <input
-                  type="file"
-                  accept="application/pdf,image/*"
-                  className="hidden"
-                  disabled={apendiceUploading}
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    setApendiceUploading(true);
-                    setApendiceMsg(null);
-                    try {
-                      const fd = new FormData();
-                      fd.append("file", file);
-                      fd.append("registration_id", course.id);
-                      const res = await fetch("/api/apendice-c/upload", { method: "POST", body: fd });
-                      const json = await res.json();
-                      if (!res.ok) throw new Error(json?.error || "Upload falló");
-                      setApendiceFileUrl(json.url);
-                      setApendiceMsg("Apéndice C subido correctamente.");
-                    } catch (err: any) {
-                      setApendiceMsg("Error subiendo: " + (err?.message || "desconocido"));
-                    } finally {
-                      setApendiceUploading(false);
-                      (e.target as HTMLInputElement).value = "";
-                    }
-                  }}
-                />
-              </label>
-
-              {apendiceFileUrl && (
-                <span className="inline-flex items-center gap-2 text-xs text-green-700 bg-green-50 border border-green-200 px-3 py-1.5 rounded-lg">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                  Apéndice C cargado
-                </span>
-              )}
-            </div>
-            {apendiceMsg && (
-              <p className="text-xs text-gray-500 mt-3">{apendiceMsg}</p>
-            )}
           </div>
         )}
 
         {/* ============ MODULES TAB ============ */}
-        {activeTab === "modules" && modules.length > 0 && !courseCompleted && (() => {
+        {activeTab === "modules" && modules.length > 0 && !isEgresado && (() => {
           const moduleLessons = selectedModuleId ? lessons.filter((l) => l.module_id === selectedModuleId) : [];
 
           function getLessonStatus(lessonId: string) {
