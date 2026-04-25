@@ -1247,6 +1247,32 @@ export default function TpemsCourseDetail() {
               <button
                 onClick={async () => {
                   try {
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (!user?.email) {
+                      setApendiceMsg("No se pudo identificar al usuario.");
+                      return;
+                    }
+                    const { error: upErr } = await supabase.from("profiles").update({
+                      rut: apendiceForm.rut || null,
+                      job_title: apendiceForm.profession || null,
+                      address: apendiceForm.address || null,
+                      city: apendiceForm.city || null,
+                    }).eq("email", user.email);
+                    if (upErr) throw upErr;
+                    setApendiceMsg("Datos guardados correctamente.");
+                  } catch (err: any) {
+                    setApendiceMsg("Error guardando: " + (err?.message || "desconocido"));
+                  }
+                }}
+                className="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold px-5 py-2.5 rounded-xl transition"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                Guardar datos
+              </button>
+
+              <button
+                onClick={async () => {
+                  try {
                     // Save profile fields so next time they come pre-filled
                     const { data: { user } } = await supabase.auth.getUser();
                     if (user?.email) {
