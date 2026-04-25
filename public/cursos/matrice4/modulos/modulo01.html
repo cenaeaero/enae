@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Módulo 1 — Fundamentos · Matrice 4 Series · ENAE</title>
+<link rel="stylesheet" href="https://enae.cl/cursos/matrice4/assets/curso.css">
+</head>
+<body>
+
+<header class="header-curso">
+  <div class="marca">ENAE — Curso Matrice 4 Series</div>
+  <h1>Módulo 1 · Introducción a la Serie Matrice 4 y marco normativo</h1>
+  <div class="subtitulo">Fundamentos del sistema · 4 lecciones · Caso práctico · 3 horas</div>
+</header>
+
+
+
+<main class="contenedor">
+
+  <section class="bloque">
+    <h2>Presentación del módulo</h2>
+    <p>Este módulo inaugural establece el marco conceptual del curso. El participante conocerá el contexto histórico y técnico de la familia Matrice de DJI Enterprise, las diferencias estratégicas entre el Matrice 4T y el Matrice 4E, las aplicaciones profesionales reales en los ámbitos aeronáutico, energético, ambiental y de seguridad pública, así como el marco normativo chileno (DAN 151) e internacional aplicable a la operación de aeronaves remotamente pilotadas (RPA) de hasta 9 kg.</p>
+
+    <div class="objetivos">
+      <h3>Objetivos de aprendizaje</h3>
+      <ul>
+        <li>Reconocer las características generales y la propuesta de valor de la Serie Matrice 4.</li>
+        <li>Diferenciar las dos variantes M4T y M4E identificando criterios de selección por misión.</li>
+        <li>Identificar al menos cinco aplicaciones profesionales documentadas para la plataforma.</li>
+        <li>Describir los requisitos normativos DAN 151 Ed. 4 y la certificación europea Clase C2.</li>
+      </ul>
+    </div>
+
+    <div class="indice-leccion">
+      <h4>Índice del módulo</h4>
+      <ol>
+        <li><a href="#video-intro">Video de presentación · DJI Enterprise</a></li>
+        <li><a href="#l11">Lección 1.1 · Presentación de la Serie Matrice 4</a></li>
+        <li><a href="#l12">Lección 1.2 · Diferenciación M4T vs M4E</a></li>
+        <li><a href="#l13">Lección 1.3 · Aplicaciones profesionales</a></li>
+        <li><a href="#l14">Lección 1.4 · Marco normativo y certificación</a></li>
+        <li><a href="#caso">Caso práctico aplicado</a></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ============ VIDEO DE PRESENTACIÓN ============ -->
+  <section class="bloque" id="video-intro">
+    <div class="leccion" style="border:none; padding-bottom:0;">
+      <span class="etiqueta">Video introductorio</span>
+      <h2>Presentación oficial · DJI Enterprise</h2>
+
+      <p>Antes de iniciar el desarrollo teórico del módulo, observe el siguiente video de presentación de las plataformas DJI Enterprise. Le permitirá contextualizar visualmente la propuesta tecnológica y el ecosistema en el que se inserta la Serie Matrice 4.</p>
+
+      <!-- Contenedor responsivo 16:9 -->
+      <div style="position: relative; width: 100%; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 8px; box-shadow: 0 4px 16px rgba(10, 61, 98, 0.12); background: #000; margin: 18px 0;">
+        <!-- CÓDIGO KALTURA INCRUSTADO Y ADAPTADO -->
+        <script src="https://cdnapisec.kaltura.com/p/4530803/sp/453080300/embedIframeJs/uiconf_id/49725323/partner_id/4530803"></script>
+        <div id="kaltura_player_1776737637" style="width: 100%; height: 100%; position: absolute; top: 0; left: 0;"></div>
+        <script>
+        kWidget.embed({
+          "targetId": "kaltura_player_1776737637",
+          "wid": "_4530803",
+          "uiconf_id": 49725323,
+          "flashvars": {},
+          "cache_st": 1776737637,
+          "entry_id": "1_of7sx68k"
+        });
+        </script>
+      </div>
+      <p style="text-align:center; color: var(--gris-suave); font-size: 13px; font-style: italic; margin-top: 6px;">
+        Video de presentación oficial de las plataformas DJI Enterprise.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 1.1 ============ -->
+  <section class="bloque" id="l11">
+    <div class="leccion">
+      <span class="etiqueta">Lección 1.1</span>
+      <h2>Presentación de la Serie Matrice 4</h2>
+
+      <p>La <strong>Serie DJI Matrice 4</strong>, anunciada formalmente en enero de 2025, constituye la nueva generación de aeronaves remotamente pilotadas de clase ligera-profesional dentro del portafolio DJI Enterprise. La serie reemplaza progresivamente al exitoso Matrice 30 como plataforma compacta de uso operacional intensivo, conservando la propuesta de "drone profesional plegable que cabe en una mochila táctica" e incorporando saltos sustantivos en sensórica, inteligencia a bordo y conectividad.</p>
+
+      <figure class="fig">
+        <img src="https://enae.cl/cursos/matrice4/assets/img/matrice4_marketing_01.jpg" alt="DJI Matrice 4 Series en operación">
+        <figcaption>DJI Matrice 4 Series — plataforma profesional compacta de operación intensiva.</figcaption>
+      </figure>
+
+      <h3>Identidad y posicionamiento</h3>
+      <p>La Serie Matrice 4 se posiciona como la plataforma "AI-first" de DJI Enterprise: cada subsistema crítico —sensores, vuelo, percepción y misión— integra capacidades de inteligencia artificial a bordo. El sistema cuenta con detección omnidireccional binocular reforzada con un sensor 3D infrarrojo inferior, seis lentes de bajo nivel de luz que habilitan operación nocturna confiable, y un módulo RTK integrado de fábrica con precisión centimétrica.</p>
+
+      <p>La aeronave aplica el concepto <em>"intelligent flight"</em> propuesto por DJI: el piloto define la intención (qué objetivo cumplir) y el sistema gestiona la ejecución técnica (cómo evitar obstáculos, cómo optimizar la ruta, cómo mantener la geo-referenciación), liberando al operador para concentrarse en la misión.</p>
+
+      <h3>Datos generales del sistema</h3>
+      <div class="spec-grid">
+        <div class="spec-card"><strong>Peso máximo de despegue</strong><span class="valor">1 420 g (hélices estándar)</span></div>
+        <div class="spec-card"><strong>Temperatura operativa</strong><span class="valor">−10 °C a 40 °C</span></div>
+        <div class="spec-card"><strong>Frecuencia transmisión</strong><span class="valor">2.4 / 5.1 / 5.8 GHz</span></div>
+        <div class="spec-card"><strong>Velocidad máx (Sport)</strong><span class="valor">21 m/s adelante</span></div>
+        <div class="spec-card"><strong>Tiempo de vuelo nominal</strong><span class="valor">Hasta 49 min sin carga útil</span></div>
+        <div class="spec-card"><strong>Resistencia al viento</strong><span class="valor">12 m/s sostenido</span></div>
+        <div class="spec-card"><strong>Sistema GNSS</strong><span class="valor">GPS + Galileo + BeiDou + QZSS</span></div>
+        <div class="spec-card"><strong>Posicionamiento RTK</strong><span class="valor">1 cm + 1 ppm horizontal</span></div>
+      </div>
+
+      <h3>Composición típica del kit</h3>
+      <p>El paquete operativo estándar de la Serie Matrice 4 incluye: la aeronave plegable con cámara y estabilizador integrado, control remoto DJI <strong>RC Plus 2 Enterprise</strong> (o RC Plus 2 Enterprise Enhanced para aplicaciones avanzadas), tres baterías inteligentes TB100, un hub de carga de 100 W, hélices estándar y de bajo ruido (UE), una bolsa de transporte rígida y los cables y tarjetas microSD de almacenamiento.</p>
+
+      <div class="callout">
+        <strong>Referencia documental</strong>
+        Todo el contenido técnico de este curso se fundamenta en el <em>Manual de Usuario oficial DJI Matrice 4 Series</em>, versión 1.0, publicado por SZ DJI Technology Co., Ltd. en enero de 2025. Es responsabilidad del operador consultar siempre la versión más reciente del manual y las directrices de seguridad antes de cada operación.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 1.2 ============ -->
+  <section class="bloque" id="l12">
+    <div class="leccion">
+      <span class="etiqueta">Lección 1.2</span>
+      <h2>Diferenciación M4T vs M4E</h2>
+
+      <p>La Serie Matrice 4 se comercializa en dos variantes funcionalmente especializadas. Aunque ambos modelos comparten la misma plataforma de vuelo, sistema de detección, batería y control remoto, difieren significativamente en su <strong>arquitectura óptica</strong>, lo que las orienta a perfiles operacionales distintos.</p>
+
+      <h3>Comparativa funcional</h3>
+      <table class="tabla-curso tabla-comparativa">
+        <thead>
+          <tr>
+            <th>Característica</th>
+            <th class="col-m4t">Matrice 4T</th>
+            <th class="col-m4e">Matrice 4E</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Cámara gran angular</td>
+            <td class="col-m4t">CMOS 1/1.3" · 48 MP · f/1.7 fija · 24 mm</td>
+            <td class="col-m4e">CMOS 4/3" · 20 MP · f/2.8–f/11 · 24 mm</td>
+          </tr>
+          <tr>
+            <td>Cámara tele media</td>
+            <td class="col-m4t">CMOS 1/1.3" · 48 MP · f/2.8 · 70 mm</td>
+            <td class="col-m4e">CMOS 1/1.3" · 48 MP · f/2.8 · 70 mm</td>
+          </tr>
+          <tr>
+            <td>Telecámara</td>
+            <td class="col-m4t">CMOS 1/1.5" · 48 MP · f/2.8 · 168 mm</td>
+            <td class="col-m4e">CMOS 1/1.5" · 48 MP · f/2.8 · 168 mm</td>
+          </tr>
+          <tr>
+            <td>Cámara térmica infrarroja</td>
+            <td class="col-m4t"><strong>Sí</strong> · 640 × 512 px (UHR 1280 × 1024)</td>
+            <td class="col-m4e">No incluida</td>
+          </tr>
+          <tr>
+            <td>Luz auxiliar NIR</td>
+            <td class="col-m4t"><strong>Sí</strong> · alcance 100 m</td>
+            <td class="col-m4e">No incluida</td>
+          </tr>
+          <tr>
+            <td>Telémetro láser</td>
+            <td class="col-m4t">Sí · alcance 1 800 m</td>
+            <td class="col-m4e">Sí · alcance 1 800 m</td>
+          </tr>
+          <tr>
+            <td>Aplicación primaria</td>
+            <td class="col-m4t">Seguridad pública · SAR · inspección térmica · operación nocturna</td>
+            <td class="col-m4e">Mapeo · topografía · fotogrametría · construcción</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Criterios de decisión operacional</h3>
+      <p>El criterio fundamental para escoger entre M4T y M4E es la <strong>naturaleza espectral</strong> de la información que se necesita levantar. Si la operación requiere detectar diferencias térmicas (búsqueda de personas, focos de incendio, fugas de calor, fallas en transformadores), la única opción válida es el <strong>M4T</strong>. Si la operación requiere imágenes en alta resolución para procesamiento fotogramétrico con apertura ajustable, sensores grandes para baja distorsión y dinámica de exposición controlada, la elección óptima es el <strong>M4E</strong>.</p>
+
+      <div class="callout aviso">
+        <strong>Decisión M4T vs M4E</strong>
+        Cuando una unidad operativa requiere ambas capacidades (térmica + mapeo de precisión), DJI recomienda contar con ambos modelos en la flota o incorporar adicionalmente el Matrice 4D, que combina ambos perfiles en una versión específica para Dock 3.
+      </div>
+
+      <h3>Plataforma común</h3>
+      <p>Ambos modelos comparten el mismo bastidor plegable, idéntica configuración de motores, hélices estándar/silenciosas, sistema de detección omnidireccional, módulo RTK, batería TB100 y control remoto. Esto permite que la formación operacional, los procedimientos de checklist y los protocolos de seguridad sean transferibles entre operadores de cualquiera de los modelos.</p>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 1.3 ============ -->
+  <section class="bloque" id="l13">
+    <div class="leccion">
+      <span class="etiqueta">Lección 1.3</span>
+      <h2>Aplicaciones profesionales</h2>
+
+      <p>La Serie Matrice 4 está diseñada explícitamente para misiones donde el fallo no es una opción. Su robustez ambiental (IP55 efectivo en condiciones operativas), su sistema redundante de detección de obstáculos y su radio operativa la han convertido en plataforma estándar para diversos sectores.</p>
+
+      <h3>Sectores y casos de uso</h3>
+
+      <h4 style="color:var(--azul-aeronautico);margin-top:14px;">1. Seguridad pública y respuesta de emergencia</h4>
+      <p>Operaciones de búsqueda y rescate (SAR) terrestres, marítimas y de montaña; gestión táctica de incidentes (TTI); reconstrucción aérea de escenas; vigilancia perimetral y apoyo a equipos SWAT/GOPE. La cámara térmica del M4T permite localizar firmas térmicas humanas hasta 200–300 m según condiciones, y la luz NIR amplía el alcance del sensor en oscuridad total.</p>
+
+      <h4 style="color:var(--azul-aeronautico);margin-top:14px;">2. Defensa civil y combate de incendios</h4>
+      <p>Monitoreo de propagación de incendios forestales, identificación de focos calientes residuales (post-control), guía de cuadrillas terrestres con vista aérea en tiempo real, evaluación de daños estructurales tras eventos sísmicos, aluviones o erupciones.</p>
+
+      <h4 style="color:var(--azul-aeronautico);margin-top:14px;">3. Energía y servicios públicos</h4>
+      <p>Inspección de líneas de transmisión y distribución eléctrica, identificación termográfica de conexiones defectuosas en transformadores, inspección de subestaciones, evaluación del estado de aisladores y aerogeneradores, monitoreo de oleoductos y gasoductos.</p>
+
+      <h4 style="color:var(--azul-aeronautico);margin-top:14px;">4. Construcción y topografía (M4E)</h4>
+      <p>Levantamientos topográficos con precisión RTK centimétrica, generación de modelos digitales de superficie (DSM), control de avance de obras, fotogrametría de yacimientos mineros, cubicación de acopios.</p>
+
+      <h4 style="color:var(--azul-aeronautico);margin-top:14px;">5. Inspección de infraestructura crítica</h4>
+      <p>Inspección de puentes y viaductos, evaluación de estado de torres de telecomunicaciones, examen no destructivo de fachadas de edificios altos, monitoreo de presas y obras hidráulicas.</p>
+
+      <h4 style="color:var(--azul-aeronautico);margin-top:14px;">6. Conservación y vigilancia ambiental</h4>
+      <p>Monitoreo nocturno de fauna silvestre con cámara térmica, detección de tala ilegal, vigilancia de áreas protegidas, monitoreo de glaciares y de salud forestal.</p>
+
+      <h4 style="color:var(--azul-aeronautico);margin-top:14px;">7. Aeronáutica y aviación</h4>
+      <p>Inspección de pistas de aterrizaje, evaluación de balizamiento perimetral nocturno, apoyo a investigación de incidentes/accidentes, levantamientos del entorno aeroportuario para obstaculización (siempre con coordinación previa con la TWR/APP correspondiente).</p>
+
+      <div class="callout exito">
+        <strong>Buenas prácticas operacionales</strong>
+        Independientemente de la aplicación, la primera fase de cualquier operación profesional con Matrice 4 debe ser un <em>"site survey"</em>: reconocimiento del área, identificación de obstáculos, verificación de zonas GEO, coordinación con autoridades aeronáuticas y validación de condiciones meteorológicas. Esta fase no es opcional.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 1.4 ============ -->
+  <section class="bloque" id="l14">
+    <div class="leccion">
+      <span class="etiqueta">Lección 1.4</span>
+      <h2>Marco normativo y certificación</h2>
+
+      <p>Operar profesionalmente la Serie Matrice 4 implica cumplir un marco normativo en tres niveles: (1) la regulación nacional del país de operación, (2) las directrices del fabricante (DJI Safety Guidelines y manual de usuario) y (3) las certificaciones internacionales aplicables al producto (Clase C2 europea, FAA Remote ID estadounidense, etc.).</p>
+
+      <h3>Normativa chilena: DAN 151 Ed. 4</h3>
+      <p>La <strong>Norma Aeronáutica DAN 151</strong> "Operaciones de Aeronaves Pilotadas a Distancia (RPAS)", emitida por la Dirección General de Aeronáutica Civil (DGAC), regula todas las operaciones civiles de RPAS en territorio chileno. Su edición vigente es la <strong>Edición 4</strong> de mayo de 2024. Aspectos clave para el operador del Matrice 4 Series:</p>
+
+      <table class="tabla-curso">
+        <thead>
+          <tr><th>Aspecto</th><th>Requerimiento DAN 151</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Edad mínima del operador</td><td>18 años cumplidos</td></tr>
+          <tr><td>Credencial</td><td>Credencial de Piloto a Distancia de RPAS DGAC</td></tr>
+          <tr><td>Registro de la aeronave</td><td>Tarjeta de Registro DGAC obligatoria</td></tr>
+          <tr><td>Autorización de operación</td><td>AOC para operación comercial / habilitación para uso institucional</td></tr>
+          <tr><td>Peso máximo categorización</td><td>Aeronaves &lt; 9 kg (Matrice 4 está dentro: 1.42 kg MTOW)</td></tr>
+          <tr><td>Altura máxima</td><td>120 m AGL en condición estándar</td></tr>
+          <tr><td>Distancia máxima al operador</td><td>500 m (operación VLOS)</td></tr>
+          <tr><td>Operación BVLOS</td><td>Solo con autorización específica DGAC</td></tr>
+          <tr><td>Requisitos sobre áreas pobladas</td><td>Procedimiento específico de evaluación de riesgo</td></tr>
+          <tr><td>Coordinación TWR/APP</td><td>Obligatoria para operación cercana a aeropuertos/aeródromos</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout alerta">
+        <strong>Atención — Operación cerca de aeródromos</strong>
+        En la actividad de un Controlador de Tránsito Aéreo, la coordinación entre operaciones de RPAS y tráfico tripulado es crítica. La Serie Matrice 4 incluye <strong>DJI AirSense</strong>, sistema receptor ADS-B que alerta al operador sobre tráfico tripulado en proximidad. Sin embargo, AirSense <em>no</em> emite señal hacia los aviones tripulados ni reemplaza la coordinación formal con la dependencia ATC competente.
+      </div>
+
+      <h3>Certificación europea Clase C2</h3>
+      <p>El Matrice 4 cumple los requisitos del Reglamento Delegado (UE) 2019/945 para la <strong>Clase C2</strong>, lo que habilita su operación en la "categoría abierta — subcategoría A2" del marco europeo: vuelo cerca de personas no involucradas con distancia mínima de 30 m (o 5 m con modo Baja Velocidad activado a 2.8 m/s), MTOW &lt; 4 kg, y operación VLOS.</p>
+
+      <p>La certificación C2 implica también requisitos técnicos de identificación remota directa, geo-consciencia (geoawareness) y notificación al operador del estado de la aeronave. La aplicación DJI Pilot 2 expone estas funciones en su menú de configuración avanzada.</p>
+
+      <h3>Identificación remota directa</h3>
+      <p>El Matrice 4 cumple con identificación remota directa, transmitiendo en tiempo real, sin necesidad de conexión a internet, los datos del operador y la aeronave conforme a normativa europea ASD-STAN prEN 4709-002:2021. Estos datos pueden ser captados por receptores autorizados de las autoridades.</p>
+
+      <h3>Cumplimiento del operador</h3>
+      <p>La responsabilidad última de la legalidad de cada operación recae siempre en el operador. Antes de cada misión, se debe verificar:</p>
+      <ul>
+        <li>Vigencia de la credencial del piloto a distancia.</li>
+        <li>Vigencia de la tarjeta de registro de la aeronave.</li>
+        <li>Estado de la autorización de operación (AOC, si aplica).</li>
+        <li>No superposición con zonas restringidas o prohibidas activas.</li>
+        <li>Coordinación documentada con autoridades aeronáuticas, si la operación lo requiere.</li>
+        <li>Cobertura de seguro de responsabilidad civil aeronáutica vigente.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ CASO PRÁCTICO ============ -->
+  <section id="caso">
+    <div class="caso-practico">
+      <div class="header-caso">
+        <div class="icono">CP</div>
+        <h2 style="margin:0;border:none;">Caso práctico — Selección de plataforma para operación dual</h2>
+      </div>
+
+      <div class="escenario">
+        <strong>Escenario operacional</strong>
+        <p>Una empresa de servicios eléctricos del centro-sur de Chile contrata a su consultora aeronáutica para desarrollar un programa anual de inspección con drones de su red de transmisión de 220 kV. El cliente requiere dos productos diferenciados: <strong>(a)</strong> un informe termográfico de las 380 conexiones de empalme de su línea (detección de puntos calientes y conexiones defectuosas) que debe ejecutarse entre las 22:00 y 04:00 horas para evitar la radiación solar directa, y <strong>(b)</strong> un modelo digital de elevación (DEM) georreferenciado de la franja de servidumbre de 15 km lineales para evaluación de avance de vegetación en la línea. El presupuesto permite adquirir <em>una sola aeronave</em>. La operación requiere autorización DGAC dado que parte de la línea cruza zonas semi-pobladas.</p>
+      </div>
+
+      <strong>Preguntas guía para el participante</strong>
+      <ul class="preguntas-caso">
+        <li>¿Qué modelo de la Serie Matrice 4 recomienda? Justifique la decisión técnica.</li>
+        <li>¿Cómo cumpliría con ambos entregables del cliente con una sola aeronave?</li>
+        <li>¿Qué consideraciones de la DAN 151 Ed. 4 deben quedar formalmente documentadas en el plan operacional?</li>
+        <li>¿Qué función específica del sistema (cámara, telémetro, RTK) explotaría para cada uno de los dos entregables?</li>
+        <li>¿Qué riesgos operacionales nocturnos identifica y cómo los mitiga?</li>
+      </ul>
+
+      <details class="respuestas-modelo">
+        <summary>Respuesta modelo (haga clic para expandir tras resolver)</summary>
+        <div style="padding:14px 6px;">
+          <p><strong>Recomendación:</strong> el <strong>Matrice 4T</strong> es la elección correcta. Es el único de la serie que cuenta con cámara térmica radiométrica (640 × 512 px), capacidad imprescindible para el entregable (a) de termografía. Para el entregable (b) — el DEM —, el M4T también dispone del telémetro láser de 1 800 m y de la cámara gran angular 48 MP combinada con módulo RTK integrado, lo que permite ejecutar misiones fotogramétricas con precisión adecuada para servidumbre eléctrica (no se requiere precisión topográfica catastral). Si el cliente exigiera precisión cartográfica catastral, se recomendaría el M4E o complementar con punto de control terrestre (GCP).</p>
+          <p><strong>Plan operacional dual:</strong> dividir la campaña en dos fases. <em>Fase nocturna</em>: ejecutar la termografía con M4T entre 22:00 y 04:00, configurando misiones waypoint con espaciado de 80 m sobre las conexiones, vuelo a 25 m sobre los conductores, hover de 6 segundos por punto y captura simultánea RGB+IR. <em>Fase diurna</em>: ejecutar misiones de mapeo en franja de 100 m con solapamiento 80/70 % y altitud 80 m AGL.</p>
+          <p><strong>Documentación DAN 151 Ed. 4:</strong> AOC vigente; credenciales del piloto a distancia y observador; tarjeta de registro de la aeronave; análisis específico de operación nocturna; coordinación con la dependencia ATC si la traza cruza áreas controladas; evaluación de riesgo sobre áreas semi-pobladas; cobertura de seguro RC aeronáutica; bitácora de mantenimiento; planes de contingencia ante pérdida de enlace y batería baja.</p>
+          <p><strong>Funciones a explotar:</strong> entregable (a) — cámara térmica, función PinPoint con telémetro láser para georreferenciar puntos calientes con error &lt; 1 m, luz NIR para iluminación auxiliar de las cámaras visibles. Entregable (b) — cámara gran angular 48 MP con módulo RTK fijado a Network RTK; misión de mapeo en DJI Pilot 2 con orientación oblicua a 70°.</p>
+          <p><strong>Riesgos nocturnos y mitigación:</strong> reducción de campo visual del piloto (mitigar con observador adicional y baliza encendida), pérdida de referencias de obstáculos (mitigar con planeación previa de waypoints sobre cartografía existente y uso del sistema de visión de baja luminosidad), bajada de temperatura que reduce capacidad de batería (mitigar precalentando baterías y reduciendo tiempo de vuelo planificado por sortie), interferencia con avifauna nocturna (mitigar con vuelo a velocidad reducida y suspensión inmediata si se detecta).</p>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <nav class="nav-modulos">
+    <a href="javascript:void(0)"><small>Volver</small>Inicio del curso</a>
+    <a class="next" href="javascript:void(0)"><small>Siguiente</small>Módulo 2 · Aeronave →</a>
+  </nav>
+
+</main>
+
+<footer class="pie-curso">
+  <p>© 2026 ENAE — Curso Operador Profesional DJI Matrice 4 Series · Módulo 1</p>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Módulo 5 — Operaciones de vuelo · Matrice 4 Series · ENAE</title>
+<link rel="stylesheet" href="https://enae.cl/cursos/matrice4/assets/curso.css">
+</head>
+<body>
+
+<header class="header-curso">
+  <div class="marca">ENAE — Curso Matrice 4 Series</div>
+  <h1>Módulo 5 · Operaciones de vuelo y seguridad operacional</h1>
+  <div class="subtitulo">Modos de vuelo · RPO · APAS · AirSense · Zonas GEO · 5 lecciones · 4 horas</div>
+</header>
+
+
+
+<main class="contenedor">
+
+  <section class="bloque">
+    <h2>Presentación del módulo</h2>
+    <p>Este módulo aborda la <strong>operación segura de la aeronave</strong>: los modos de vuelo y sus restricciones, los procedimientos de despegue/aterrizaje, el sistema Regreso al Punto de Origen (RPO) y sus tres mecanismos de activación, los sistemas avanzados de asistencia al piloto (APAS), DJI AirSense y la gestión de zonas GEO. Es el módulo central del curso desde el punto de vista operacional.</p>
+
+    <div class="objetivos">
+      <h3>Objetivos de aprendizaje</h3>
+      <ul>
+        <li>Distinguir los modos N, S y F (T/A) y aplicar criterio para usar cada uno.</li>
+        <li>Ejecutar la lista de comprobación pre-vuelo conforme a estándar DJI/operacional.</li>
+        <li>Comprender la lógica del RPO y configurar correctamente la altitud y comportamiento.</li>
+        <li>Operar APAS para evitación automática de obstáculos en condiciones adecuadas.</li>
+        <li>Interpretar alertas de DJI AirSense ante tráfico tripulado y reaccionar conforme a protocolo.</li>
+        <li>Gestionar el sistema GEO: solicitar desbloqueos, evitar zonas restringidas, leer cuentas atrás.</li>
+      </ul>
+    </div>
+
+    <div class="indice-leccion">
+      <h4>Índice del módulo</h4>
+      <ol>
+        <li><a href="#l51">Lección 5.1 · Modos de vuelo y procedimientos básicos</a></li>
+        <li><a href="#l52">Lección 5.2 · Lista de comprobación pre-vuelo y arranque/parada</a></li>
+        <li><a href="#l53">Lección 5.3 · Regreso al Punto de Origen (RPO)</a></li>
+        <li><a href="#l54">Lección 5.4 · APAS y protección de aterrizaje</a></li>
+        <li><a href="#l55">Lección 5.5 · DJI AirSense y zonas GEO</a></li>
+        <li><a href="#caso">Caso práctico aplicado</a></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 5.1 ============ -->
+  <section class="bloque" id="l51">
+    <div class="leccion">
+      <span class="etiqueta">Lección 5.1</span>
+      <h2>Modos de vuelo y procedimientos básicos</h2>
+
+      <p>El selector físico del RC Plus 2 permite alternar entre tres posiciones de modo de vuelo: <strong>F (Función), S (Sport) y N (Normal)</strong>. Cada uno responde a un perfil operacional distinto y tiene implicaciones críticas sobre el sistema de detección y la velocidad máxima.</p>
+
+      <h3>Modo Normal (N) — recomendado por defecto</h3>
+      <p>Es el modo predeterminado y el adecuado para la <strong>mayoría de los escenarios operativos</strong>. La aeronave dispone de:</p>
+      <ul>
+        <li>Hover preciso con sistema de visión y GNSS activos.</li>
+        <li>Detección de obstáculos completamente operativa (frenado/evasión).</li>
+        <li>Modos de vuelo inteligentes habilitados (waypoint, área, mapeo, follow terrain).</li>
+        <li>Velocidad máxima horizontal: 15 m/s adelante, 12 m/s atrás, 10 m/s lateral.</li>
+      </ul>
+
+      <h3>Modo Sport (S) — alta velocidad</h3>
+      <p>Eleva la velocidad máxima horizontal a 21 m/s (75.6 km/h) adelante. Compromete la seguridad porque <strong>desactiva el sistema de detección de obstáculos</strong>. Solo debe usarse en espacio abierto, despejado y bajo control directo del piloto. La distancia de frenado aumenta significativamente.</p>
+
+      <div class="callout alerta">
+        <strong>Reglas críticas — Modo Sport</strong>
+        <ul style="margin-top:6px;">
+          <li>NO usar en zonas con obstáculos cercanos (árboles, líneas, edificios).</li>
+          <li>NO usar para inspección o acercamiento a infraestructura.</li>
+          <li>Mantener siempre VLOS y atención a la posición.</li>
+          <li>La aeronave NO frena automáticamente ante obstáculos.</li>
+          <li>La respuesta a controles es mucho más sensible — el operador debe ser experto.</li>
+          <li>Solo activar tras evaluación explícita de seguridad.</li>
+        </ul>
+      </div>
+
+      <h3>Modo Función (F) — Trípode (T) o Posición (A)</h3>
+      <p>El modo F se configura en DJI Pilot 2 como <strong>Modo Trípode (T)</strong> o <strong>Modo Posición (ATTI)</strong>:</p>
+      <ul>
+        <li><strong>Modo T (Trípode):</strong> velocidad reducida (3 m/s o 2.8 m/s en UE) para vuelos de precisión cinematográfica o aproximación a infraestructura. Mantiene detección de obstáculos. Útil para inspección detallada.</li>
+        <li><strong>Modo A (ATTI):</strong> el sistema de visión y GNSS se desactivan. La aeronave se comporta como un helicóptero clásico: si el operador suelta los controles, la aeronave deriva con el viento. Solo debe usarse por <em>operadores experimentados</em>. La aeronave puede activar este modo automáticamente si pierde GNSS y visión simultáneamente.</li>
+      </ul>
+
+      <div class="callout aviso">
+        <strong>Activación automática de ATTI</strong>
+        Si la aeronave pierde sistema de visión Y GNSS (o brújula con interferencia), entrará automáticamente en modo ATTI. El piloto debe estar preparado para volar la aeronave manualmente, sin asistencia de hover. Practicar este escenario en simulador o entrenamiento controlado es fundamental.
+      </div>
+
+      <h3>Control de la aeronave (Modo 2 estándar)</h3>
+      <table class="tabla-curso">
+        <thead><tr><th>Acción</th><th>Joystick izquierdo</th><th>Joystick derecho</th></tr></thead>
+        <tbody>
+          <tr><td>Subir</td><td>Empujar arriba</td><td>—</td></tr>
+          <tr><td>Bajar</td><td>Empujar abajo</td><td>—</td></tr>
+          <tr><td>Girar a la izquierda (yaw)</td><td>Empujar izquierda</td><td>—</td></tr>
+          <tr><td>Girar a la derecha (yaw)</td><td>Empujar derecha</td><td>—</td></tr>
+          <tr><td>Avanzar</td><td>—</td><td>Empujar arriba</td></tr>
+          <tr><td>Retroceder</td><td>—</td><td>Empujar abajo</td></tr>
+          <tr><td>Mover a la izquierda</td><td>—</td><td>Empujar izquierda</td></tr>
+          <tr><td>Mover a la derecha</td><td>—</td><td>Empujar derecha</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Indicadores de estado de la aeronave</h3>
+      <p>Los LEDs de estado en la aeronave comunican condición operativa:</p>
+      <table class="tabla-curso">
+        <thead><tr><th>Patrón LED</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr><td>Rojo, amarillo y verde alternados</td><td>Encendido y autodiagnóstico</td></tr>
+          <tr><td>Amarillo parpadea 4 veces</td><td>Calentando</td></tr>
+          <tr><td>Verde parpadea lento</td><td>GNSS activado, listo para volar</td></tr>
+          <tr><td>Verde parpadea doble</td><td>Sistemas de visión activados</td></tr>
+          <tr><td>Amarillo parpadea lento</td><td>GNSS y visión desactivados — modo ATTI</td></tr>
+          <tr><td>Amarillo parpadea rápido</td><td>Pérdida de señal del control remoto</td></tr>
+          <tr><td>Rojo parpadea lento</td><td>Despegue desactivado (consultar Pilot 2)</td></tr>
+          <tr><td>Rojo parpadea rápido</td><td>Nivel de batería crítico</td></tr>
+          <tr><td>Rojo fijo</td><td>Error crítico</td></tr>
+          <tr><td>Rojo y amarillo alternados</td><td>Calibración de brújula necesaria</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 5.2 ============ -->
+  <section class="bloque" id="l52">
+    <div class="leccion">
+      <span class="etiqueta">Lección 5.2</span>
+      <h2>Lista de comprobación pre-vuelo y arranque/parada</h2>
+
+      <p>La lista de comprobación pre-vuelo es el <strong>elemento más importante</strong> de la operación segura. Debe ejecutarse rigurosamente antes de cada vuelo, independientemente de la experiencia del operador. Su omisión es la principal causa documentada de accidentes en operaciones con RPAS profesionales.</p>
+
+      <h3>Lista de comprobación pre-vuelo (estándar Matrice 4)</h3>
+      <ol>
+        <li>Verificar batería de aeronave y RC al 100 % (o nivel suficiente para la misión planeada con margen del 30 %).</li>
+        <li>Verificar bandas de sujeción de batería extendidas y batería bien insertada (clic audible).</li>
+        <li>Inspeccionar la aeronave: ausencia de cuerpos extraños (agua, aceite, arena) en compartimentos, ventilación libre.</li>
+        <li>Hélices del mismo modelo, sin daños, montadas correctamente, brazos y palas desplegados.</li>
+        <li>Lentes del sistema de visión, cámaras, sensor IR y luz auxiliar limpios, sin pegatinas ni obstrucción.</li>
+        <li>Retirar el protector del estabilizador antes de encender la aeronave.</li>
+        <li>Antenas del control remoto en posición correcta (cara plana hacia la aeronave).</li>
+        <li>Firmware de aeronave, RC y DJI Pilot 2 actualizado a la versión más reciente.</li>
+        <li>Encender aeronave y RC; verificar selector en modo N; LED RC en verde fijo y LEDs de batería de aeronave en verde fijo (vinculación correcta).</li>
+        <li>Verificar que la zona de operación esté autorizada para vuelo de RPAS.</li>
+        <li>Posicionar la aeronave en superficie despejada y plana, sin obstáculos en 5 m.</li>
+        <li>El piloto se ubica orientado a la cola de la aeronave a 5 m de distancia.</li>
+        <li>Acceder a vista de vuelo en DJI Pilot 2 y revisar parámetros: GNSS ≥ 12 sat, RTK FIX si aplica, calibración de brújula OK, IMU OK.</li>
+        <li>Confirmar la altura y distancia máximas configuradas.</li>
+        <li>Confirmar la altitud RPO configurada (debe superar todos los obstáculos de la zona).</li>
+        <li>Confirmar la acción ante pérdida de señal (RPO recomendado).</li>
+        <li>Verificar configuración de RTK si la misión la requiere.</li>
+        <li>Coordinar con observador (si aplica) y verificar comunicación radio.</li>
+        <li>Anunciar despegue al equipo presente y confirmar área despejada.</li>
+      </ol>
+
+      <h3>Arranque de motores (CSC)</h3>
+      <p>Los motores se arrancan mediante el <strong>Comando de Combinación de Palancas (CSC)</strong>: ambos joysticks llevados simultáneamente hacia adentro/abajo (formato V invertida) o hacia afuera/abajo. Una vez arrancados, soltar inmediatamente las palancas a posición neutra.</p>
+
+      <h3>Parada de motores</h3>
+      <p>Tras aterrizaje, hay dos métodos:</p>
+      <ul>
+        <li><strong>Método 1:</strong> mantener la palanca de aceleración hacia abajo hasta que los motores se detengan (~3 segundos).</li>
+        <li><strong>Método 2:</strong> ejecutar el CSC nuevamente (mismo gesto del arranque) hasta detención.</li>
+      </ul>
+
+      <div class="callout alerta">
+        <strong>Detención de motores en vuelo</strong>
+        El CSC puede detener los motores DURANTE el vuelo solo si el controlador de vuelo detecta un error crítico. Esto provocará el estrellamiento. Es una decisión de último recurso solo cuando exista riesgo a vidas en tierra. La instrucción y entrenamiento sobre este escenario debe documentarse en el manual de operaciones.
+      </div>
+
+      <h3>Despegue manual</h3>
+      <ol>
+        <li>Tras CSC, esperar 2 segundos confirmando giro estable.</li>
+        <li>Empujar suavemente la palanca de aceleración hacia arriba.</li>
+        <li>Estabilizar a 1.5 m AGL y hacer hover de comprobación 3–5 segundos.</li>
+        <li>Verificar respuesta a inputs cortos en cada eje.</li>
+        <li>Subir progresivamente a la altura operativa.</li>
+      </ol>
+
+      <h3>Aterrizaje manual</h3>
+      <ol>
+        <li>Aproximar al sitio de aterrizaje a velocidad reducida (modo Normal).</li>
+        <li>Estabilizar en hover a 5 m sobre el punto de aterrizaje.</li>
+        <li>Iniciar descenso suave manteniendo la aeronave sobre el punto.</li>
+        <li>Cuando los patines toquen el suelo, mantener throttle hacia abajo hasta corte de motores.</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 5.3 ============ -->
+  <section class="bloque" id="l53">
+    <div class="leccion">
+      <span class="etiqueta">Lección 5.3</span>
+      <h2>Regreso al Punto de Origen (RPO)</h2>
+
+      <p>El <strong>Regreso al Punto de Origen</strong> (RPO, equivalente a <em>Return-to-Home</em> en otros sistemas) es la función automática que devuelve la aeronave al último punto de origen registrado. La Serie Matrice 4 dispone de una versión avanzada (<strong>RPO avanzado</strong>) con planificación inteligente de ruta.</p>
+
+      <h3>Tres mecanismos de activación</h3>
+
+      <table class="tabla-curso">
+        <thead><tr><th>Mecanismo</th><th>Activación</th><th>Comportamiento</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>RPO manual</strong></td>
+            <td>Mantener presionado el botón RPO en el RC durante el vuelo</td>
+            <td>Inicio inmediato de retorno con ruta planificada</td>
+          </tr>
+          <tr>
+            <td><strong>RPO por batería baja</strong></td>
+            <td>Cálculo automático cuando la batería solo permite el regreso</td>
+            <td>Aviso con cuenta atrás → RPO automático si no se cancela</td>
+          </tr>
+          <tr>
+            <td><strong>RPO por pérdida de señal</strong></td>
+            <td>Pérdida de enlace con el RC (si configurado a "RPO")</td>
+            <td>Retorno automático tras 3 s sin señal</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Punto de origen</h3>
+      <p>El punto de origen se registra automáticamente durante el despegue cuando hay señal GNSS suficiente o iluminación adecuada. DJI Pilot 2 emite un mensaje de voz al confirmarlo. <strong>Si la posición del operador cambia durante el vuelo</strong>, debe actualizarse manualmente: <em>Vista de cámara → ⚙ → Control → Actualizar punto de origen</em>.</p>
+
+      <h3>Configuración crítica del RPO</h3>
+      <ul>
+        <li><strong>Altitud RPO:</strong> por defecto 100 m. Debe ajustarse SUPERIOR al obstáculo más alto del área de operación. Si vuela en zonas con torres de 50 m, configure altitud RPO ≥ 70 m.</li>
+        <li><strong>Modo RPO:</strong> "Avanzado" (planifica ruta evitando obstáculos) o "Preestablecido" (asciende a altitud RPO y vuelve en línea recta).</li>
+        <li><strong>Acción ante pérdida de señal:</strong> RPO (recomendado), Hover (espera) o Aterrizar.</li>
+      </ul>
+
+      <h3>Procedimiento de RPO avanzado</h3>
+      <ol>
+        <li>La aeronave frena y entra en hover por 1–2 s.</li>
+        <li>Asciende (si está bajo la altitud RPO) o mantiene altitud actual (si está sobre).</li>
+        <li>Calcula la mejor ruta evitando zonas GEO, obstáculos y rutas peligrosas conocidas.</li>
+        <li>Vuela hacia el punto de origen ajustando velocidad según viento y obstáculos.</li>
+        <li>Sobre el punto de origen, gira la cámara hacia abajo y desciende.</li>
+        <li>Activa protección de aterrizaje y aterriza si el terreno es adecuado.</li>
+      </ol>
+
+      <div class="callout aviso">
+        <strong>Realidad aumentada del RPO</strong>
+        Durante el RPO, DJI Pilot 2 muestra la <em>ruta de RPO en RA</em> (realidad aumentada) sobre la vista de cámara, indicando el camino planificado. Esta visualización es referencial: la ruta real puede diferir levemente. Mantenga atención a la pantalla y al estado de batería.
+      </div>
+
+      <h3>Casos de excepción</h3>
+      <ul>
+        <li>Si el sistema de posicionamiento falla durante RPO de seguridad, la aeronave puede entrar en ATTI y aterrizar localmente.</li>
+        <li>Si una zona GEO interfiere en la ruta, el RPO se modifica o aborta. Evite operaciones cerca de zonas GEO sin desbloqueo.</li>
+        <li>Si el viento es superior a la capacidad de retorno, la aeronave NO podrá regresar y caerá cuando se agote la batería. Vuele con margen de seguridad ante viento.</li>
+        <li>Cables eléctricos finos, ramas de árboles y vidrio NO son detectados consistentemente durante RPO. Configure altitud RPO conservadora.</li>
+        <li>El RPO no se activa durante un aterrizaje automático en curso.</li>
+      </ul>
+
+      <h3>Cómo cancelar el RPO</h3>
+      <p>Durante un RPO con señal disponible, presione el botón RPO o el botón "Detener vuelo" en el RC. La aeronave saldrá del RPO y volverá al control manual. Si el RPO se inició por batería baja, no se recomienda cancelarlo a menos que el sitio de despliegue esté más cerca que el punto de origen y sea seguro aterrizar localmente.</p>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 5.4 ============ -->
+  <section class="bloque" id="l54">
+    <div class="leccion">
+      <span class="etiqueta">Lección 5.4</span>
+      <h2>APAS y protección de aterrizaje</h2>
+
+      <p><strong>APAS (Advanced Pilot Assistance Systems)</strong> es el sistema de evasión activa de obstáculos. Cuando está activado, la aeronave responde a los inputs del piloto pero <em>simultáneamente</em> planifica desvíos automáticos para sortear obstáculos detectados en el sistema de visión.</p>
+
+      <h3>Activación de APAS</h3>
+      <p>DJI Pilot 2 → Vista de cámara → ⚙ → Sistema anticolisión → Acción = "<strong>Evitar</strong>". Otras opciones disponibles:</p>
+      <ul>
+        <li><strong>Evitar:</strong> APAS activo. La aeronave intenta replanificar la ruta.</li>
+        <li><strong>Frenar:</strong> la aeronave detiene el avance ante obstáculo, sin replanificar.</li>
+        <li><strong>Apagado:</strong> la aeronave no actúa ante obstáculos. Solo para operadores expertos en escenarios controlados.</li>
+      </ul>
+
+      <h3>Limitaciones de APAS</h3>
+      <ul>
+        <li>Requiere sistema de visión disponible (luz adecuada, lentes limpias).</li>
+        <li>No detecta consistentemente cables muy finos, ramas pequeñas, vidrio o agua.</li>
+        <li>Performance degradada en condiciones extremas: &lt; 300 lux o &gt; 10 000 lux.</li>
+        <li>No funciona correctamente cerca de zonas GEO.</li>
+        <li>Si parcialmente disponible, la aeronave frena en hover en lugar de evadir.</li>
+        <li>Se desactiva automáticamente en modo Sport.</li>
+      </ul>
+
+      <h3>Protección de aterrizaje</h3>
+      <p>Cuando APAS está activo en modo "Evitar" o "Frenar", al iniciar aterrizaje (palanca de throttle abajo) se activa la protección de aterrizaje:</p>
+      <ul>
+        <li>Si el terreno es plano y adecuado, la aeronave aterriza directamente.</li>
+        <li>Si detecta terreno irregular, agua, o no apto, la aeronave queda en hover.</li>
+        <li>Para forzar aterrizaje en este caso: mantener throttle abajo durante 5 segundos. La aeronave aterrizará con detección desactivada.</li>
+      </ul>
+
+      <h3>Asistencia visual</h3>
+      <p>Función adicional que permite al piloto observar la <strong>vista del sistema de visión correspondiente</strong> según la dirección de vuelo. Útil para vuelo en reversa o lateral cuando la cámara principal no apunta hacia el sentido de movimiento.</p>
+      <ul>
+        <li>Acceder pulsando la flecha de dirección en la vista de cámara.</li>
+        <li>Mantener pulsado para bloquear la dirección.</li>
+        <li>Pulsar el centro para maximizar la vista.</li>
+        <li>Las hélices son visibles en la vista — comportamiento normal.</li>
+        <li>Es referencial: no muestra cables finos ni vidrio con precisión.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 5.5 ============ -->
+  <section class="bloque" id="l55">
+    <div class="leccion">
+      <span class="etiqueta">Lección 5.5</span>
+      <h2>DJI AirSense y zonas GEO</h2>
+
+      <h3>DJI AirSense</h3>
+      <p>El Matrice 4 incluye un <strong>receptor ADS-B integrado</strong> (DJI AirSense) que detecta tráfico aéreo tripulado dentro de un radio de 10 km. Recibe transmisiones ADS-B Out en estándares 1090ES (RTCA DO-260) y UAT (RTCA DO-282), calcula la posición/orientación/velocidad relativa y muestra alertas categorizadas en DJI Pilot 2.</p>
+
+      <h3>Categorías de alerta AirSense</h3>
+      <table class="tabla-curso">
+        <thead><tr><th>Nivel</th><th>Indicación</th><th>Acción esperada</th></tr></thead>
+        <tbody>
+          <tr><td>Aviso</td><td>Icono avión azul en mapa</td><td>Tomar conciencia. Sin acción inmediata.</td></tr>
+          <tr><td>Precaución</td><td>"Aeronave tripulada detectada en alrededores. Vuele con cuidado." Icono naranja con distancia.</td><td>Reducir altitud o evitar la traza del tráfico tripulado.</td></tr>
+          <tr><td>Advertencia</td><td>"Riesgo de colisión. Descienda o ascienda inmediatamente." Icono rojo + vibración del RC.</td><td>Acción evasiva inmediata: descender al menos 30 m o salir del cuadrante.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout alerta">
+        <strong>Limitaciones de AirSense — críticas para CTA</strong>
+        <ul style="margin-top:6px;">
+          <li>Solo recibe ADS-B de aeronaves equipadas con dispositivo ADS-B Out funcionando. Helicópteros y aviación general sin ADS-B no son detectados.</li>
+          <li>Si hay un obstáculo entre tráfico y dron, el mensaje no se recibe.</li>
+          <li>Puede haber retrasos por interferencia. Mantener observación visual permanente.</li>
+          <li>NO reemplaza la coordinación con la dependencia ATC/AFIS competente.</li>
+          <li>NO emite señal hacia las aeronaves tripuladas (es solo IN, no OUT).</li>
+        </ul>
+      </div>
+
+      <h3>Sistema GEO (Geospatial Environment Online)</h3>
+      <p>El sistema GEO de DJI proporciona información en tiempo real sobre restricciones de espacio aéreo. Las zonas se categorizan por colores y comportamientos:</p>
+
+      <table class="tabla-curso">
+        <thead><tr><th>Zona</th><th>Color</th><th>Comportamiento</th></tr></thead>
+        <tbody>
+          <tr><td>Restringida</td><td>Rojo</td><td>Vuelo prohibido. Motores no arrancan dentro. En vuelo: cuenta atrás 100 s → aterrizaje semiautomático.</td></tr>
+          <tr><td>Autorización</td><td>Azul</td><td>Vuelo prohibido salvo desbloqueo previo registrado. Mismo comportamiento que restringida si se ingresa.</td></tr>
+          <tr><td>Advertencia</td><td>Amarillo</td><td>Permite vuelo con notificación. Operador acepta el aviso.</td></tr>
+          <tr><td>Advertencia reforzada</td><td>Naranja</td><td>Permite vuelo previa confirmación de la ruta de vuelo.</td></tr>
+          <tr><td>Altitud restringida</td><td>Gris</td><td>Limita altitud de vuelo. Si excede con GNSS débil → fuerte: cuenta atrás 100 s → desciende.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Espacios de seguridad</h3>
+      <p>Alrededor de zonas restringidas y de autorización, el sistema GEO mantiene un <strong>buffer de 20 m</strong>. La aeronave no puede entrar a la zona desde fuera del buffer. Si despega dentro del buffer, sólo puede aterrizar en el mismo punto o volar en dirección opuesta a la zona. Una vez fuera, no puede regresar al buffer sin desbloqueo.</p>
+
+      <h3>Procedimiento de desbloqueo</h3>
+      <ol>
+        <li>Acceder a <a href="https://fly-safe.dji.com" rel="noopener">fly-safe.dji.com</a>.</li>
+        <li>Seleccionar tipo de desbloqueo: automático (zonas de autorización) o personalizado (operadores con AOC).</li>
+        <li>Completar datos: número de teléfono verificado, área, fechas, motivo.</li>
+        <li>Esperar aprobación.</li>
+        <li>Sincronizar la licencia en DJI Pilot 2 (debe estar conectado a internet).</li>
+        <li>Despegar dentro de la zona desbloqueada.</li>
+      </ol>
+
+      <h3>Límites máximos de vuelo</h3>
+      <p>En DJI Pilot 2 se configuran límites adicionales por software:</p>
+      <ul>
+        <li><strong>Altitud máxima</strong>: por seguridad, configure ≤ 120 m AGL en cumplimiento DAN 151 Ed. 4 y normativa equivalente.</li>
+        <li><strong>Distancia máxima</strong>: configure ≤ 500 m si opera VLOS, salvo autorización BVLOS específica.</li>
+      </ul>
+
+      <div class="callout">
+        <strong>Responsabilidad final</strong>
+        El sistema GEO es una herramienta de apoyo, NO una garantía legal. El operador es siempre responsable de cumplir la regulación aeronáutica local. Verifique fuentes oficiales (NOTAM, autoridades aeronáuticas) antes de cada vuelo en zonas sensibles.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CASO PRÁCTICO ============ -->
+  <section id="caso">
+    <div class="caso-practico">
+      <div class="header-caso">
+        <div class="icono">CP</div>
+        <h2 style="margin:0;border:none;">Caso práctico — Operación próxima a un aeródromo</h2>
+      </div>
+
+      <div class="escenario">
+        <strong>Escenario operacional</strong>
+        <p>Una aerolínea regional contrata su servicio de inspección aérea de un edificio terminal en un aeródromo no controlado en la zona sur de Chile. La operación requiere vuelo a 80 m sobre la cabecera de la pista (sin tráfico activo en ese momento) durante 25 minutos. La FATO está marcada como zona de autorización en el sistema GEO. Hay aviación general no comercial en la zona, no toda equipada con ADS-B. El AFIS de la dependencia opera en horario diurno y deben coordinarse las operaciones. El cliente requiere video continuo de las inspecciones.</p>
+      </div>
+
+      <strong>Preguntas guía</strong>
+      <ul class="preguntas-caso">
+        <li>Detalle el procedimiento completo de desbloqueo del sistema GEO.</li>
+        <li>¿Qué coordinación operacional debe establecer con AFIS antes de la operación? ¿Qué documentación queda?</li>
+        <li>¿En qué situaciones AirSense NO le alertará y cómo compensa esa limitación?</li>
+        <li>¿Qué configuración de RPO emplea considerando la cercanía de la pista? Justifique altitud y modo.</li>
+        <li>Si AirSense le marca una alerta de Advertencia con tráfico tripulado a 1 km, ¿cuál es su acción inmediata?</li>
+      </ul>
+
+      <details class="respuestas-modelo">
+        <summary>Respuesta modelo</summary>
+        <div style="padding:14px 6px;">
+          <p><strong>Procedimiento de desbloqueo GEO:</strong> con anticipación de mínimo 7 días, ingresar a fly-safe.dji.com con la cuenta DJI verificada. Solicitar "Custom Unlock" especificando coordenadas exactas del aeródromo, ventana horaria de operación, motivo (inspección comercial bajo AOC), número de SN de la aeronave y datos del piloto a distancia (credencial DGAC). Adjuntar autorización del operador del aeródromo y carta de coordinación con AFIS. Una vez aprobado, sincronizar la licencia en DJI Pilot 2 con conexión a internet. Verificar el día de la operación que la licencia aparece como "ACTIVA" en la app.</p>
+          <p><strong>Coordinación con AFIS:</strong> presentar plan operacional documentado al menos 72 horas antes con: identificación del operador y AOC, área de operación con coordenadas y altitud, fecha y horarios, contactos de emergencia. Solicitar NOTAM si la operación lo requiere por su naturaleza. El día de la operación, contacto radio con AFIS antes del despegue para activar la operación, e informar fin al aterrizar. Mantener radio operativa durante todo el vuelo. Documentar el contacto en bitácora de vuelo.</p>
+          <p><strong>Limitaciones de AirSense:</strong> la aviación general sin ADS-B Out (común en aeronaves antiguas) NO será detectada. Tampoco helicópteros sin ADS-B. La compensación es múltiple: (1) observador dedicado con tarea exclusiva de barrido visual del cielo, (2) escucha activa de la frecuencia AFIS para detectar reportes de tráfico, (3) operación a altitud baja (80 m) que la mantiene fuera del corredor típico de aproximación, (4) operación con luz auxiliar y baliza encendidas para visibilidad recíproca aunque AirSense no detecte.</p>
+          <p><strong>Configuración RPO:</strong> altitud RPO = 100 m (sobre la altitud operativa de 80 m, pero NO superior a la altura típica de aproximación de aeronaves a la pista, ≈ 150 m). Modo RPO = Preestablecido para evitar maniobras inesperadas dentro del cuadrante de pista. Punto de origen = posición exacta del operador en el área designada fuera de la cabecera. Acción ante pérdida de señal = RPO inmediato (no Hover, dado el riesgo en zona aeronáutica).</p>
+          <p><strong>Acción ante alerta Advertencia:</strong> seguir las instrucciones de DJI Pilot 2 (descender o ascender). Dado contexto: descender inmediatamente a 30 m AGL para alejarse del corredor de tráfico. Comunicar por radio a AFIS la presencia del tráfico y la maniobra evasiva. Si la situación lo amerita, ejecutar RPO. Documentar el evento como ASR (Air Safety Report) y reportar a la DGAC dentro de 72 horas conforme DAN 151 Ed. 4.</p>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <nav class="nav-modulos">
+    <a href="javascript:void(0)"><small>← Anterior</small>Módulo 4 · Control y software</a>
+    <a class="next" href="javascript:void(0)"><small>Siguiente</small>Módulo 6 · Operaciones especializadas →</a>
+  </nav>
+
+</main>
+
+<footer class="pie-curso">
+  <p>© 2026 ENAE — Curso Operador Profesional DJI Matrice 4 Series · Módulo 5</p>
+</footer>
+
+</body>
+</html>

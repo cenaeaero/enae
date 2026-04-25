@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Módulo 7 — Mantenimiento y certificación · Matrice 4 Series · ENAE</title>
+<link rel="stylesheet" href="https://enae.cl/cursos/matrice4/assets/curso.css">
+</head>
+<body>
+
+<header class="header-curso">
+  <div class="marca">ENAE — Curso Matrice 4 Series</div>
+  <h1>Módulo 7 · Mantenimiento, diagnóstico y certificación</h1>
+  <div class="subtitulo">Pre y post vuelo · Mantenimiento · Firmware · Troubleshooting · 4 lecciones · 3 horas</div>
+</header>
+
+
+
+<main class="contenedor">
+
+  <section class="bloque">
+    <h2>Presentación del módulo</h2>
+    <p>Una operación profesional sostenible requiere disciplina de mantenimiento. Este módulo aborda los <strong>checklists pre-vuelo y post-vuelo</strong>, las rutinas de mantenimiento preventivo, el procedimiento de actualización de firmware (vía DJI Pilot 2 y DJI Assistant 2), la metodología de troubleshooting y los aspectos de la certificación Clase C2 europea, AESA y normativa chilena DAN 151.</p>
+
+    <div class="objetivos">
+      <h3>Objetivos de aprendizaje</h3>
+      <ul>
+        <li>Ejecutar checklist pre-vuelo y post-vuelo con criterio profesional.</li>
+        <li>Implementar un programa de mantenimiento preventivo basado en horas de vuelo y ciclos.</li>
+        <li>Actualizar firmware de aeronave y RC vía DJI Pilot 2 y vía DJI Assistant 2.</li>
+        <li>Aplicar metodología de troubleshooting ante fallos comunes.</li>
+        <li>Comprender los requisitos de certificación C2 y geo-consciencia.</li>
+        <li>Cumplir con disposición de residuos electrónicos y baterías.</li>
+      </ul>
+    </div>
+
+    <div class="indice-leccion">
+      <h4>Índice del módulo</h4>
+      <ol>
+        <li><a href="#l71">Lección 7.1 · Listas de comprobación pre y post vuelo</a></li>
+        <li><a href="#l72">Lección 7.2 · Mantenimiento preventivo programado</a></li>
+        <li><a href="#l73">Lección 7.3 · Actualización de firmware</a></li>
+        <li><a href="#l74">Lección 7.4 · Troubleshooting y registrador de vuelo</a></li>
+        <li><a href="#caso">Caso práctico aplicado</a></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 7.1 ============ -->
+  <section class="bloque" id="l71">
+    <div class="leccion">
+      <span class="etiqueta">Lección 7.1</span>
+      <h2>Listas de comprobación pre y post vuelo</h2>
+
+      <h3>Checklist pre-vuelo (formato profesional)</h3>
+      <p>El checklist debe estar disponible en formato físico (laminado) y digital. Cada operador firma su ejecución antes del despegue:</p>
+
+      <table class="tabla-curso">
+        <thead><tr><th>#</th><th>Ítem</th><th>Criterio</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Documentación</td><td>Credencial piloto vigente · tarjeta de registro DGAC · AOC/permiso</td></tr>
+          <tr><td>2</td><td>Coordinación</td><td>Permisos GEO sincronizados · NOTAM consultado · ATC notificado si aplica</td></tr>
+          <tr><td>3</td><td>Meteorología</td><td>Viento &lt; 12 m/s · sin precipitación · visibilidad &gt; 5 km · Tº dentro de rango</td></tr>
+          <tr><td>4</td><td>Aeronave — estructura</td><td>Brazos plegados/desplegados sin daño · sin fisuras visibles</td></tr>
+          <tr><td>5</td><td>Aeronave — hélices</td><td>Mismo modelo · sin daño · montadas correctamente con clic</td></tr>
+          <tr><td>6</td><td>Aeronave — sensores</td><td>Lentes limpios · sin pegatinas · sin condensación · sin obstrucciones</td></tr>
+          <tr><td>7</td><td>Aeronave — estabilizador</td><td>Protector RETIRADO · libre de obstrucciones · gimbal sin daño</td></tr>
+          <tr><td>8</td><td>Aeronave — batería</td><td>≥ 90 % carga · clic audible al insertar · LEDs verdes · temperatura adecuada</td></tr>
+          <tr><td>9</td><td>RC — batería</td><td>≥ 80 % carga · LED verde fijo</td></tr>
+          <tr><td>10</td><td>RC — antenas</td><td>Levantadas y orientadas hacia área de operación</td></tr>
+          <tr><td>11</td><td>Vinculación</td><td>RC y aeronave conectados · LEDs verdes</td></tr>
+          <tr><td>12</td><td>Firmware</td><td>Aeronave, RC y DJI Pilot 2 versión más reciente</td></tr>
+          <tr><td>13</td><td>Calibración</td><td>Brújula OK · IMU OK · vision OK</td></tr>
+          <tr><td>14</td><td>GNSS / RTK</td><td>≥ 12 satélites · RTK FIX si misión lo requiere</td></tr>
+          <tr><td>15</td><td>Configuración</td><td>Modo N · altitud máx · distancia máx · altitud RPO · acción pérdida señal</td></tr>
+          <tr><td>16</td><td>Selector</td><td>Modo de vuelo en N</td></tr>
+          <tr><td>17</td><td>Área operación</td><td>Despejada 5 m · piloto orientado a cola · observador en posición</td></tr>
+          <tr><td>18</td><td>Plan misión</td><td>Cargado · revisado en 3D · sin colisiones planificadas</td></tr>
+          <tr><td>19</td><td>Comunicaciones</td><td>Radio operativa · contactos de emergencia disponibles</td></tr>
+          <tr><td>20</td><td>Anuncio</td><td>Despegue anunciado al equipo · "Going up"</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Checklist post-vuelo</h3>
+      <table class="tabla-curso">
+        <thead><tr><th>#</th><th>Ítem</th><th>Acción</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Aeronave aterrizada</td><td>Confirmar contacto firme con suelo · cortar motores</td></tr>
+          <tr><td>2</td><td>Apagado</td><td>Apagar primero la aeronave · luego el RC</td></tr>
+          <tr><td>3</td><td>Inspección visual</td><td>Hélices · estabilizador · estructura · sensores</td></tr>
+          <tr><td>4</td><td>Estado de batería</td><td>Esperar 15–20 min antes de manipular o cargar</td></tr>
+          <tr><td>5</td><td>Temperatura motores</td><td>NO tocar inmediatamente — riesgo de quemadura</td></tr>
+          <tr><td>6</td><td>Almacenamiento</td><td>Recolocar protector estabilizador · plegar brazos · guardar en bolsa</td></tr>
+          <tr><td>7</td><td>Datos</td><td>Extraer microSD · respaldar capturas · revisar bitácora vuelo</td></tr>
+          <tr><td>8</td><td>Bitácora</td><td>Anotar: hora despegue/aterrizaje · número vuelo del ciclo · ciclos batería · incidencias</td></tr>
+          <tr><td>9</td><td>Reporte</td><td>Reportar cualquier anomalía mecánica o electrónica al responsable de mantenimiento</td></tr>
+          <tr><td>10</td><td>ASR</td><td>Si hubo evento de seguridad, redactar Air Safety Report</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <strong>Cultura de checklist</strong>
+        El checklist no es opcional ni reemplazable por experiencia. Investigaciones de Boeing, Airbus y DGAC muestran que la inmensa mayoría de los accidentes son atribuibles a omisión de un ítem cubierto en el checklist estándar. La firma del checklist es trazabilidad legal.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 7.2 ============ -->
+  <section class="bloque" id="l72">
+    <div class="leccion">
+      <span class="etiqueta">Lección 7.2</span>
+      <h2>Mantenimiento preventivo programado</h2>
+
+      <p>El mantenimiento preventivo se basa en <strong>tres ejes</strong>: por horas de vuelo, por ciclos de batería y por tiempo calendario. Un programa estructurado es requisito de cumplimiento DAN 151 para AOCs y prolonga la vida útil del equipo.</p>
+
+      <h3>Programa recomendado</h3>
+      <table class="tabla-curso">
+        <thead><tr><th>Frecuencia</th><th>Tarea</th></tr></thead>
+        <tbody>
+          <tr><td>Antes de cada vuelo</td><td>Checklist pre-vuelo completo</td></tr>
+          <tr><td>Después de cada vuelo</td><td>Checklist post-vuelo · limpieza superficial · revisión hélices</td></tr>
+          <tr><td>Cada 10 horas de vuelo</td><td>Limpieza profunda lentes y sensores · revisión motor (sonido, libertad)</td></tr>
+          <tr><td>Cada 25 horas de vuelo</td><td>Calibración IMU y brújula completa · revisión bandas batería · prueba RPO en zona segura</td></tr>
+          <tr><td>Cada 50 horas de vuelo</td><td>Revisión visual interna por personal autorizado · revisión gimbal · firmware</td></tr>
+          <tr><td>Cada 100 horas de vuelo</td><td>Servicio profesional certificado DJI · diagnóstico completo</td></tr>
+          <tr><td>Cada 50 ciclos batería</td><td>Test de capacidad · verificar pérdida &lt; 80 % capacidad nominal</td></tr>
+          <tr><td>Cada 3 meses</td><td>Carga y descarga completa de baterías sin uso · firmware DJI Pilot 2</td></tr>
+          <tr><td>Cada 12 meses</td><td>Revisión integral por DJI o servicio autorizado · informe a DGAC</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Almacenamiento</h3>
+      <ul>
+        <li>Almacenar en lugar fresco y seco, libre de polvo, temperatura 22–28 °C.</li>
+        <li>Baterías al 50 % de carga si almacenamiento prolongado &gt; 10 días.</li>
+        <li>Caja rígida transporte original o equivalente con protección anti-impacto.</li>
+        <li>Bolsas anti-incendio LiPo Guard para batería.</li>
+        <li>Estabilizador con protector instalado.</li>
+        <li>NO almacenar con baterías insertadas en la aeronave por períodos prolongados.</li>
+      </ul>
+
+      <h3>Limpieza</h3>
+      <ul>
+        <li><strong>Cuerpo de la aeronave:</strong> paño de microfibra húmedo. NO usar alcohol, solventes ni limpiadores agresivos.</li>
+        <li><strong>Lentes y sensores ópticos:</strong> kit de limpieza de óptica fotográfica. Aplicar limpiador específico solo sobre el paño, no directamente sobre el lente.</li>
+        <li><strong>Hélices:</strong> paño suave seco. Si hay residuos, paño húmedo con agua, secar inmediatamente.</li>
+        <li><strong>Conectores:</strong> aire comprimido (no por boca). Mantener secos. NO usar lubricantes.</li>
+        <li><strong>Tras vuelo en arena/desierto:</strong> aire comprimido en motores, ventiladores y conectores antes de almacenar.</li>
+      </ul>
+
+      <div class="callout aviso">
+        <strong>Bitácora de mantenimiento</strong>
+        Llevar una bitácora individual por aeronave (digital o física) donde se registren: cada vuelo (fecha, duración, piloto, observaciones), cada mantenimiento ejecutado (tarea, fecha, responsable), cada incidente, cada actualización de firmware. La bitácora es exigible por DGAC en una auditoría.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 7.3 ============ -->
+  <section class="bloque" id="l73">
+    <div class="leccion">
+      <span class="etiqueta">Lección 7.3</span>
+      <h2>Actualización de firmware</h2>
+
+      <p>El firmware integra mejoras de seguridad, correcciones de bugs y nuevas funcionalidades. DJI publica firmware periódicamente para la Serie Matrice 4. La actualización es <strong>obligatoria</strong> para mantener el cumplimiento del manual y la cobertura de garantía.</p>
+
+      <h3>Vía DJI Pilot 2 (recomendado)</h3>
+      <ol>
+        <li>Encender aeronave y RC, vinculados.</li>
+        <li>Conectar el RC a internet (WiFi o nano-SIM).</li>
+        <li>Abrir DJI Pilot 2 → si hay actualización disponible aparece notificación.</li>
+        <li>Pulsar "Actualizar todo" — el sistema descarga, transfiere a la aeronave y aplica.</li>
+        <li>NO desconectar ni apagar durante el proceso (5–15 minutos).</li>
+        <li>Reiniciar ambos dispositivos al finalizar.</li>
+        <li>Verificar éxito en menú Acerca de → Versiones de firmware.</li>
+      </ol>
+
+      <h3>Actualización de firmware sin conexión</h3>
+      <p>Cuando no hay internet en el sitio, descargar el archivo en un PC, copiarlo al RC vía USB y aplicar. Útil para operaciones remotas o ambientes seguros (industria sensible, defensa).</p>
+
+      <h3>Vía DJI Assistant 2 (Enterprise Series)</h3>
+      <p>Software para PC que permite actualización avanzada, descarga de bitácoras y diagnóstico:</p>
+      <ol>
+        <li>Descargar DJI Assistant 2 (Enterprise Series) desde dji.com/downloads/softwares/assistant-dji-2-for-matrice.</li>
+        <li>Conectar la aeronave (apagada) al PC vía USB-C.</li>
+        <li>Encender la aeronave y abrir Assistant 2.</li>
+        <li>Iniciar sesión con cuenta DJI.</li>
+        <li>Seleccionar firmware deseado y aplicar.</li>
+        <li>Mantener conexión hasta confirmación de éxito.</li>
+        <li>Repetir para el RC.</li>
+      </ol>
+
+      <div class="callout alerta">
+        <strong>Reglas críticas — actualización firmware</strong>
+        <ul style="margin-top:6px;">
+          <li>NUNCA interrumpir una actualización en curso (puede dejar el equipo "bricked").</li>
+          <li>Aeronave y RC deben tener ≥ 50 % de batería antes de iniciar.</li>
+          <li>Actualizar primero la aeronave, luego el RC, luego DJI Pilot 2.</li>
+          <li>Tras actualización, ejecutar calibración de brújula e IMU como precaución.</li>
+          <li>Una falla de firmware en LED amarillo fijo del RC requiere intervención del soporte DJI.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 7.4 ============ -->
+  <section class="bloque" id="l74">
+    <div class="leccion">
+      <span class="etiqueta">Lección 7.4</span>
+      <h2>Troubleshooting y registrador de vuelo</h2>
+
+      <h3>Metodología profesional de diagnóstico</h3>
+      <ol>
+        <li><strong>Reproducir el problema:</strong> documentar exactamente cuándo y cómo ocurre.</li>
+        <li><strong>Aislar variables:</strong> probar con otra batería, otro RC, otra microSD.</li>
+        <li><strong>Revisar firmware:</strong> verificar que todos los componentes estén en la versión más reciente.</li>
+        <li><strong>Calibrar:</strong> ejecutar calibración de brújula, IMU y gimbal desde DJI Pilot 2.</li>
+        <li><strong>Revisar logs:</strong> descargar bitácora de vuelo desde Assistant 2.</li>
+        <li><strong>Consultar:</strong> base de conocimientos DJI, foros oficiales, soporte técnico.</li>
+        <li><strong>Reportar:</strong> si requiere intervención, abrir caso con número de serie, logs y video.</li>
+      </ol>
+
+      <h3>Fallos comunes y resolución</h3>
+
+      <table class="tabla-curso">
+        <thead><tr><th>Síntoma</th><th>Causa probable</th><th>Acción</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>No arranca motores</td>
+            <td>Zona GEO restringida; batería baja; brújula no calibrada</td>
+            <td>Revisar mensaje en DJI Pilot 2; comprobar zona; calibrar</td>
+          </tr>
+          <tr>
+            <td>Brújula con interferencia</td>
+            <td>Estructura metálica cerca; magnéticos; calibración antigua</td>
+            <td>Despegar lejos de metales; recalibrar; mover punto despegue</td>
+          </tr>
+          <tr>
+            <td>Pérdida de FIX RTK</td>
+            <td>Pérdida 4G/WiFi; cambio de celda; obstrucción radio</td>
+            <td>Verificar conectividad; ajustar D-RTK más cerca; reactivar</td>
+          </tr>
+          <tr>
+            <td>APAS no funciona</td>
+            <td>Baja luz / alta luz; superficies sin textura; modo Sport</td>
+            <td>Cambiar a Normal; ajustar altitud; aumentar iluminación</td>
+          </tr>
+          <tr>
+            <td>Tiempo de vuelo bajo</td>
+            <td>Batería envejecida; baja temperatura; alta altitud; viento</td>
+            <td>Test de capacidad; reemplazo batería &gt; 400 ciclos o &lt; 80 %</td>
+          </tr>
+          <tr>
+            <td>Imagen térmica con líneas</td>
+            <td>FFC pendiente</td>
+            <td>Ejecutar FFC manual desde menú térmico</td>
+          </tr>
+          <tr>
+            <td>Pantalla RC no enciende</td>
+            <td>Batería interna agotada; problema firmware</td>
+            <td>Cargar 30 min; mantener encendido 10 s; consultar soporte</td>
+          </tr>
+          <tr>
+            <td>Estabilizador con error</td>
+            <td>Bloqueo mecánico al despegue; protector puesto</td>
+            <td>Apagar; retirar obstrucción/protector; encender en superficie plana</td>
+          </tr>
+          <tr>
+            <td>Pérdida de transmisión</td>
+            <td>Distancia excesiva; interferencia 2.4/5.8 GHz; antenas mal orientadas</td>
+            <td>Reorientar antenas; reducir distancia; cambiar canal en Pilot 2</td>
+          </tr>
+          <tr>
+            <td>Aeronave deriva en hover</td>
+            <td>Visión deshabilitada; GNSS débil; viento; calibración pendiente</td>
+            <td>Recalibrar IMU/brújula; volar en espacio abierto; verificar Pilot 2</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Registrador de vuelo</h3>
+      <p>Cada vuelo queda registrado en el <strong>flight log</strong> interno con telemetría detallada: posición, velocidades, altitud, comandos del RC, estado de batería, alertas y eventos. El log es la herramienta forense para investigar cualquier incidente.</p>
+      <ul>
+        <li>Acceso al log: DJI Pilot 2 → Mi álbum → Flight Records, o vía DJI Assistant 2.</li>
+        <li>Exportable como CSV o KML.</li>
+        <li>Sincronización automática con cuenta DJI si está activado.</li>
+        <li>El log debe conservarse durante 6 meses como mínimo (cumplimiento DGAC).</li>
+        <li>En caso de incidente, NO borrar el log antes de la investigación.</li>
+      </ul>
+
+      <h3>Riesgos y advertencias</h3>
+      <p>El manual oficial DJI lista los siguientes riesgos a comunicar al usuario final del servicio:</p>
+      <ul>
+        <li>Riesgo de daño físico por contacto con hélices en movimiento.</li>
+        <li>Riesgo de incendio o explosión por mal manejo de baterías de litio.</li>
+        <li>Riesgo de quemadura por contacto con motores tras vuelo prolongado.</li>
+        <li>Riesgo de daño por rayo láser del telémetro (Clase 1, pero no apuntar a personas).</li>
+        <li>Riesgo de pérdida de control por interferencias electromagnéticas no anticipadas.</li>
+        <li>Riesgo de colisión por exceso de confianza en sistemas de detección.</li>
+      </ul>
+
+      <h3>Eliminación y reciclaje</h3>
+      <p>Las baterías y componentes electrónicos NO deben desecharse en la basura doméstica. Cumpliendo con normativa ambiental (Ley REP en Chile, RAEE en UE), entregar en puntos limpios autorizados o devolver al fabricante. Las baterías agotadas se descargan en agua salina por 24 horas antes de su entrega como medida adicional de seguridad.</p>
+
+      <div class="callout exito">
+        <strong>Certificación Clase C2 — implicancias</strong>
+        El Matrice 4 cumple con marcado Clase C2 europeo. Esto implica: identificación remota directa activa, geo-consciencia con base de datos de zonas GEO actualizable, transmisión de datos del operador requeridos por reglamento, modo Baja velocidad disponible (2.8 m/s para vuelo cerca de personas), MTOW &lt; 4 kg. Las advertencias del control remoto sobre sobrevuelo de personas no involucradas son obligatorias y NO deben deshabilitarse. El operador es responsable de cumplir con los requerimientos AESA y DAN 151 según jurisdicción.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CASO PRÁCTICO ============ -->
+  <section id="caso">
+    <div class="caso-practico">
+      <div class="header-caso">
+        <div class="icono">CP</div>
+        <h2 style="margin:0;border:none;">Caso práctico — Investigación post-incidente</h2>
+      </div>
+
+      <div class="escenario">
+        <strong>Escenario operacional</strong>
+        <p>Durante una operación de inspección de líneas eléctricas en zona rural, un Matrice 4T del servicio de su consultora colisiona contra un cable telefónico no documentado en cartografía y cae en un campo. La aeronave queda dañada (estabilizador roto, una hélice destruida), pero la batería intacta. El piloto activó RPO de seguridad después de la colisión pero no respondió. El propietario del terreno colabora identificando el sitio. La DGAC requiere informe del incidente en 72 horas conforme DAN 151 Ed. 4. Su rol como Jefe de Operaciones de la consultora es liderar la investigación y producir el reporte.</p>
+      </div>
+
+      <strong>Preguntas guía</strong>
+      <ul class="preguntas-caso">
+        <li>¿Cuál es la secuencia de acciones inmediatas tras conocer el incidente?</li>
+        <li>¿Cómo recupera y preserva la información del registrador de vuelo?</li>
+        <li>¿Qué metodología de troubleshooting aplica para identificar causas raíz (técnicas y operacionales)?</li>
+        <li>¿Qué información debe incluir el reporte a DGAC y qué medidas correctivas propondría?</li>
+        <li>¿Cómo procede con la batería tras una colisión? ¿Qué riesgos especiales considera?</li>
+      </ul>
+
+      <details class="respuestas-modelo">
+        <summary>Respuesta modelo</summary>
+        <div style="padding:14px 6px;">
+          <p><strong>Secuencia inmediata:</strong> (1) confirmar que no hay personas heridas; (2) asegurar el sitio con cinta de seguridad; (3) NO mover la aeronave sin documentación fotográfica completa de la posición y entorno; (4) documentar GPS exacto, altura aproximada del cable colisionado, condición meteorológica al momento; (5) testimoniar al piloto en escrito mientras los detalles son frescos; (6) notificar a DGAC dentro de 24 horas conforme DAN 151 (notificación inicial); (7) notificar al cliente y al propietario del cable telefónico; (8) iniciar registro fotográfico forense con escala.</p>
+          <p><strong>Recuperación del flight log:</strong> antes de mover la batería, verificar si el RC mantiene conexión (probable: aeronave apagada). Trasladar la microSD de la aeronave a un PC limpio y respaldar todo. Conectar la aeronave a DJI Assistant 2 con la batería integral si es seguro: descargar el flight log completo. Sincronizar logs con cuenta DJI. NO borrar ni sobrescribir nada hasta que el reporte oficial esté entregado. Custodia digital con hash SHA-256 para integridad.</p>
+          <p><strong>Troubleshooting causa raíz:</strong> el flight log mostrará la trayectoria, los inputs del piloto, el estado de los sistemas y los mensajes de alarma. Análisis de causa raíz por categorías: (a) técnica — ¿el sistema de detección debería haber visto el cable? Cable telefónico típicamente &gt; 10 mm: dentro de capacidad de detección a velocidades &lt; 15 m/s. ¿Cuál era la velocidad? ¿Iluminación adecuada? ¿APAS activo? (b) operacional — ¿el cable estaba en cartografía? ¿Hubo site survey previo? ¿El piloto fue informado? ¿La altitud planificada era adecuada? ¿Se respetó VLOS? (c) humana — ¿fatiga del piloto? ¿Distracción? ¿Modo de vuelo correcto?</p>
+          <p><strong>Reporte DGAC:</strong> el formato ASR (Air Safety Report) debe incluir: identificación del operador y AOC; identificación de la aeronave (matrícula DGAC, SN, horas vuelo, ciclos batería); identificación del piloto (credencial); fecha, hora, lugar exacto, condición meteo; secuencia de eventos detallada; análisis de causa raíz; daños materiales y a terceros; medidas correctivas propuestas; cronograma de implementación; documentación adjunta (logs, fotos, testimonio piloto). Medidas correctivas propuestas: actualizar cartografía con cable telefónico georreferenciado; re-entrenamiento del piloto en altitudes mínimas en zonas con infraestructura no documentada; procedimiento adicional de site survey con LIDAR cuando aplique; revisión de checklist pre-vuelo agregando ítem de verificación de cartografía con propietarios locales.</p>
+          <p><strong>Manejo de batería tras colisión:</strong> ASUMIR DAÑO INTERNO incluso si exteriormente está intacta. Riesgo de fuga térmica retardada. Procedimiento: aislar la batería en bolsa anti-incendio LiPo dentro de contenedor metálico abierto en zona ventilada al exterior. Monitorear temperatura cada 30 min durante 4 horas. Si presenta hinchazón, calor anómalo o humo, evacuar y llamar a Bomberos. NO recargar nunca. Para descarte: descargar en agua salina (5 % NaCl) por 24 horas, luego entregar a punto limpio autorizado. Documentar el procedimiento como evidencia.</p>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <nav class="nav-modulos">
+    <a href="javascript:void(0)"><small>← Anterior</small>Módulo 6 · Operaciones especializadas</a>
+    <a class="next" href="javascript:void(0)"><small>Siguiente</small>Examen final →</a>
+  </nav>
+
+</main>
+
+<footer class="pie-curso">
+  <p>© 2026 ENAE — Curso Operador Profesional DJI Matrice 4 Series · Módulo 7</p>
+</footer>
+
+</body>
+</html>

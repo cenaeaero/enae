@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Módulo 4 — Control y software · Matrice 4 Series · ENAE</title>
+<link rel="stylesheet" href="https://enae.cl/cursos/matrice4/assets/curso.css">
+</head>
+<body>
+
+<header class="header-curso">
+  <div class="marca">ENAE — Curso Matrice 4 Series</div>
+  <h1>Módulo 4 · Control remoto RC Plus 2 y aplicación DJI Pilot 2</h1>
+  <div class="subtitulo">Hardware del RC · Combinaciones · DJI Pilot 2 · Transmisión 4G · 4 lecciones · 3 horas</div>
+</header>
+
+
+
+<main class="contenedor">
+
+  <section class="bloque">
+    <h2>Presentación del módulo</h2>
+    <p>El control remoto y la aplicación DJI Pilot 2 conforman la <strong>interfaz hombre-máquina</strong> del sistema. La eficiencia operacional, la seguridad y la calidad de los productos finales (fotografía, video, mapas, datos térmicos) dependen del manejo experto de estos dos elementos. Este módulo cubre el RC Plus 2 desde la perspectiva del hardware y la ergonomía operacional, y DJI Pilot 2 desde la lógica de configuración y la planificación de misiones.</p>
+
+    <div class="objetivos">
+      <h3>Objetivos de aprendizaje</h3>
+      <ul>
+        <li>Identificar todos los controles físicos del RC Plus 2 Enterprise y su función operacional.</li>
+        <li>Vincular un control remoto con una aeronave por los dos métodos oficiales.</li>
+        <li>Personalizar botones C1, C2, C3, C4 y 5D conforme a perfiles operacionales propios.</li>
+        <li>Navegar la interfaz de DJI Pilot 2: vista de cámara, configuración, modos de vuelo inteligentes.</li>
+        <li>Configurar transmisión mejorada 4G con Adaptador celular 2 DJI y SIM nano.</li>
+      </ul>
+    </div>
+
+    <div class="indice-leccion">
+      <h4>Índice del módulo</h4>
+      <ol>
+        <li><a href="#l41">Lección 4.1 · Hardware del RC Plus 2 Enterprise</a></li>
+        <li><a href="#l42">Lección 4.2 · Vinculación, botones y combinaciones</a></li>
+        <li><a href="#l43">Lección 4.3 · Aplicación DJI Pilot 2 — interfaz</a></li>
+        <li><a href="#l44">Lección 4.4 · Transmisión mejorada 4G</a></li>
+        <li><a href="#caso">Caso práctico aplicado</a></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 4.1 ============ -->
+  <section class="bloque" id="l41">
+    <div class="leccion">
+      <span class="etiqueta">Lección 4.1</span>
+      <h2>Hardware del RC Plus 2 Enterprise</h2>
+
+      <p>El control remoto <strong>DJI RC Plus 2 Enterprise</strong> es el modelo estándar para la Serie Matrice 4. Se trata de una unidad robusta construida en magnesio y polímero técnico, con grado de protección IP54, pantalla táctil integrada de alta luminosidad para uso al sol directo, antenas externas plegables y batería interna recargable. La variante "Enhanced" agrega interfaces de expansión adicionales y módulos opcionales para integración con productos del ecosistema DJI.</p>
+
+      <figure class="fig">
+        <img src="https://enae.cl/cursos/matrice4/assets/img/control_remoto_rcplus2.jpg" alt="DJI RC Plus 2 Enterprise">
+        <figcaption>Control remoto DJI RC Plus 2 Enterprise — vista frontal. Pantalla táctil 7&quot; de 1 200 nits, joysticks de precisión, antenas externas y selector de modo de vuelo.</figcaption>
+      </figure>
+
+      <h3>Componentes externos principales</h3>
+      <table class="tabla-curso">
+        <thead><tr><th>#</th><th>Control / componente</th><th>Función</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Pantalla táctil</td><td>Pantalla 7" de 1 200 nits con DJI Pilot 2 y Android nativo</td></tr>
+          <tr><td>2</td><td>LED de estado de conexión</td><td>Indica vinculación con la aeronave</td></tr>
+          <tr><td>3</td><td>Joysticks (palancas)</td><td>Movimientos de la aeronave en Modo 1, 2 o 3</td></tr>
+          <tr><td>4</td><td>Botón Atrás / Función</td><td>1 pulsación = pantalla anterior; 2 pulsaciones = inicio. Se combina con otros para shortcuts</td></tr>
+          <tr><td>5</td><td>Botones L1/L2/L3 y R1/R2/R3</td><td>Funciones específicas asignables en DJI Pilot 2</td></tr>
+          <tr><td>6</td><td>Botón RPO (Return-to-Home)</td><td>Mantenido = inicia RPO; pulsado breve = cancela</td></tr>
+          <tr><td>7</td><td>Micrófonos</td><td>Captación de audio para video</td></tr>
+          <tr><td>8</td><td>Indicador de estado</td><td>Visible en parte superior</td></tr>
+          <tr><td>9</td><td>LEDs de nivel de batería</td><td>Estado de la batería interna</td></tr>
+          <tr><td>10</td><td>Botón de encendido</td><td>1 pulsación = nivel batería; 1 + sostenido = encender/apagar; 1 = encender/apagar pantalla</td></tr>
+          <tr><td>11</td><td>Botón 5D</td><td>Joystick de 4 direcciones + clic, configurable</td></tr>
+          <tr><td>12</td><td>Botón Detener vuelo</td><td>Frena la aeronave y la deja en hover (requiere visión o GNSS)</td></tr>
+          <tr><td>13</td><td>Ranura microSD</td><td>Almacenamiento auxiliar, capturas y bitácoras</td></tr>
+          <tr><td>14</td><td>Puerto USB-C</td><td>Carga, conexión PC, salida de datos</td></tr>
+          <tr><td>15</td><td>Antenas externas</td><td>Plegables, dirección hacia la aeronave</td></tr>
+          <tr><td>16</td><td>Botón personalizable C3</td><td>Función configurable en DJI Pilot 2</td></tr>
+          <tr><td>17</td><td>Dial del estabilizador</td><td>Inclinación de la cámara con precisión</td></tr>
+          <tr><td>18</td><td>Botón de grabación</td><td>Inicia/detiene grabación de video</td></tr>
+          <tr><td>19</td><td>Selector de modo de vuelo</td><td>F (Función) / S (Sport) / N (Normal)</td></tr>
+          <tr><td>20</td><td>Puerto HDMI</td><td>Salida video externa para monitor secundario</td></tr>
+          <tr><td>21</td><td>Antenas internas</td><td>Adicionales para diversidad de polarización</td></tr>
+          <tr><td>22</td><td>Puerto USB-A</td><td>Para dispositivos externos (USB drive, lector microSD)</td></tr>
+          <tr><td>23</td><td>Botón de enfoque/obturador</td><td>Mitad = autofocus; completo = capturar foto</td></tr>
+          <tr><td>24</td><td>Dial del zoom</td><td>Zoom continuo entre las cámaras visibles (24/70/168 mm)</td></tr>
+          <tr><td>25</td><td>Rueda de desplazamiento C4</td><td>Personalizable</td></tr>
+          <tr><td>26</td><td>Asa</td><td>Empuñadura ergonómica</td></tr>
+          <tr><td>27</td><td>Altavoz</td><td>Avisos sonoros y reproducción</td></tr>
+          <tr><td>28</td><td>Salida de aire</td><td>Ventilación interna activa</td></tr>
+          <tr><td>30</td><td>Botones C1, C2 personalizables</td><td>Funciones rápidas (PinPoint, foto, hover)</td></tr>
+          <tr><td>32</td><td>Botón liberación batería</td><td>Para desmontar la batería WB37</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Carga del control remoto</h3>
+      <p>El RC Plus 2 utiliza una batería WB37 (intercambiable) más una pequeña batería interna de respaldo. Recomendaciones:</p>
+      <ul>
+        <li>Use el cable USB-C a USB-C oficial (incluido) y un adaptador con Power Delivery para carga rápida.</li>
+        <li>Active la batería interna haciendo una primera carga completa antes del primer uso.</li>
+        <li>Descargue completamente y recargue al menos una vez cada 3 meses si no se utiliza.</li>
+        <li>Para comprobar nivel de batería, presione brevemente el botón de encendido.</li>
+      </ul>
+
+      <h3>Códigos LED del RC Plus 2</h3>
+      <table class="tabla-curso">
+        <thead><tr><th>LED de estado</th><th>Significado</th></tr></thead>
+        <tbody>
+          <tr><td>Rojo fijo</td><td>RC desvinculado de la aeronave</td></tr>
+          <tr><td>Rojo parpadeante</td><td>Nivel de batería de la aeronave bajo</td></tr>
+          <tr><td>Verde fijo</td><td>Vinculado, en operación normal</td></tr>
+          <tr><td>Azul parpadeante</td><td>Vinculación en curso</td></tr>
+          <tr><td>Amarillo fijo</td><td>Falla en actualización de firmware</td></tr>
+          <tr><td>Azul fijo</td><td>Actualización de firmware exitosa</td></tr>
+          <tr><td>Amarillo parpadeante</td><td>Batería del RC baja</td></tr>
+          <tr><td>Cian parpadeante</td><td>Joysticks no centrados</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 4.2 ============ -->
+  <section class="bloque" id="l42">
+    <div class="leccion">
+      <span class="etiqueta">Lección 4.2</span>
+      <h2>Vinculación, botones y combinaciones</h2>
+
+      <h3>Modos de pilotaje (palancas)</h3>
+      <p>El RC Plus 2 admite tres modos de mapeo de palancas. El <strong>Modo 2</strong> es el predeterminado y el más común internacionalmente:</p>
+
+      <table class="tabla-curso">
+        <thead><tr><th>Modo</th><th>Joystick izquierdo</th><th>Joystick derecho</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Modo 1</strong></td><td>Pitch (adelante/atrás), Yaw (izq/der)</td><td>Throttle (sub/baj), Roll (izq/der)</td></tr>
+          <tr><td><strong>Modo 2</strong> (default)</td><td>Throttle (sub/baj), Yaw (izq/der)</td><td>Pitch (adel/atr), Roll (izq/der)</td></tr>
+          <tr><td><strong>Modo 3</strong></td><td>Pitch + Roll</td><td>Throttle + Yaw</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout aviso">
+        <strong>Selección del modo</strong>
+        Una vez que el operador entrena con un modo, NO debe cambiarlo. Cambiar de modo durante una operación crítica puede causar reacciones equivocadas en momentos críticos. Verificar en cada vuelo que el modo activo sea el habitual.
+      </div>
+
+      <h3>Vinculación del control remoto con la aeronave</h3>
+      <p>Si el RC y la aeronave fueron comprados como kit, ya están vinculados. Si se sustituye un componente, debe re-vincularse:</p>
+
+      <p><strong>Método 1 — Combinación de botones</strong></p>
+      <ol>
+        <li>Encender ambos dispositivos.</li>
+        <li>En el RC, presionar simultáneamente C1 + C2 + Botón Grabación hasta que el LED parpadee azul y suene un pitido.</li>
+        <li>Mantener presionado el botón de encendido de la aeronave durante 5 segundos.</li>
+        <li>La aeronave emite un pitido y los LEDs de batería parpadean en secuencia.</li>
+        <li>Cuando el LED del RC se ilumina verde fijo y suenan dos pitidos, la vinculación está hecha.</li>
+      </ol>
+
+      <p><strong>Método 2 — Vía DJI Pilot 2</strong></p>
+      <ol>
+        <li>Encender RC y aeronave.</li>
+        <li>Abrir DJI Pilot 2 → Vinculación del control remoto.</li>
+        <li>Mantener encendido en la aeronave 5 segundos hasta que parpadee secuencialmente.</li>
+        <li>Esperar verde fijo y dos pitidos del RC.</li>
+      </ol>
+
+      <h3>Combinaciones de botones predeterminadas</h3>
+      <p>Manteniendo presionado el botón <strong>Atrás</strong>, se accede a funciones rápidas combinándolo con otros controles:</p>
+
+      <table class="tabla-curso">
+        <thead><tr><th>Combinación</th><th>Función</th></tr></thead>
+        <tbody>
+          <tr><td>Atrás + Dial Izquierdo</td><td>Ajuste de brillo de pantalla</td></tr>
+          <tr><td>Atrás + Dial Derecho</td><td>Ajuste de volumen</td></tr>
+          <tr><td>Atrás + Botón Grabar</td><td>Captura de pantalla en video</td></tr>
+          <tr><td>Atrás + Botón Obturador</td><td>Captura de pantalla estática</td></tr>
+          <tr><td>Atrás + 5D arriba</td><td>Volver a la pantalla de inicio</td></tr>
+          <tr><td>Atrás + 5D abajo</td><td>Acceder a parámetros rápidos</td></tr>
+          <tr><td>Atrás + 5D izquierda</td><td>Aplicaciones recientes</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Personalización de botones C1–C4 y 5D</h3>
+      <p>Los botones C1, C2, C3, C4 y 5D son <strong>completamente personalizables</strong> desde DJI Pilot 2 → Vista de cámara → ⚙ → Control. Cada botón puede asignarse a funciones como:</p>
+      <ul>
+        <li>Activar/desactivar PinPoint con telémetro láser.</li>
+        <li>Cambiar entre cámara visible y térmica (M4T).</li>
+        <li>Activar AE-Lock o foco bloqueado.</li>
+        <li>Iniciar/cancelar misión waypoint.</li>
+        <li>Cambiar entre cámara gran angular, tele media, tele.</li>
+        <li>Activar luz auxiliar NIR (M4T) o luz frontal.</li>
+        <li>Centrar el estabilizador.</li>
+        <li>Activar transmisión a otro dispositivo (FlightHub).</li>
+      </ul>
+
+      <h3>Zona de transmisión óptima</h3>
+      <p>Las antenas externas son direccionales: el rendimiento óptimo requiere que su <strong>cara plana esté orientada perpendicularmente a la aeronave</strong>. Levante las antenas hasta que queden en posición y oriéntelas hacia el cuadrante donde está volando la aeronave. Una mala orientación puede reducir el alcance hasta en 50 %.</p>
+
+      <div class="callout alerta">
+        <strong>Interferencias en banda</strong>
+        Durante una operación, NO use otros dispositivos que emitan en 2.4 GHz / 5.8 GHz cerca del RC: Wi-Fi del teléfono móvil, hotspots, walkie-talkies de banda WiFi, etc. La interferencia puede degradar la transmisión o causar pérdidas momentáneas de enlace que activarán RPO de seguridad inesperadamente.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 4.3 ============ -->
+  <section class="bloque" id="l43">
+    <div class="leccion">
+      <span class="etiqueta">Lección 4.3</span>
+      <h2>Aplicación DJI Pilot 2</h2>
+
+      <p><strong>DJI Pilot 2</strong> es la aplicación oficial de control de la Serie Matrice 4 (también compatible con Matrice 30/350 RTK, Mavic 3 Enterprise y Matrice 400). Está pre-instalada en el RC Plus 2. Su misión es entregar al operador una interfaz unificada para configuración, vuelo, captura, planificación de misiones y diagnóstico.</p>
+
+      <h3>Página principal</h3>
+      <p>Al iniciar la app aparece la página principal con accesos a:</p>
+      <ul>
+        <li><strong>Operación</strong>: ingresar a vista de cámara y volar.</li>
+        <li><strong>Misión</strong>: planificación waypoint, área (mapeo), línea oblicua, follow terrain.</li>
+        <li><strong>Mi álbum</strong>: revisar fotos y videos guardados.</li>
+        <li><strong>Live</strong>: transmisión en vivo a FlightHub o RTMP.</li>
+        <li><strong>Health management</strong>: estado de la aeronave, ciclos de batería, calibraciones.</li>
+        <li><strong>Mapa de Zona GEO</strong>: revisar restricciones, gestionar licencias de desbloqueo.</li>
+      </ul>
+
+      <h3>Vista de cámara — barra superior</h3>
+      <p>La barra superior muestra en tiempo real:</p>
+      <ul>
+        <li>Modo de vuelo activo (N / S / F).</li>
+        <li>Estado GNSS (calidad de señal, número de satélites).</li>
+        <li>Estado RTK (FIX / FLOAT / SINGLE / no usado).</li>
+        <li>Distancia al punto de origen, altitud relativa y velocidad horizontal.</li>
+        <li>Icono de batería de la aeronave con porcentaje y autonomía estimada.</li>
+        <li>Estado de la transmisión (calidad de enlace OcuSync, opcional 4G).</li>
+        <li>Almacenamiento microSD restante.</li>
+      </ul>
+
+      <h3>Pantalla de navegación (mapa)</h3>
+      <p>Permite ver la posición de la aeronave sobre cartografía vectorial (offline disponible), trazar ruta, gestionar misiones waypoint, y visualizar trayectoria histórica del vuelo. Muestra:</p>
+      <ul>
+        <li>Punto de origen (Home Point).</li>
+        <li>Posición actual de la aeronave.</li>
+        <li>Ruta planificada (en modo misión).</li>
+        <li>Rutas de RPO planificada por la aeronave.</li>
+        <li>Zonas GEO con su clasificación de color.</li>
+        <li>Otras aeronaves DJI cercanas (si comparten flota).</li>
+        <li>Aeronaves tripuladas detectadas por AirSense (icono avión).</li>
+      </ul>
+
+      <h3>Vistas de cámara especializadas</h3>
+      <p>DJI Pilot 2 ofrece cuatro vistas de cámara distintas según el modelo y la operación:</p>
+
+      <table class="tabla-curso">
+        <thead><tr><th>Vista</th><th>Disponibilidad</th><th>Uso típico</th></tr></thead>
+        <tbody>
+          <tr><td>Cámara con zoom</td><td>M4T y M4E</td><td>Inspección detallada con zoom continuo 24–168 mm</td></tr>
+          <tr><td>Cámara gran angular</td><td>M4T y M4E</td><td>Encuadre amplio, mapeo, vista situacional</td></tr>
+          <tr><td>Cámara térmica</td><td>Solo M4T</td><td>Detección de calor, modos isoterma, paletas</td></tr>
+          <tr><td>Telémetro láser</td><td>M4T y M4E</td><td>Medición de distancia y PinPoint geo-referenciado</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Vista de cámara térmica (M4T)</h3>
+      <p>La vista térmica del Matrice 4T entrega control granular sobre la imagen IR:</p>
+      <ul>
+        <li><strong>Paletas:</strong> White Hot, Black Hot, Tinted, Iron Red, Hot Spot, Cold Spot, etc. La elección depende del operador (las paletas de alto contraste como Iron Red son útiles en SAR, mientras que White Hot es estándar en termografía industrial).</li>
+        <li><strong>Modo radiométrico:</strong> el sensor reporta temperatura por píxel. Permite definir áreas y obtener temperatura mínima/máxima/promedio.</li>
+        <li><strong>Isoterma:</strong> resaltar zonas dentro de un rango definido (por ejemplo: 50–80 °C en un transformador).</li>
+        <li><strong>Spot meter:</strong> punto de medición fijo en cualquier coordenada del fotograma.</li>
+        <li><strong>FFC (Flat Field Calibration):</strong> calibración de homogeneidad. Suena un "click" del shutter interno cada cierto tiempo.</li>
+      </ul>
+
+      <h3>Telémetro láser y PinPoint</h3>
+      <p>La función <strong>PinPoint</strong> aprovecha el telémetro láser para georeferenciar puntos. Al apuntar la cámara a un objetivo y activar el láser, DJI Pilot 2:</p>
+      <ol>
+        <li>Mide la distancia exacta al objetivo (precisión decimétrica).</li>
+        <li>Calcula sus coordenadas GNSS basándose en la posición y orientación de la aeronave.</li>
+        <li>Crea un marcador permanente en el mapa con coordenadas, altura y nota.</li>
+        <li>Comparte el PinPoint a otros usuarios FlightHub conectados a la misión.</li>
+      </ol>
+
+      <p>Los PinPoints son la base de las <em>Live Annotations</em> en DJI FlightHub 2: equipos de seguridad pública pueden coordinar sobre un mapa común con puntos, líneas y áreas creadas en tiempo real desde el dron.</p>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 4.4 ============ -->
+  <section class="bloque" id="l44">
+    <div class="leccion">
+      <span class="etiqueta">Lección 4.4</span>
+      <h2>Transmisión mejorada 4G</h2>
+
+      <p>El sistema de transmisión nativo OcuSync entrega un alcance teórico superior a 15 km con buena propagación. Sin embargo, en operaciones BVLOS, en zonas urbanas con multipropagación o en valles cerrados, OcuSync puede degradarse. Para estos escenarios, el sistema admite <strong>transmisión mejorada 4G</strong> mediante el <em>Adaptador celular 2 DJI</em> instalado en la aeronave y la conexión a redes celulares del control remoto.</p>
+
+      <h3>Componentes necesarios</h3>
+      <ul>
+        <li>Adaptador celular 2 DJI (vendido por separado).</li>
+        <li>Tarjeta nano-SIM con plan de datos 4G en el adaptador celular de la aeronave.</li>
+        <li>Conectividad del control remoto: tarjeta nano-SIM en su slot integrado o conexión WiFi.</li>
+      </ul>
+
+      <h3>Inserción de la nano-SIM</h3>
+      <ol>
+        <li>Apague la aeronave.</li>
+        <li>Abra el compartimento del adaptador celular en la base de la aeronave.</li>
+        <li>Inserte la nano-SIM en su orientación correcta (clip de oro hacia adentro).</li>
+        <li>Asegure el adaptador celular y cierre la tapa.</li>
+        <li>Encienda la aeronave y verifique conexión 4G en DJI Pilot 2 → Estado de la transmisión.</li>
+      </ol>
+
+      <h3>Estrategia de seguridad de la transmisión</h3>
+      <p>Cuando hay transmisión 4G activa, el sistema funciona en modo dual: si la señal OcuSync falla, la transmisión 4G continúa entregando control y video. Esto se conoce como <em>fallback</em> automático. La aeronave también puede operar exclusivamente en 4G si OcuSync se pierde por completo.</p>
+
+      <div class="callout aviso">
+        <strong>Limitaciones del 4G en RPO</strong>
+        Durante un RPO con transmisión 4G activa, la aeronave seguirá la última ruta de vuelo conocida ya que la latencia 4G no permite el control fino del sistema de detección. Mantenga atención al estado de batería y a la ruta RPO en el mapa, ya que pueden existir obstáculos no detectados en la traza retornada.
+      </div>
+
+      <h3>Requisitos de red</h3>
+      <ul>
+        <li>SIM con plan 4G (idealmente con cobertura nacional).</li>
+        <li>Latencia &lt; 200 ms para operación de calidad.</li>
+        <li>Velocidad de subida ≥ 5 Mbps recomendada para video HD.</li>
+        <li>Operadores con cobertura confirmada en zona de operación.</li>
+      </ul>
+
+      <h3>Notas de uso</h3>
+      <ul>
+        <li>El RC debe mantener su conexión a internet activa durante toda la misión.</li>
+        <li>El consumo de datos puede superar 1 GB/hora en operación con video HD.</li>
+        <li>En frontera entre celdas (handover), pueden producirse interrupciones momentáneas.</li>
+        <li>La transmisión 4G permite que múltiples usuarios reciban video del dron via FlightHub.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ CASO PRÁCTICO ============ -->
+  <section id="caso">
+    <div class="caso-practico">
+      <div class="header-caso">
+        <div class="icono">CP</div>
+        <h2 style="margin:0;border:none;">Caso práctico — Configuración pre-operacional para SAR montañoso</h2>
+      </div>
+
+      <div class="escenario">
+        <strong>Escenario operacional</strong>
+        <p>Como operador certificado de RPAS, su servicio recibe llamada de Carabineros para apoyar una operación de búsqueda de un excursionista perdido en la Reserva Nacional Río de los Cipreses. Última ubicación reportada: 34°15'S 70°22'W, terreno entre 1 800 y 2 400 m de altitud, con vegetación densa de matorral nativo y crepúsculo civil en 2 horas. La temperatura nocturna estimada es 4 °C. Cobertura celular variable. Su unidad despliega un Matrice 4T con 4 baterías.</p>
+      </div>
+
+      <strong>Preguntas guía</strong>
+      <ul class="preguntas-caso">
+        <li>Detalle la configuración personalizada del RC (botones C1–C4, 5D) que aplicaría para esta misión específica.</li>
+        <li>¿Qué configuración de transmisión usaría considerando la cobertura celular variable?</li>
+        <li>En DJI Pilot 2, ¿qué paleta térmica recomienda para detección de firma humana? ¿Por qué?</li>
+        <li>¿Cómo coordina su operación de RPAS con personal de Carabineros y SAR terrestre, especialmente en lo que respecta a PinPoints?</li>
+        <li>Si pierde temporalmente la transmisión OcuSync por geometría del terreno, ¿qué pasa con la operación?</li>
+      </ul>
+
+      <details class="respuestas-modelo">
+        <summary>Respuesta modelo</summary>
+        <div style="padding:14px 6px;">
+          <p><strong>Configuración personalizada:</strong> C1 = Activar/desactivar luz NIR; C2 = Activar PinPoint con telémetro láser; C3 = Cambiar entre cámara visible y térmica; C4 (rueda) = Zoom continuo 24–168 mm; 5D arriba = centrar estabilizador; 5D abajo = AE-Lock térmico; 5D izquierda = grabar; 5D derecha = capturar foto. Esta configuración minimiza el tiempo de cambio entre acciones críticas en la búsqueda.</p>
+          <p><strong>Transmisión:</strong> usar transmisión dual OcuSync + 4G. La cobertura celular variable significa que el 4G no es suficiente como único canal, pero sí útil como respaldo. OcuSync queda como primario. Verificar que el Adaptador celular 2 esté instalado y que la SIM tenga datos. En zonas de "sombra" (valles cerrados) la operación se planifica con líneas de visión directa al RC, ascendiendo si es necesario para mantener enlace.</p>
+          <p><strong>Paleta térmica:</strong> <em>Hot Spot</em> (mancha caliente) o <em>Iron Red</em>. Hot Spot resalta automáticamente las zonas más calientes del cuadro como puntos rojos sobre fondo neutro, ideal para detección rápida de cuerpo humano (~37 °C) sobre vegetación fría (~4 °C). Iron Red es alternativa estándar industrial con buena diferenciación. Se evita White Hot porque la cubierta nubosa puede generar contrastes engañosos.</p>
+          <p><strong>Coordinación:</strong> usar DJI FlightHub 2 con Carabineros y equipos SAR como observadores. Cada vez que se detecta una firma térmica sospechosa, activar PinPoint y compartir las coordenadas con cuadrillas terrestres mediante radio o aplicación. Documentar cada PinPoint con foto + nota. Cuadrículas de búsqueda planificadas como misiones waypoint ramificadas en franjas de 80 m con 100 % de superposición a 80 m AGL para garantizar cobertura del sotobosque.</p>
+          <p><strong>Pérdida de OcuSync:</strong> si está configurada acción de pérdida = "RPO", la aeronave iniciará retorno automático tras 3 segundos sin enlace. La transmisión 4G mantiene control si está disponible. Para SAR es preferible configurar pérdida de señal = "Hover" durante 30 segundos (espera a recuperar) y luego RPO. Esto evita pérdida innecesaria del punto de búsqueda. Documentar la decisión en el plan de vuelo y comunicarlo al equipo.</p>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <nav class="nav-modulos">
+    <a href="javascript:void(0)"><small>← Anterior</small>Módulo 3 · Energía y RTK</a>
+    <a class="next" href="javascript:void(0)"><small>Siguiente</small>Módulo 5 · Operaciones de vuelo →</a>
+  </nav>
+
+</main>
+
+<footer class="pie-curso">
+  <p>© 2026 ENAE — Curso Operador Profesional DJI Matrice 4 Series · Módulo 4</p>
+</footer>
+
+</body>
+</html>

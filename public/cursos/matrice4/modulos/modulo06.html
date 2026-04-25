@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Módulo 6 — Operaciones especializadas · Matrice 4 Series · ENAE</title>
+<link rel="stylesheet" href="https://enae.cl/cursos/matrice4/assets/curso.css">
+</head>
+<body>
+
+<header class="header-curso">
+  <div class="marca">ENAE — Curso Matrice 4 Series</div>
+  <h1>Módulo 6 · Operaciones especializadas y misiones avanzadas</h1>
+  <div class="subtitulo">Waypoint · Térmica · Telémetro · Mapeo RTK · Vuelo nocturno · 5 lecciones · 4 horas</div>
+</header>
+
+
+
+<main class="contenedor">
+
+  <section class="bloque">
+    <h2>Presentación del módulo</h2>
+    <p>Las operaciones profesionales superan el simple "vuelo manual": exigen <strong>misiones automatizadas</strong>, capacidades especializadas (térmica, láser, fotogrametría) y dominio de condiciones operacionales complejas (vuelo nocturno, vuelo cerca de infraestructura energizada, mapeo de gran extensión). Este módulo entrega al operador las herramientas conceptuales y los protocolos para ejecutar cada uno de estos perfiles operacionales.</p>
+
+    <div class="objetivos">
+      <h3>Objetivos de aprendizaje</h3>
+      <ul>
+        <li>Planificar y ejecutar misiones waypoint con el flujo de DJI Pilot 2.</li>
+        <li>Configurar y operar la cámara térmica con paletas, isotermas y radiometría.</li>
+        <li>Aplicar el telémetro láser y la función PinPoint en escenarios operacionales reales.</li>
+        <li>Diseñar misiones de mapeo fotogramétrico con M4E aprovechando el RTK.</li>
+        <li>Operar de noche conforme a buenas prácticas y normativa DGAC.</li>
+      </ul>
+    </div>
+
+    <div class="indice-leccion">
+      <h4>Índice del módulo</h4>
+      <ol>
+        <li><a href="#l61">Lección 6.1 · Misiones waypoint y rutas inteligentes</a></li>
+        <li><a href="#l62">Lección 6.2 · Operaciones térmicas con M4T</a></li>
+        <li><a href="#l63">Lección 6.3 · Telémetro láser y PinPoint</a></li>
+        <li><a href="#l64">Lección 6.4 · Mapeo fotogramétrico con M4E</a></li>
+        <li><a href="#l65">Lección 6.5 · Operaciones nocturnas</a></li>
+        <li><a href="#caso">Caso práctico aplicado</a></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 6.1 ============ -->
+  <section class="bloque" id="l61">
+    <div class="leccion">
+      <span class="etiqueta">Lección 6.1</span>
+      <h2>Misiones waypoint y rutas inteligentes</h2>
+
+      <p>Una <strong>misión waypoint</strong> es una secuencia de puntos programados con coordenadas, altitud, orientación de cámara y acciones específicas, que la aeronave ejecuta automáticamente. Permite repetibilidad, precisión y eficiencia operacional muy superiores al vuelo manual. DJI Pilot 2 soporta varios tipos de rutas inteligentes en su menú "Misión".</p>
+
+      <h3>Tipos de rutas en DJI Pilot 2</h3>
+      <table class="tabla-curso">
+        <thead><tr><th>Tipo de ruta</th><th>Caso de uso</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Waypoint</strong></td><td>Inspección punto a punto: torres, estructuras, infraestructura puntual.</td></tr>
+          <tr><td><strong>Mapeo (Área)</strong></td><td>Levantamiento fotogramétrico de un polígono.</td></tr>
+          <tr><td><strong>Mapeo Oblicuo</strong></td><td>Mapeo con cámara inclinada para modelos 3D urbanos.</td></tr>
+          <tr><td><strong>Línea / Lineal</strong></td><td>Inspección de infraestructura lineal: líneas eléctricas, oleoductos, carreteras.</td></tr>
+          <tr><td><strong>Follow Terrain</strong></td><td>Vuelo a altura constante AGL siguiendo el terreno (requiere DSM).</td></tr>
+          <tr><td><strong>Live Mission Recording</strong></td><td>Grabar en vivo el vuelo y convertirlo en misión repetible.</td></tr>
+          <tr><td><strong>Virtual Space Models</strong></td><td>Vuelo dentro de un modelo 3D pre-cargado para simulación.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Flujo de creación de waypoint</h3>
+      <ol>
+        <li>Acceder a Misión → Nueva → Waypoint.</li>
+        <li>Marcar puntos sobre el mapa o trasladando la aeronave físicamente y registrando posición.</li>
+        <li>Para cada waypoint, configurar: altitud (AGL o ASL), heading, orientación del estabilizador, velocidad, acción al llegar (hover, foto, video, zoom).</li>
+        <li>Configurar acciones de entrada/salida de misión: altitud de seguridad, comportamiento ante pérdida de señal, acción al final.</li>
+        <li>Verificar elevation profile y posibles obstáculos (DJI Pilot 2 puede mostrar terreno relieve).</li>
+        <li>Cargar la misión a la aeronave.</li>
+        <li>Ejecutar: la aeronave despega automáticamente, vuela los waypoints y aterriza.</li>
+      </ol>
+
+      <h3>Ajustes recomendados por escenario</h3>
+      <table class="tabla-curso">
+        <thead><tr><th>Escenario</th><th>Velocidad</th><th>Altitud</th><th>Acción al WP</th></tr></thead>
+        <tbody>
+          <tr><td>Inspección torre eléctrica</td><td>3 m/s</td><td>30 m AGL relativo</td><td>Hover 8 s + foto + video</td></tr>
+          <tr><td>Mapeo agrícola</td><td>10 m/s</td><td>120 m AGL constante</td><td>Foto continua intervalada</td></tr>
+          <tr><td>Inspección lineal eléctrica</td><td>6 m/s</td><td>15 m sobre conductores</td><td>Video continuo + IR</td></tr>
+          <tr><td>SAR cuadrícula</td><td>8 m/s</td><td>80 m AGL</td><td>Video térmico continuo</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Live Mission Recording</h3>
+      <p>Permite "grabar" un vuelo manual y convertirlo en misión repetible. Útil para inspecciones recurrentes (un mismo edificio cada mes) o para simulacros. La grabación guarda waypoints automáticos cada vez que se toma una foto durante el vuelo manual.</p>
+
+      <div class="callout">
+        <strong>Buena práctica — pre-flight de misión</strong>
+        Antes de ejecutar una misión waypoint, simular su ejecución en el visor 3D de DJI Pilot 2. Verificar visualmente que ningún waypoint quede dentro de la geometría de un edificio, árbol o ladera. La aeronave sigue exactamente lo programado: errores en planificación se traducen en colisiones reales.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 6.2 ============ -->
+  <section class="bloque" id="l62">
+    <div class="leccion">
+      <span class="etiqueta">Lección 6.2</span>
+      <h2>Operaciones térmicas con M4T</h2>
+
+      <p>La cámara térmica del Matrice 4T entrega capacidades únicas para detección de calor, pero también exige conocimiento técnico para interpretar correctamente las imágenes y obtener datos válidos.</p>
+
+      <h3>Conceptos fundamentales de termografía aérea</h3>
+      <ul>
+        <li><strong>Emisividad (ε):</strong> propiedad del material que indica cuánto irradia respecto a un cuerpo negro ideal. Acero pintado: 0.93. Cobre pulido: 0.05. Concreto: 0.92. Configurar correctamente la emisividad en DJI Pilot 2 para cada superficie.</li>
+        <li><strong>Reflectividad:</strong> superficies metálicas brillantes reflejan la temperatura del cielo (típicamente −20 a −40 °C en cielo despejado), generando lecturas falsas frías.</li>
+        <li><strong>Atmosférica:</strong> la atmósfera entre el dron y el objetivo absorbe radiación IR. El error a 30 m es despreciable, a 200 m puede ser 1–2 °C.</li>
+        <li><strong>Radiometría:</strong> el sensor entrega temperatura por píxel (no solo intensidad). Activable en menú "Termal Settings".</li>
+      </ul>
+
+      <h3>Paletas térmicas</h3>
+      <table class="tabla-curso">
+        <thead><tr><th>Paleta</th><th>Aplicación recomendada</th></tr></thead>
+        <tbody>
+          <tr><td>White Hot</td><td>Estándar industrial, alto contraste, monocroma</td></tr>
+          <tr><td>Black Hot</td><td>Inverso a White Hot, útil para SAR (cuerpo humano destaca como mancha oscura)</td></tr>
+          <tr><td>Iron Red / Iron Bow</td><td>Multicroma alta-baja temperatura, intuitiva visualmente</td></tr>
+          <tr><td>Hot Spot</td><td>Resalta la zona más caliente del cuadro como punto rojo. Ideal SAR rápida.</td></tr>
+          <tr><td>Cold Spot</td><td>Resalta la zona más fría. Útil en detección de fugas frías (gas líquido).</td></tr>
+          <tr><td>Tinted (Sepia)</td><td>Colorización suave con buen rango dinámico</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Modos de medición</h3>
+      <ul>
+        <li><strong>Spot meter:</strong> punto fijo en el cuadro reportando temperatura.</li>
+        <li><strong>Box meter:</strong> rectángulo con temperatura mínima, máxima y promedio.</li>
+        <li><strong>Isoterma:</strong> resaltar zonas dentro de un rango definido (por ejemplo: aislantes con T &gt; 80 °C aparecen en color sobre fondo neutro).</li>
+        <li><strong>Trazado AOI:</strong> dibujar áreas de interés con métricas exportables al informe.</li>
+      </ul>
+
+      <h3>Calibración FFC (Flat Field Correction)</h3>
+      <p>El sensor microbolométrico requiere calibración periódica para mantener uniformidad. Una pequeña cortina interna (shutter) bloquea momentáneamente el sensor para recalibrar. Suena un "click" característico cada cierto tiempo. Si la imagen muestra ruido fijo (líneas o patrones), forzar FFC manual desde el menú térmico.</p>
+
+      <h3>Buenas prácticas de adquisición térmica</h3>
+      <ul>
+        <li>Volar perpendicular al objetivo (90°) para minimizar reflexión del cielo.</li>
+        <li>Distancia 5–30 m para mejor resolución espacial térmica (≈ 5 cm/píxel a 30 m).</li>
+        <li>Hover 8–15 s en cada punto crítico para estabilización térmica del sensor.</li>
+        <li>Capturar simultáneamente RGB y IR (modo "RGB+IR Linked").</li>
+        <li>Evitar volar con sol directo en lente — sobreexposición.</li>
+        <li>NO apuntar nunca el sensor IR directo al sol o láser.</li>
+      </ul>
+
+      <div class="callout aviso">
+        <strong>Ventana térmica óptima</strong>
+        Para inspección eléctrica, la mejor ventana es <em>2 horas después del amanecer / antes del atardecer</em>: el delta térmico entre conexiones defectuosas y entorno es máximo, sin reflexión solar directa. Para SAR, el mejor momento es la noche o el amanecer, cuando la diferencia entre el cuerpo humano (~37 °C) y el ambiente (frío) es máxima.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 6.3 ============ -->
+  <section class="bloque" id="l63">
+    <div class="leccion">
+      <span class="etiqueta">Lección 6.3</span>
+      <h2>Telémetro láser y PinPoint</h2>
+
+      <p>El <strong>telémetro láser</strong> es un sensor activo que emite un haz láser pulsado y mide el tiempo de vuelo del retorno reflejado, calculando la distancia precisa al objetivo. Permite la función <strong>PinPoint</strong>, una de las características distintivas de la Serie Matrice 4.</p>
+
+      <h3>Especificaciones técnicas</h3>
+      <div class="spec-grid">
+        <div class="spec-card"><strong>Alcance máx</strong><span class="valor">1 800 m a 20 % reflectividad (1 Hz)</span></div>
+        <div class="spec-card"><strong>Alcance oblicuo (1:5)</strong><span class="valor">600 m</span></div>
+        <div class="spec-card"><strong>Zona ciega</strong><span class="valor">1 m</span></div>
+        <div class="spec-card"><strong>Error sistemático</strong><span class="valor">&lt; 0.3 m</span></div>
+        <div class="spec-card"><strong>Error aleatorio</strong><span class="valor">&lt; 0.1 m @ 1σ</span></div>
+        <div class="spec-card"><strong>Clase láser</strong><span class="valor">Clase 1 — segura para vista humana</span></div>
+      </div>
+
+      <h3>Función PinPoint</h3>
+      <p>PinPoint es la herramienta colaborativa que aprovecha el telémetro láser para georreferenciar puntos de interés con precisión decimétrica. El flujo es:</p>
+      <ol>
+        <li>Encuadrar el objetivo con el zoom apropiado.</li>
+        <li>Activar el telémetro láser (botón personalizado o icono en pantalla).</li>
+        <li>El láser mide la distancia y DJI Pilot 2 calcula coordenadas geodésicas (lat, lon, h).</li>
+        <li>Se crea un PinPoint en el mapa con ID, coordenadas y nota.</li>
+        <li>El PinPoint se sincroniza vía DJI FlightHub 2 con todos los usuarios conectados.</li>
+        <li>El PinPoint queda como referencia para acciones (despacho de cuadrillas, repetición de inspección, registro de incidente).</li>
+      </ol>
+
+      <h3>Cinco aplicaciones operacionales reales del PinPoint</h3>
+      <ol>
+        <li><strong>SAR:</strong> al detectar un cuerpo o señal, marcar PinPoint y compartir con cuadrillas terrestres y aéreas para coordinar la extracción.</li>
+        <li><strong>Inspección eléctrica:</strong> al detectar un punto caliente en una línea, georeferenciar para que la cuadrilla de mantenimiento sepa exactamente qué torre y qué pieza intervenir.</li>
+        <li><strong>Investigación de incidentes:</strong> reconstruir la escena de un accidente con PinPoints sobre cada elemento crítico.</li>
+        <li><strong>Operaciones tácticas:</strong> marcar puntos de interés en operativos policiales para coordinación de equipos.</li>
+        <li><strong>Inspección forestal:</strong> georeferenciar focos de incendio y alimentar despacho aéreo de aviones cisterna.</li>
+      </ol>
+
+      <h3>Limitaciones operacionales</h3>
+      <ul>
+        <li>El láser es Clase 1 — seguro — pero NO apuntar a personas como buena práctica.</li>
+        <li>Lluvia, niebla densa o nieve degradan el alcance (pueden reducirlo 50 % o más).</li>
+        <li>Superficies muy oscuras y mate absorben el láser. Reflectividad &lt; 5 % puede no devolver señal.</li>
+        <li>Superficies espejadas reflejan sin retornar — la lectura puede ser de un objeto detrás del espejo.</li>
+        <li>La precisión de las coordenadas calculadas depende del FIX RTK + estabilizador. Sin RTK, error puede ser metros.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 6.4 ============ -->
+  <section class="bloque" id="l64">
+    <div class="leccion">
+      <span class="etiqueta">Lección 6.4</span>
+      <h2>Mapeo fotogramétrico con M4E</h2>
+
+      <p>El Matrice 4E está diseñado específicamente para <strong>fotogrametría profesional</strong>. La combinación de su sensor 4/3" con apertura ajustable, módulo RTK integrado y procesamiento avanzado permite generar productos cartográficos con precisión centimétrica adecuada para topografía, ingeniería civil y mineral.</p>
+
+      <h3>Misión de mapeo en DJI Pilot 2</h3>
+      <ol>
+        <li>Acceder a Misión → Mapeo → Área.</li>
+        <li>Trazar el polígono del área a mapear sobre el mapa.</li>
+        <li>Configurar parámetros: GSD objetivo, altitud (auto-calculada o manual), velocidad, solapamiento adelante/lateral, dirección de líneas de vuelo.</li>
+        <li>Para mapeo oblicuo: configurar inclinación de cámara (típico 70°) y solapamiento más conservador.</li>
+        <li>Verificar tiempo total estimado vs autonomía. La aeronave puede dividir misiones en múltiples vuelos automáticamente.</li>
+        <li>Cargar y ejecutar.</li>
+      </ol>
+
+      <h3>Parámetros recomendados</h3>
+      <table class="tabla-curso">
+        <thead><tr><th>Producto</th><th>GSD</th><th>Altitud</th><th>Solapamiento (F/L)</th><th>Inclinación</th></tr></thead>
+        <tbody>
+          <tr><td>Topografía estándar</td><td>2 cm/px</td><td>≈ 80 m</td><td>80 % / 70 %</td><td>−90° (nadir)</td></tr>
+          <tr><td>Topografía precisión</td><td>1 cm/px</td><td>≈ 40 m</td><td>85 % / 80 %</td><td>−90°</td></tr>
+          <tr><td>Modelo 3D urbano</td><td>2 cm/px</td><td>≈ 80 m</td><td>80 % / 70 %</td><td>−70° oblicuo (5 vuelos)</td></tr>
+          <tr><td>Mapeo agrícola</td><td>5 cm/px</td><td>≈ 200 m</td><td>75 % / 65 %</td><td>−90°</td></tr>
+          <tr><td>Cubicación de acopio</td><td>1 cm/px</td><td>≈ 40 m</td><td>85 % / 75 %</td><td>−90° + oblicuo apoyo</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Buenas prácticas de adquisición</h3>
+      <ul>
+        <li>Garantizar FIX RTK sostenido durante todo el vuelo. Si se pierde, programar pausa automática.</li>
+        <li>Iluminación uniforme: evitar mediodía con sombras duras. Mejor entre las 10:00 y 14:00 con cielo cubierto ligeramente nublado.</li>
+        <li>Apertura f/4 a f/5.6 en el M4E para máxima nitidez (no usar f/2.8 ni f/11).</li>
+        <li>ISO bajo (100–400) para minimizar ruido.</li>
+        <li>Tiempo de obturación &lt; 1/1000 s para minimizar arrastre.</li>
+        <li>Velocidad de vuelo ≤ 8 m/s para mapeo de alta precisión.</li>
+        <li>Programar GCP (Ground Control Points) cada 800 m si la precisión exigida es topográfica catastral.</li>
+        <li>Volar perpendicular y luego paralelo al norte verdadero para mejor reconstrucción.</li>
+      </ul>
+
+      <h3>Productos derivados</h3>
+      <p>Las imágenes capturadas se procesan en software fotogramétrico (Pix4D, DroneDeploy, Bentley, Agisoft, Reality Capture) para generar:</p>
+      <ul>
+        <li><strong>Ortomosaico:</strong> imagen 2D georreferenciada a escala uniforme.</li>
+        <li><strong>DSM:</strong> modelo digital de superficie con elevación de cada píxel.</li>
+        <li><strong>DTM:</strong> modelo digital del terreno (sin vegetación ni edificios).</li>
+        <li><strong>Nube de puntos:</strong> representación 3D de puntos georeferenciados.</li>
+        <li><strong>Modelo 3D texturizado:</strong> malla con texturas para visualización.</li>
+        <li><strong>Curvas de nivel:</strong> derivadas del DTM para planimetría.</li>
+      </ul>
+
+      <div class="callout">
+        <strong>RTK vs PPK</strong>
+        DJI Pilot 2 entrega imágenes con metadata de geolocalización RTK en tiempo real. Para precisión absoluta máxima, también se pueden post-procesar (PPK) los datos brutos GNSS de la aeronave con un servicio de corrección satelital, obteniendo precisión equivalente o superior. Discutir con el cliente si exige procesamiento PPK previo a la entrega.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 6.5 ============ -->
+  <section class="bloque" id="l65">
+    <div class="leccion">
+      <span class="etiqueta">Lección 6.5</span>
+      <h2>Operaciones nocturnas</h2>
+
+      <p>La operación nocturna es uno de los grandes diferenciadores de la Serie Matrice 4 frente a otras plataformas: cámaras térmicas (M4T), luz NIR (M4T), seis lentes fisheye de baja luz para visión, y baliza visual de alta intensidad. Sin embargo, exige protocolos operacionales más estrictos.</p>
+
+      <h3>Marco normativo de vuelo nocturno (Chile, DAN 151 Ed. 4)</h3>
+      <p>El vuelo nocturno se considera operación especial y requiere autorización específica. El operador debe presentar:</p>
+      <ul>
+        <li>Plan operacional con análisis de riesgo nocturno específico.</li>
+        <li>Documentación de la baliza visible a 5 km mínimo.</li>
+        <li>Capacitación documentada del piloto en operación nocturna.</li>
+        <li>Procedimientos de emergencia adaptados (RPO con altitud aumentada, observador con linterna, etc.).</li>
+        <li>Coordinación con autoridades aeronáuticas locales y NOTAM si aplica.</li>
+      </ul>
+
+      <h3>Capacidades técnicas para vuelo nocturno</h3>
+      <ul>
+        <li><strong>Sistema de visión de baja luz:</strong> seis lentes fisheye con sensores especialmente diseñados para visión nocturna, permitiendo posicionamiento visual y evitación de obstáculos hasta condiciones casi totalmente oscuras.</li>
+        <li><strong>Baliza superior:</strong> LED estroboscópico de alta intensidad visible a varios kilómetros — siempre encendida en operación nocturna.</li>
+        <li><strong>Luz auxiliar inferior:</strong> proporciona iluminación al sistema de visión inferior para aterrizaje preciso en oscuridad.</li>
+        <li><strong>Cámara térmica (M4T):</strong> opera independiente de la luz visible.</li>
+        <li><strong>Luz NIR (M4T):</strong> ilumina objetivos para que las cámaras visibles entreguen imagen de calidad sin alertar al objetivo.</li>
+      </ul>
+
+      <h3>Limitaciones nocturnas</h3>
+      <ul>
+        <li>El operador tiene capacidad reducida de mantener VLOS — usar observador adicional con binoculares.</li>
+        <li>APAS es menos efectivo en oscuridad total. Reducir velocidad operativa al 50 % de la diurna.</li>
+        <li>Cables y obstáculos finos son menos detectables. Planificar rutas con margen de seguridad mayor.</li>
+        <li>Las baterías rinden menos a baja temperatura. Reducir tiempo planificado de vuelo en 20–30 %.</li>
+        <li>La concentración del piloto disminuye con fatiga nocturna. Limitar turnos a 4 horas máximo con relevo.</li>
+      </ul>
+
+      <h3>Procedimientos específicos nocturnos</h3>
+      <ol>
+        <li>Site survey diurno previo, marcando obstáculos y calculando rutas.</li>
+        <li>Verificación del estado de iluminación: linternas, baliza, luz auxiliar.</li>
+        <li>Ascenso vertical inicial a una altitud segura (≥ 60 m AGL) antes de cualquier desplazamiento horizontal.</li>
+        <li>Operación a velocidad reducida (≤ 5 m/s) en zonas con obstáculos.</li>
+        <li>RPO con altitud aumentada (≥ 30 m sobre el obstáculo más alto del área).</li>
+        <li>Aterrizaje sobre punto con luz auxiliar (uso del sensor 3D infrarrojo y luz inferior).</li>
+        <li>Comunicaciones radio constantes con observador y equipo de tierra.</li>
+      </ol>
+
+      <div class="callout exito">
+        <strong>Capacidades únicas para SAR nocturno</strong>
+        El M4T es la plataforma de elección para SAR nocturno. La paleta "Hot Spot" + cámara térmica detectan firma humana en bosque a 80 m AGL hasta varios cientos de metros. La luz NIR permite confirmar visualmente con cámara visible sin alertar. La función PinPoint con telémetro láser entrega coordenadas exactas a las cuadrillas terrestres en tiempo real.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CASO PRÁCTICO ============ -->
+  <section id="caso">
+    <div class="caso-practico">
+      <div class="header-caso">
+        <div class="icono">CP</div>
+        <h2 style="margin:0;border:none;">Caso práctico — Inspección termográfica de subestación</h2>
+      </div>
+
+      <div class="escenario">
+        <strong>Escenario operacional</strong>
+        <p>El operador del sistema interconectado central contrata su servicio para inspección termográfica de una subestación 220 kV/110 kV en operación, ubicada en zona pre-cordillerana. La inspección debe identificar conexiones defectuosas en transformadores principales (3), interruptores (12) y barras (4 m vertical, 30 m horizontal). La operación es diurna, en ventana de 2 horas tras el amanecer (delta térmico óptimo). El cliente requiere informe digital con: foto IR + RGB de cada anomalía, temperatura puntual y de referencia, coordenadas exactas y código del equipo afectado. La subestación está rodeada por línea de transmisión de 220 kV en operación.</p>
+      </div>
+
+      <strong>Preguntas guía</strong>
+      <ul class="preguntas-caso">
+        <li>Diseñe la misión waypoint para inspección sistemática. ¿Cuántos waypoints estima?</li>
+        <li>¿Qué emisividad configura para acero galvanizado y para aisladores cerámicos? ¿Por qué importa?</li>
+        <li>¿Qué paleta térmica usaría? ¿Qué configuración de isoterma propondría?</li>
+        <li>¿Cómo aprovecha el PinPoint para georeferenciar cada hallazgo?</li>
+        <li>¿Qué medidas de seguridad operacional especial adopta dada la subestación energizada?</li>
+      </ul>
+
+      <details class="respuestas-modelo">
+        <summary>Respuesta modelo</summary>
+        <div style="padding:14px 6px;">
+          <p><strong>Diseño misión waypoint:</strong> 19 puntos primarios (3 transformadores × 4 caras = 12, 4 barras × 1 = 4, 12 interruptores en grupos de 4 caras = 3 puntos por grupo). Configurar cada waypoint con altitud relativa a 5 m sobre el equipo, hover de 12 s, captura simultánea RGB+IR (modo "Linked"), zoom automatizado a tele media (70 mm) para detalle, regresar al gran angular para vista contextual. Velocidad de vuelo entre WPs: 4 m/s. Total estimado de vuelo: 22–25 minutos por aeronave.</p>
+          <p><strong>Emisividad:</strong> acero galvanizado nuevo ≈ 0.28 (alto reflectivo); acero pintado oxidado ≈ 0.95; aisladores cerámicos vidriados ≈ 0.93. La incorrecta configuración produce errores de 5–15 °C, suficiente para clasificar erróneamente una anomalía. Para subestación, configurar dos perfiles en DJI Pilot 2: uno para aisladores/transformadores (ε = 0.93), otro para conductores y conexiones (ε = 0.95). Aplicar en cada captura el perfil correcto desde menú térmico.</p>
+          <p><strong>Paleta y isoterma:</strong> paleta Iron Red para vista global (intuitiva). Para análisis crítico, activar isoterma con rango definido: cualquier punto con T &gt; (Tref + 15 °C) se resalta en color brillante para detección visual rápida. Tref se calcula como temperatura promedio de la conexión sana de referencia. En transformadores, configurar área de medición sobre el bushing y usar Box meter con Tmin/Tmax/Tavg.</p>
+          <p><strong>PinPoint:</strong> al detectar anomalía, activar telémetro láser apuntando al punto exacto. DJI Pilot 2 calcula coordenadas con FIX RTK. Crear PinPoint con código (ej. "T1-Bushing-A-Hot"), nota descriptiva con temperatura y fenómeno, captura RGB+IR como evidencia. Sincronizar vía FlightHub. Al final del vuelo, exportar lista de PinPoints como CSV para ingreso al informe.</p>
+          <p><strong>Seguridad operacional:</strong> distancia mínima de 5 m a partes vivas energizadas (criterio NTSC SEC vigente). Verificar con el operador de la subestación que no haya descargas atmosféricas en el área (radar meteorológico previo). Mantener observador de seguridad eléctrica certificado en piso. NO operar en modo Sport (riesgo de inducción electromagnética en sensores). Configurar RPO con altitud 50 m (sobre torres de 30 m) y modo Preestablecido. Si pierde GNSS por interferencia magnética de la subestación, la aeronave debe entrar en hover por sistema de visión y el piloto extrae manualmente.</p>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <nav class="nav-modulos">
+    <a href="javascript:void(0)"><small>← Anterior</small>Módulo 5 · Operaciones de vuelo</a>
+    <a class="next" href="javascript:void(0)"><small>Siguiente</small>Módulo 7 · Mantenimiento →</a>
+  </nav>
+
+</main>
+
+<footer class="pie-curso">
+  <p>© 2026 ENAE — Curso Operador Profesional DJI Matrice 4 Series · Módulo 6</p>
+</footer>
+
+</body>
+</html>

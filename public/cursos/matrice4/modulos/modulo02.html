@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Módulo 2 — Aeronave · Matrice 4 Series · ENAE</title>
+<link rel="stylesheet" href="https://enae.cl/cursos/matrice4/assets/curso.css">
+</head>
+<body>
+
+<header class="header-curso">
+  <div class="marca">ENAE — Curso Matrice 4 Series</div>
+  <h1>Módulo 2 · Arquitectura física de la aeronave</h1>
+  <div class="subtitulo">Hardware del UAV · 5 lecciones · Caso práctico · 4 horas</div>
+</header>
+
+
+
+<main class="contenedor">
+
+  <section class="bloque">
+    <h2>Presentación del módulo</h2>
+    <p>En este módulo el participante recorre en detalle la <strong>anatomía física</strong> de la aeronave Matrice 4: estructura, motorización, sistema óptico, estabilizador y sensórica de detección. Conocer cada componente, su función operacional y sus limitaciones es la base para la operación segura, el mantenimiento preventivo eficaz y el diagnóstico de fallos.</p>
+
+    <div class="objetivos">
+      <h3>Objetivos de aprendizaje</h3>
+      <ul>
+        <li>Identificar visualmente cada componente externo de la aeronave Matrice 4 y nombrarlo correctamente.</li>
+        <li>Describir el funcionamiento del estabilizador de tres ejes y sus restricciones operacionales.</li>
+        <li>Diferenciar la arquitectura óptica del M4T y del M4E, explicando el papel de cada cámara.</li>
+        <li>Comprender el sistema de detección omnidireccional y sus limitaciones físicas.</li>
+        <li>Aplicar correctamente la nomenclatura técnica DJI en checklists y reportes operacionales.</li>
+      </ul>
+    </div>
+
+    <div class="indice-leccion">
+      <h4>Índice del módulo</h4>
+      <ol>
+        <li><a href="#l21">Lección 2.1 · Anatomía estructural de la aeronave</a></li>
+        <li><a href="#l22">Lección 2.2 · Hélices y propulsión</a></li>
+        <li><a href="#l23">Lección 2.3 · Estabilizador y carga útil</a></li>
+        <li><a href="#l24">Lección 2.4 · Sistema de cámaras</a></li>
+        <li><a href="#l25">Lección 2.5 · Sistema de detección omnidireccional</a></li>
+        <li><a href="#caso">Caso práctico aplicado</a></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 2.1 ============ -->
+  <section class="bloque" id="l21">
+    <div class="leccion">
+      <span class="etiqueta">Lección 2.1</span>
+      <h2>Anatomía estructural de la aeronave</h2>
+
+      <p>La aeronave Matrice 4 utiliza una arquitectura cuadrirrotora plegable de configuración tipo "X" con dos pares de motores en disposición CW/CCW. El bastidor es de fibra de carbono reforzada con polímero, optimizado para una relación rigidez/peso elevada y mantenibilidad en campo.</p>
+
+      <figure class="fig">
+        <img src="https://enae.cl/cursos/matrice4/assets/img/aeronave_vista_general.jpg" alt="Vista general de la aeronave Matrice 4 Series">
+        <figcaption>Aeronave Matrice 4 Series — vista general con brazos desplegados. El protector del estabilizador debe retirarse antes del encendido.</figcaption>
+      </figure>
+
+      <h3>Componentes externos clave (numeración DJI)</h3>
+
+      <table class="tabla-curso">
+        <thead><tr><th>#</th><th>Componente</th><th>Función operacional</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Estabilizador y cámara</td><td>Plataforma giroscópica de 3 ejes con sensores ópticos</td></tr>
+          <tr><td>2</td><td>Sistema de visión omnidireccional</td><td>Seis cámaras fisheye de baja luminosidad para detección 360°</td></tr>
+          <tr><td>3</td><td>Puerto de extensión (E-Port)</td><td>Conexión para accesorios DJI (altavoz, foco, soltador)</td></tr>
+          <tr><td>4</td><td>Sistema de visión inferior</td><td>Cámaras estéreo para posicionamiento sin GNSS y aterrizaje preciso</td></tr>
+          <tr><td>5</td><td>Sensor 3D infrarrojo</td><td>Asistencia al aterrizaje en superficies irregulares y baja luminosidad</td></tr>
+          <tr><td>6</td><td>Luz auxiliar</td><td>Iluminación inferior para apoyo a sistemas de visión</td></tr>
+          <tr><td>7</td><td>Ledes frontales</td><td>Indican orientación de la aeronave (rojo fijo)</td></tr>
+          <tr><td>8</td><td>Motores</td><td>Cuatro motores brushless con sus respectivos ESC</td></tr>
+          <tr><td>9</td><td>Hélices</td><td>Hélices plegables de paso fijo (estándar / bajo ruido)</td></tr>
+          <tr><td>10</td><td>Indicadores de estado</td><td>Comunican el estado del sistema mediante código de color</td></tr>
+          <tr><td>11</td><td>Trenes de aterrizaje</td><td>Patines plegables que integran las antenas GNSS</td></tr>
+          <tr><td>12</td><td>Antena GNSS</td><td>Multibanda L1/L2 GPS+Galileo+BeiDou+QZSS</td></tr>
+          <tr><td>13</td><td>Baliza</td><td>Indicador anticolisión de visualización lejana</td></tr>
+          <tr><td>14</td><td>Batería de vuelo inteligente</td><td>TB100 — Li-ion 13S de 977 Wh</td></tr>
+          <tr><td>15</td><td>Botón de encendido</td><td>Encendido / apagado / chequeo de batería</td></tr>
+          <tr><td>16</td><td>Ledes de nivel de batería</td><td>Indican carga restante en gradilla de cuatro leds</td></tr>
+          <tr><td>17</td><td>Bandas de sujeción de batería</td><td>Mecanismo de bloqueo seguro de la batería</td></tr>
+          <tr><td>18</td><td>Puerto USB-C auxiliar (E-Port Lite)</td><td>Conexión para accesorios y diagnóstico</td></tr>
+          <tr><td>19</td><td>Ranura microSD</td><td>Almacenamiento principal de medios</td></tr>
+          <tr><td>20</td><td>Compartimento adaptador celular</td><td>Aloja el adaptador 4G para transmisión mejorada</td></tr>
+          <tr><td>21</td><td>E-Port</td><td>Bus de comunicaciones para cargas útiles oficiales</td></tr>
+        </tbody>
+      </table>
+
+      <figure class="fig">
+        <img src="https://enae.cl/cursos/matrice4/assets/img/aeronave_inferior_sensores.jpg" alt="Vista inferior de la aeronave">
+        <figcaption>Vista inferior — sistema de visión inferior, sensor 3D infrarrojo y luz auxiliar.</figcaption>
+      </figure>
+
+      <div class="callout">
+        <strong>Conocer la nomenclatura</strong>
+        El uso correcto de la nomenclatura DJI es esencial para comunicarse con soporte técnico y para redactar reportes de incidente. En todo reporte oficial debe usarse el término del manual ("estabilizador", no "gimbal"; "sistema de visión", no "cámaras de obstáculos"; "RPO", no "RTH"), aunque algunos sean coloquialmente conocidos por su versión inglesa.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 2.2 ============ -->
+  <section class="bloque" id="l22">
+    <div class="leccion">
+      <span class="etiqueta">Lección 2.2</span>
+      <h2>Hélices y propulsión</h2>
+
+      <p>El sistema propulsivo está compuesto por <strong>cuatro motores brushless</strong> de bajo cogging acoplados a hélices plegables de paso fijo. Cada motor cuenta con su propio controlador electrónico de velocidad (ESC) integrado, con telemetría individual hacia el controlador de vuelo y supervisión continua de temperatura y consumo.</p>
+
+      <h3>Tipos de hélices</h3>
+      <p>La Serie Matrice 4 admite dos modelos de hélice:</p>
+      <ul>
+        <li><strong>Hélices estándar</strong>: máximo rendimiento aerodinámico, son las que vienen montadas por defecto en regiones fuera de la UE.</li>
+        <li><strong>Hélices de bajo ruido</strong>: optimizadas para reducción de huella acústica. Son obligatorias por defecto para aeronaves comercializadas en la Unión Europea, conforme al cumplimiento del Reglamento Delegado (UE) 2019/945. Reducen el ruido percibido sin pérdida significativa de rendimiento.</li>
+      </ul>
+
+      <div class="callout aviso">
+        <strong>Reglas críticas — hélices</strong>
+        <ul style="margin-top:6px;">
+          <li>NUNCA mezcle hélices estándar y de bajo ruido en una misma aeronave.</li>
+          <li>Use solo hélices oficiales DJI. Las hélices genéricas pueden causar inestabilidad de vuelo y son causal de pérdida de garantía.</li>
+          <li>Las hélices son consumibles. Inspeccione el borde de ataque y borde de fuga antes de cada vuelo.</li>
+          <li>Una hélice astillada, rajada o deformada se reemplaza siempre, nunca se repara.</li>
+          <li>Las hélices están afiladas. Use guantes durante el desmontaje y manténgase alejado durante el arranque.</li>
+        </ul>
+      </div>
+
+      <h3>Procedimiento de montaje/desmontaje</h3>
+      <ol>
+        <li>Asegurar que la aeronave esté <strong>apagada</strong> y la batería removida.</li>
+        <li>Identificar la marca CW/CCW grabada en el motor (anillo plateado vs. negro).</li>
+        <li>Posicionar la hélice respetando el sentido del motor.</li>
+        <li>Presionar firmemente hacia abajo y rotar en el sentido indicado por la flecha hasta escuchar un "clic".</li>
+        <li>Verificar tirando suavemente que la hélice no se libere por sí misma.</li>
+      </ol>
+
+      <h3>Inspección pre-vuelo de propulsión</h3>
+      <p>Antes de cada vuelo se debe verificar:</p>
+      <ul>
+        <li>Las cuatro hélices están del mismo modelo y en buen estado.</li>
+        <li>Los motores giran libremente cuando se rotan a mano (sin batería).</li>
+        <li>Al encender la aeronave, el sonido de los ESC es uniforme y sin chirridos.</li>
+        <li>No hay objetos extraños en los conductos de ventilación de los motores.</li>
+        <li>Los brazos están totalmente desplegados (escuchar el "clic" del bloqueo).</li>
+      </ul>
+
+      <div class="callout alerta">
+        <strong>Detención de motores en vuelo</strong>
+        El comando de combinación de palancas (CSC) permite detener los motores en caso de error crítico durante el vuelo. <strong>Esto causará el estrellamiento de la aeronave.</strong> Solo debe ejecutarse cuando exista riesgo a la vida humana en tierra y la aeronave esté fuera de control. La decisión la toma exclusivamente el piloto al mando con la mejor información disponible en el momento.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 2.3 ============ -->
+  <section class="bloque" id="l23">
+    <div class="leccion">
+      <span class="etiqueta">Lección 2.3</span>
+      <h2>Estabilizador y carga útil</h2>
+
+      <p>El <strong>estabilizador</strong> (gimbal) de la Serie Matrice 4 es una plataforma giroscópica de tres ejes (pitch, roll, yaw) que aísla la cámara de los movimientos de la aeronave, garantizando captura visual estable incluso en condiciones de turbulencia moderada.</p>
+
+      <h3>Especificaciones del estabilizador</h3>
+      <div class="spec-grid">
+        <div class="spec-card"><strong>Configuración</strong><span class="valor">3 ejes (pitch, roll, yaw)</span></div>
+        <div class="spec-card"><strong>Rango pitch</strong><span class="valor">−120° a +45°</span></div>
+        <div class="spec-card"><strong>Rango yaw</strong><span class="valor">−27° a +27°</span></div>
+        <div class="spec-card"><strong>Velocidad angular</strong><span class="valor">Hasta 100°/s</span></div>
+        <div class="spec-card"><strong>Estabilización vibracional</strong><span class="valor">±0.005°</span></div>
+        <div class="spec-card"><strong>Control</strong><span class="valor">Dial dedicado RC + táctil DJI Pilot 2</span></div>
+      </div>
+
+      <h3>Operación del estabilizador</h3>
+      <p>La inclinación de la cámara se controla por dos vías. La principal es el <strong>dial de estabilizador</strong> en el control remoto (rueda izquierda en RC Plus 2): rotación lenta produce ajustes finos, rotación rápida ajustes gruesos. La segunda vía es la pantalla táctil de DJI Pilot 2: al mantener pulsado un punto de la imagen aparece un círculo de control deslizante.</p>
+
+      <h3>Buenas prácticas operacionales</h3>
+      <ul>
+        <li>Retirar siempre el <strong>protector de estabilizador</strong> antes del encendido. El sistema de auto-diagnóstico detectará un error si lo encuentra montado.</li>
+        <li>Mantener los brazos completamente desplegados antes de encender. Un brazo plegado puede bloquear el estabilizador y dañar el motor permanentemente.</li>
+        <li>No tocar ni golpear el estabilizador con la aeronave encendida.</li>
+        <li>No agregar carga útil no oficial. El estabilizador está calibrado para el peso exacto del módulo óptico de fábrica.</li>
+        <li>Tras volar en niebla densa o con humedad alta, dejar secar el estabilizador antes de almacenar.</li>
+      </ul>
+
+      <div class="callout alerta">
+        <strong>Modo protección del estabilizador</strong>
+        Si el estabilizador queda mecánicamente bloqueado (terreno irregular, hierba alta, pasto largo), el motor puede entrar en modo protección y aparecer una alerta. La solución es apagar la aeronave, posicionarla sobre superficie firme y plana, y reencender. Si el error persiste, la unidad requiere mantenimiento.
+      </div>
+
+      <h3>Almacenamiento de medios</h3>
+      <p>Las fotografías y videos capturados por las cámaras se almacenan en una <strong>tarjeta microSD</strong> alojada en la aeronave. DJI recomienda tarjetas con clasificación V30 o superior y capacidad de hasta 512 GB. Para extraer los medios, se debe apagar la aeronave, retirar la tarjeta y leerla en un lector de tarjetas externo. <strong>No</strong> es posible transferir contenido directamente desde la aeronave apagada.</p>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 2.4 ============ -->
+  <section class="bloque" id="l24">
+    <div class="leccion">
+      <span class="etiqueta">Lección 2.4</span>
+      <h2>Sistema de cámaras</h2>
+
+      <p>El módulo óptico es la principal diferencia funcional entre el Matrice 4T y el Matrice 4E. Ambos modelos comparten una arquitectura tri-ocular con telémetro láser, pero el M4T añade una cuarta unidad térmica y una luz NIR, mientras que el M4E reemplaza la cámara gran angular por una unidad con sensor 4/3" de mayor calidad fotométrica y apertura ajustable.</p>
+
+      <figure class="fig">
+        <img src="https://enae.cl/cursos/matrice4/assets/img/sistema_camaras.jpg" alt="Sistema de cámaras Matrice 4">
+        <figcaption>Detalle del módulo óptico. M4T (izquierda): cámara térmica + luz NIR + tres cámaras visibles + telémetro láser. M4E (derecha): cámara gran angular 4/3" + dos cámaras tele + telémetro láser.</figcaption>
+      </figure>
+
+      <h3>Cámaras visibles del Matrice 4T</h3>
+      <table class="tabla-curso">
+        <thead><tr><th>Cámara</th><th>Sensor</th><th>FOV</th><th>FOC equivalente</th><th>Apertura</th><th>Foco</th></tr></thead>
+        <tbody>
+          <tr><td>Gran angular</td><td>CMOS 1/1.3" 48 MP</td><td>82°</td><td>24 mm</td><td>f/1.7 fija</td><td>1 m a ∞</td></tr>
+          <tr><td>Tele media</td><td>CMOS 1/1.3" 48 MP</td><td>35°</td><td>70 mm</td><td>f/2.8 fija</td><td>3 m a ∞</td></tr>
+          <tr><td>Tele</td><td>CMOS 1/1.5" 48 MP</td><td>15°</td><td>168 mm</td><td>f/2.8 fija</td><td>3 m a ∞</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Cámara térmica (solo M4T)</h3>
+      <p>La cámara térmica utiliza un sensor microbolométrico no refrigerado de óxido de vanadio (VOx) de <strong>640 × 512 px</strong>, con función de super-resolución UHR que interpola la imagen a 1 280 × 1 024. Los datos son <em>radiométricos</em>, lo que permite leer la temperatura puntual o promedio de cualquier zona del fotograma con buena precisión (±2 °C o ±2 % entre 0–100 °C).</p>
+
+      <div class="spec-grid">
+        <div class="spec-card"><strong>Sensor</strong><span class="valor">Microbolómetro VOx no refrigerado</span></div>
+        <div class="spec-card"><strong>Resolución nativa</strong><span class="valor">640 × 512 px</span></div>
+        <div class="spec-card"><strong>Resolución UHR</strong><span class="valor">1 280 × 1 024 px</span></div>
+        <div class="spec-card"><strong>FOV diagonal</strong><span class="valor">45° ± 0.3°</span></div>
+        <div class="spec-card"><strong>FOC equivalente</strong><span class="valor">53 mm</span></div>
+        <div class="spec-card"><strong>Apertura</strong><span class="valor">f/1.0</span></div>
+        <div class="spec-card"><strong>Distancia mínima</strong><span class="valor">5 m a ∞</span></div>
+        <div class="spec-card"><strong>Banda espectral</strong><span class="valor">8–14 μm (LWIR)</span></div>
+      </div>
+
+      <h3>Luz auxiliar NIR (solo M4T)</h3>
+      <p>La luz auxiliar de infrarrojo cercano (NIR) emite radiación invisible al ojo humano pero detectable por los sensores de las cámaras visibles, permitiendo grabación clandestina nocturna sin alertar al objetivo. Su alcance útil es de <strong>100 metros</strong>.</p>
+
+      <h3>Telémetro láser (M4T y M4E)</h3>
+      <p>El telémetro láser permite medir distancia exacta a un objetivo con precisión decimétrica, datos clave para georreferenciar incidentes o mediciones (función PinPoint).</p>
+
+      <div class="spec-grid">
+        <div class="spec-card"><strong>Alcance máximo (1 Hz)</strong><span class="valor">1 800 m a 20 % reflectividad</span></div>
+        <div class="spec-card"><strong>Alcance oblicuo 1:5</strong><span class="valor">600 m</span></div>
+        <div class="spec-card"><strong>Zona ciega</strong><span class="valor">1 m</span></div>
+        <div class="spec-card"><strong>Error sistemático</strong><span class="valor">&lt; 0.3 m</span></div>
+        <div class="spec-card"><strong>Error aleatorio</strong><span class="valor">&lt; 0.1 m @ 1σ</span></div>
+        <div class="spec-card"><strong>Clase láser</strong><span class="valor">Clase 1 (segura para vista)</span></div>
+      </div>
+
+      <h3>Cámara gran angular del M4E</h3>
+      <p>El Matrice 4E reemplaza la cámara gran angular CMOS 1/1.3" del M4T por una unidad con sensor <strong>CMOS 4/3" de 20 MP</strong> y apertura mecánica ajustable f/2.8 a f/11, similar al sensor del Mavic 3E. Esta arquitectura entrega:</p>
+      <ul>
+        <li>Mayor rango dinámico — fundamental para trabajo fotogramétrico con cielo despejado.</li>
+        <li>Apertura ajustable para control de profundidad de campo y tiempo de exposición.</li>
+        <li>Menor distorsión geométrica — minimiza el trabajo de calibración fotogramétrica.</li>
+        <li>Mejor desempeño en baja luz para mapeos en condiciones de iluminación variable.</li>
+      </ul>
+
+      <div class="callout alerta">
+        <strong>Protección térmica del sensor IR</strong>
+        El sensor infrarrojo del M4T es muy sensible. NUNCA dirija la cámara térmica directamente al sol, fuentes láser, ni superficies extremadamente calientes (lava, hornos industriales). El sensor puede sufrir <strong>daño permanente</strong> antes de que se active la protección automática. Esta es una causal explícita de no cobertura por garantía.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 2.5 ============ -->
+  <section class="bloque" id="l25">
+    <div class="leccion">
+      <span class="etiqueta">Lección 2.5</span>
+      <h2>Sistema de detección omnidireccional</h2>
+
+      <p>El sistema de detección de obstáculos de la Serie Matrice 4 combina dos tecnologías complementarias: <strong>visión binocular</strong> en seis direcciones y <strong>sensado infrarrojo 3D</strong> inferior. La integración de ambos sistemas, gestionada por algoritmos de fusión sensorial, entrega percepción ambiental robusta tanto de día como de noche.</p>
+
+      <h3>Visión binocular omnidireccional</h3>
+      <p>Seis pares de cámaras estéreo de baja luminosidad cubren los ejes de movimiento de la aeronave: frente, atrás, izquierda, derecha, arriba y abajo. Las cámaras tienen un FOV de 160° por par y trabajan en pareja para construir mapas de profundidad mediante triangulación. La cobertura efectiva permite detección a 360°.</p>
+
+      <table class="tabla-curso">
+        <thead><tr><th>Dirección</th><th>Rango medición</th><th>Rango total</th><th>Velocidad operativa</th></tr></thead>
+        <tbody>
+          <tr><td>Frontal binocular</td><td>0.4 – 22.5 m</td><td>0.4 – 200 m</td><td>≤ 21 m/s</td></tr>
+          <tr><td>Trasera</td><td>0.4 – 22.5 m</td><td>0.4 – 200 m</td><td>≤ 21 m/s</td></tr>
+          <tr><td>Lateral (izq./der.)</td><td>0.5 – 32 m</td><td>0.5 – 200 m</td><td>≤ 21 m/s</td></tr>
+          <tr><td>Superior</td><td>0.5 – 25 m</td><td>0.5 – 100 m</td><td>≤ 15 m/s</td></tr>
+          <tr><td>Inferior</td><td>0.5 – 30 m</td><td>0.5 – 50 m</td><td>≤ 15 m/s</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Detección de obstáculos finos</h3>
+      <p>Una capacidad distintiva del sistema es la detección de <strong>cables eléctricos de hasta 12 mm de diámetro</strong> a velocidades de hasta 15 m/s, gracias a la combinación de las cámaras de alta resolución y los algoritmos de detección entrenados específicamente para infraestructura de transmisión y distribución eléctrica.</p>
+
+      <h3>Sensor 3D infrarrojo inferior</h3>
+      <p>Adicional a las cámaras estéreo, la aeronave incorpora un sensor infrarrojo 3D apuntando hacia abajo. Este sensor proyecta un patrón estructurado de luz infrarroja y mide su deformación al rebotar en el suelo, generando un mapa de altura preciso. Es esencial para <strong>aterrizaje en superficie irregular, en oscuridad total y en condiciones de iluminación deficiente.</strong></p>
+
+      <h3>Limitaciones del sistema</h3>
+      <p>Aunque el sistema es muy robusto, tiene limitaciones físicas que el operador debe conocer y respetar:</p>
+      <div class="callout aviso">
+        <strong>Condiciones que degradan o desactivan la detección</strong>
+        <ul style="margin-top:6px;">
+          <li>Iluminación excesiva (sol directo en lente) — saturación.</li>
+          <li>Iluminación insuficiente (oscuridad total sin luz auxiliar) — falta de textura.</li>
+          <li>Superficies sin textura visual — pared blanca lisa, agua espejada.</li>
+          <li>Superficies con reflectividad muy baja — material altamente absorbente.</li>
+          <li>Lentes de las cámaras sucias, mojadas o con condensación.</li>
+          <li>Modo Sport activo — la detección se DESACTIVA automáticamente.</li>
+          <li>Velocidad superior a la velocidad operativa indicada en la tabla.</li>
+          <li>Vegetación densa o ramaje fino — penetración deficiente del sistema visual.</li>
+        </ul>
+      </div>
+
+      <h3>Comportamiento ante detección de obstáculo</h3>
+      <p>Cuando el sistema detecta un obstáculo dentro del rango de frenado, opera según el modo de vuelo activo:</p>
+      <ul>
+        <li><strong>Modo N (Normal):</strong> la aeronave frena y entra en vuelo estacionario, alertando al piloto.</li>
+        <li><strong>APAS activado:</strong> la aeronave intenta replanificar la ruta para sortear el obstáculo manteniendo la dirección general.</li>
+        <li><strong>Modo S (Sport):</strong> sin acción automática. El piloto es el único responsable de evadir.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ CASO PRÁCTICO ============ -->
+  <section id="caso">
+    <div class="caso-practico">
+      <div class="header-caso">
+        <div class="icono">CP</div>
+        <h2 style="margin:0;border:none;">Caso práctico — Inspección termográfica de un parque eólico</h2>
+      </div>
+
+      <div class="escenario">
+        <strong>Escenario operacional</strong>
+        <p>Un operador de un parque eólico de 24 aerogeneradores Vestas V117 (altura del buje 91 m, diámetro de rotor 117 m) en la Región del Biobío contrata su servicio para una inspección termográfica de palas y góndolas tras detectar pérdida de eficiencia. La operación se programa para ejecutarse durante las horas crepusculares (delta térmico óptimo), con tres turbinas a auditar en una jornada. Las palas no pueden ser detenidas todas simultáneamente: deben revisarse de a una con su rotor frenado, mientras las otras 23 siguen operativas a 14 RPM. La infraestructura cuenta con líneas de evacuación de 33 kV cruzando perpendicularmente la traza de inspección.</p>
+      </div>
+
+      <strong>Preguntas guía</strong>
+      <ul class="preguntas-caso">
+        <li>¿Qué cámara del M4T se utiliza para la inspección de palas y por qué? ¿Qué cámara para la góndola?</li>
+        <li>¿Cómo afecta el sistema de detección de obstáculos cuando hay rotores en operación cercanos a la zona de vuelo?</li>
+        <li>¿Qué medidas de seguridad operacional adopta respecto a las líneas de 33 kV cruzando la traza?</li>
+        <li>¿Qué función del telémetro láser explotaría para georreferenciar puntos calientes detectados?</li>
+        <li>¿Por qué es relevante la apertura f/1.7 de la cámara gran angular en este escenario?</li>
+      </ul>
+
+      <details class="respuestas-modelo">
+        <summary>Respuesta modelo</summary>
+        <div style="padding:14px 6px;">
+          <p><strong>Cámaras a utilizar:</strong> para la inspección de palas, la <em>cámara térmica</em> es la herramienta primaria — los defectos estructurales (delaminaciones, ingreso de humedad, daño por rayo) generan firmas térmicas distintivas. Como apoyo se usa la <em>cámara tele 168 mm</em> para registro RGB de alta resolución de cada zona inspeccionada. Para la góndola, la inspección térmica del generador, multiplicadora y cojinetes principales se hace también con cámara térmica, complementada con la <em>cámara tele media 70 mm</em> para registro RGB.</p>
+          <p><strong>Detección de obstáculos con rotores activos:</strong> el sistema visual del Matrice 4 detecta obstáculos estáticos o de movimiento lento. Las palas en rotación a 14 RPM tienen velocidad punta superior a 80 m/s, lo que excede la capacidad de detección efectiva. La regla operacional es <strong>nunca volar a barlovento de un aerogenerador en operación</strong>; se mantiene una zona de seguridad mínima de 2 diámetros de rotor (≈ 240 m) cuando la turbina está girando. Para inspección, se solicita parada y bloqueo (LOTO) del rotor inspeccionado, manteniendo distancia de 25–30 m a la pala.</p>
+          <p><strong>Líneas de 33 kV:</strong> el M4 detecta cables hasta 12 mm a 15 m/s, pero la operación se planifica para no aproximarse a menos de 30 m horizontales y 15 m verticales de las líneas. Se identifica visualmente la traza antes de iniciar y se incluye en la cartografía de la misión waypoint. Se mantiene siempre el modo Normal (NO Sport).</p>
+          <p><strong>Telémetro láser y PinPoint:</strong> al identificar un punto caliente en pala se activa el telémetro láser para medir distancia exacta (precisión decimétrica). DJI Pilot 2 calcula entonces las coordenadas geodésicas del defecto y deja un PinPoint georreferenciado disponible para incorporar al informe.</p>
+          <p><strong>Apertura f/1.7:</strong> en condiciones crepusculares, la mayor entrada de luz permite mantener tiempos de obturación cortos (≤ 1/200 s) y baja sensibilidad ISO, evitando arrastre de movimiento y ruido. El sistema mantiene calidad fotográfica útil incluso al límite del horario civil crepuscular.</p>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <nav class="nav-modulos">
+    <a href="javascript:void(0)"><small>← Anterior</small>Módulo 1 · Fundamentos</a>
+    <a class="next" href="javascript:void(0)"><small>Siguiente</small>Módulo 3 · Energía y RTK →</a>
+  </nav>
+
+</main>
+
+<footer class="pie-curso">
+  <p>© 2026 ENAE — Curso Operador Profesional DJI Matrice 4 Series · Módulo 2</p>
+</footer>
+
+</body>
+</html>

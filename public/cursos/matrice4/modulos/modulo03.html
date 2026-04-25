@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Módulo 3 — Energía y RTK · Matrice 4 Series · ENAE</title>
+<link rel="stylesheet" href="https://enae.cl/cursos/matrice4/assets/curso.css">
+</head>
+<body>
+
+<header class="header-curso">
+  <div class="marca">ENAE — Curso Matrice 4 Series</div>
+  <h1>Módulo 3 · Sistema de energía y posicionamiento RTK</h1>
+  <div class="subtitulo">Batería TB100 · Hub de carga · Módulo RTK · 4 lecciones · 3 horas</div>
+</header>
+
+
+
+<main class="contenedor">
+
+  <section class="bloque">
+    <h2>Presentación del módulo</h2>
+    <p>El sistema de energía es el principal limitador operacional de cualquier RPA: la energía a bordo determina el tiempo útil de vuelo, los márgenes de seguridad y la posibilidad de completar misiones complejas. Este módulo aborda en profundidad la <strong>batería de vuelo inteligente TB100</strong>, el <strong>hub de carga</strong>, los mecanismos de protección eléctrica y, por otra parte, el <strong>módulo RTK integrado</strong> que dota a la aeronave de posicionamiento centimétrico, requisito indispensable para operaciones fotogramétricas de precisión y para vuelo confiable en entornos urbanos.</p>
+
+    <div class="objetivos">
+      <h3>Objetivos de aprendizaje</h3>
+      <ul>
+        <li>Operar correctamente la batería TB100, incluyendo carga, almacenamiento y transporte seguro.</li>
+        <li>Interpretar los códigos LED del hub de carga y de la batería en condiciones normales y de fallo.</li>
+        <li>Comprender los mecanismos de protección eléctrica y química y su comportamiento esperado.</li>
+        <li>Configurar el módulo RTK con redes públicas, redes personalizadas y estaciones D-RTK.</li>
+        <li>Diagnosticar problemas comunes de degradación de capacidad y de posicionamiento RTK.</li>
+      </ul>
+    </div>
+
+    <div class="indice-leccion">
+      <h4>Índice del módulo</h4>
+      <ol>
+        <li><a href="#l31">Lección 3.1 · Batería de vuelo inteligente TB100</a></li>
+        <li><a href="#l32">Lección 3.2 · Hub de carga y operación</a></li>
+        <li><a href="#l33">Lección 3.3 · Módulo RTK y servicios de corrección</a></li>
+        <li><a href="#l34">Lección 3.4 · Mecanismos de protección eléctrica</a></li>
+        <li><a href="#caso">Caso práctico aplicado</a></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 3.1 ============ -->
+  <section class="bloque" id="l31">
+    <div class="leccion">
+      <span class="etiqueta">Lección 3.1</span>
+      <h2>Batería de vuelo inteligente TB100</h2>
+
+      <p>La <strong>TB100</strong> es la batería oficial de la Serie Matrice 4 (compartida con el Matrice 400). Es una unidad <em>"intelligent"</em>, es decir, integra una placa de gestión (BMS) que monitorea continuamente voltaje por celda, temperatura, ciclos y estado de salud, comunicando estos datos al controlador de vuelo a través del bus interno.</p>
+
+      <h3>Especificaciones técnicas</h3>
+      <div class="spec-grid">
+        <div class="spec-card"><strong>Química</strong><span class="valor">Litio-ion</span></div>
+        <div class="spec-card"><strong>Configuración</strong><span class="valor">13S — 13 celdas en serie</span></div>
+        <div class="spec-card"><strong>Capacidad nominal</strong><span class="valor">20 254 mAh</span></div>
+        <div class="spec-card"><strong>Energía total</strong><span class="valor">977 Wh</span></div>
+        <div class="spec-card"><strong>Voltaje nominal</strong><span class="valor">48.1 V</span></div>
+        <div class="spec-card"><strong>Tiempo de vuelo</strong><span class="valor">Hasta 49 min (M4) / 59 min (M400)</span></div>
+        <div class="spec-card"><strong>Hot-swap</strong><span class="valor">Soportado</span></div>
+        <div class="spec-card"><strong>Auto-calefacción</strong><span class="valor">Integrada</span></div>
+        <div class="spec-card"><strong>Rango operación</strong><span class="valor">−20 °C a 50 °C</span></div>
+        <div class="spec-card"><strong>Rango carga</strong><span class="valor">5 °C a 40 °C (ideal 22–28 °C)</span></div>
+        <div class="spec-card"><strong>Ciclos de vida</strong><span class="valor">≥ 400 ciclos al 80 % de capacidad</span></div>
+        <div class="spec-card"><strong>Peso</strong><span class="valor">2 060 g</span></div>
+      </div>
+
+      <h3>Procedimiento de instalación/extracción</h3>
+      <ol>
+        <li>Verificar que la aeronave esté <strong>apagada</strong>.</li>
+        <li>Alinear la batería con el compartimento, verificando que las bandas de sujeción estén replegadas.</li>
+        <li>Empujar firmemente hasta escuchar el "clic" de bloqueo. Si no se escucha, la batería NO está correctamente instalada.</li>
+        <li>Para extraer: presionar simultáneamente las dos bandas laterales y tirar hacia afuera.</li>
+      </ol>
+
+      <div class="callout alerta">
+        <strong>Reglas críticas — manipulación de baterías</strong>
+        <ul style="margin-top:6px;">
+          <li>NUNCA inserte ni retire la batería con la aeronave encendida.</li>
+          <li>NUNCA cargue una batería que esté caliente al tacto post-vuelo. Espere 15–20 minutos.</li>
+          <li>NUNCA opere por debajo de −10 °C ambiente o por encima de 40 °C.</li>
+          <li>Cargue al 100% al menos una vez cada 3 meses para evitar degradación química.</li>
+          <li>Si la batería no se ha cargado o descargado por más de 3 meses, pierde garantía.</li>
+          <li>Para transporte aéreo (regla IATA), descargue al ≤ 30%.</li>
+        </ul>
+      </div>
+
+      <h3>Niveles de batería y patrones LED</h3>
+      <p>La aeronave dispone de cuatro LEDs en la batería. Una pulsación al botón de encendido muestra el nivel actual:</p>
+
+      <table class="tabla-curso">
+        <thead><tr><th>Patrón LED</th><th>Nivel batería</th></tr></thead>
+        <tbody>
+          <tr><td>● ● ● ●</td><td>92–100 %</td></tr>
+          <tr><td>● ● ● ◐</td><td>76–91 %</td></tr>
+          <tr><td>● ● ● ○</td><td>63–75 %</td></tr>
+          <tr><td>● ● ◐ ○</td><td>51–62 %</td></tr>
+          <tr><td>● ● ○ ○</td><td>38–50 %</td></tr>
+          <tr><td>● ◐ ○ ○</td><td>26–37 %</td></tr>
+          <tr><td>● ○ ○ ○</td><td>13–25 %</td></tr>
+          <tr><td>◐ ○ ○ ○</td><td>0–12 %</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Aviso por baja temperatura</h3>
+      <p>A temperaturas inferiores a 0 °C, la batería opera con capacidad reducida y la resistencia interna aumenta. Recomendaciones operacionales:</p>
+      <ul>
+        <li>Precaliente la batería a temperatura ambiente antes de despegar (use bolsas térmicas o auto-calentado vía DJI Pilot 2).</li>
+        <li>Realice un <em>"hover"</em> de 60 segundos a baja altitud tras el despegue para que la batería alcance temperatura operativa.</li>
+        <li>Reduzca el tiempo total de vuelo planificado en al menos 30 % bajo 0 °C.</li>
+        <li>Manténgase atento a la advertencia de batería muy baja: bajo 5 °C la caída final es abrupta.</li>
+        <li>Para vuelos a alta altitud (sobre 3 000 m), aplique los descuentos de baja temperatura más reducción adicional por densidad atmosférica.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 3.2 ============ -->
+  <section class="bloque" id="l32">
+    <div class="leccion">
+      <span class="etiqueta">Lección 3.2</span>
+      <h2>Hub de carga y operación</h2>
+
+      <p>El <strong>hub de carga (Charging Hub) Matrice 4 Series</strong> es el accesorio oficial para cargar hasta cuatro baterías TB100 en secuencia. Trabaja con un adaptador de corriente USB-C DJI de 100 W incluido. El hub aplica priorización inteligente y soporta dos modos de carga.</p>
+
+      <h3>Modos de carga</h3>
+
+      <table class="tabla-curso">
+        <thead><tr><th>Modo</th><th>Comportamiento</th><th>Caso de uso</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Estándar</strong></td>
+            <td>Cada batería se carga al 100 % en secuencia desde la de menor a mayor nivel.</td>
+            <td>Uso normal, almacenamiento entre operaciones, jornadas planificadas.</td>
+          </tr>
+          <tr>
+            <td><strong>Listo para volar</strong></td>
+            <td>Cada batería se carga al 90 % y se mantiene ahí. La de mayor nivel carga primero.</td>
+            <td>Operaciones de turnos cortos donde se quiere disponibilidad rápida sin esperar el plateau final.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Códigos LED del hub</h3>
+      <table class="tabla-curso">
+        <thead><tr><th>Patrón</th><th>Significado</th></tr></thead>
+        <tbody>
+          <tr><td>Amarillo fijo</td><td>No hay batería insertada</td></tr>
+          <tr><td>Verde parpadeante</td><td>Cargando batería</td></tr>
+          <tr><td>Verde fijo</td><td>Carga completada</td></tr>
+          <tr><td>Amarillo parpadeante</td><td>Anomalía recuperable — se reanudará automáticamente</td></tr>
+          <tr><td>Rojo fijo</td><td>Anomalía no recuperable — retire la batería y reinserte; si persiste, desenchufe el adaptador</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Buenas prácticas con el hub</h3>
+      <ul>
+        <li>Use solo el adaptador USB-C DJI de 100 W oficial. Adaptadores genéricos pueden no entregar la potencia requerida y prolongar tiempos de carga.</li>
+        <li>Use el hub solo con baterías TB100. No es compatible con otros modelos.</li>
+        <li>Coloque el hub sobre superficie estable, no inflamable, en zona ventilada.</li>
+        <li>Mantenga los terminales metálicos limpios y secos; límpielos con paño suave si presentan suciedad.</li>
+        <li>No cargue baterías recién retiradas de la aeronave: deje enfriar 15–20 minutos.</li>
+      </ul>
+
+      <h3>Estimación de tiempos típicos</h3>
+      <p>A 220 V y temperatura ambiente 25 °C, con adaptador 100 W, una batería TB100 tarda aproximadamente <strong>70 minutos</strong> en cargarse del 0 % al 100 % en modo Estándar. En modo Listo para Volar, alcanza el 90 % en aproximadamente 60 minutos. Con cuatro baterías en secuencia, una carga completa al 100 % toma cerca de 4 horas y 40 minutos.</p>
+
+      <div class="callout aviso">
+        <strong>Estación BS100</strong>
+        Para operadores intensivos con flotas Matrice 400, DJI ofrece la <em>Intelligent Battery Station BS100</em>, capaz de cargar tres TB100 y dos baterías de control remoto WB37 simultáneamente con potencia mucho mayor (45 minutos al 100 % a 220 V) y modo silencioso de 36 dB. La BS100 es opcional para Matrice 4 pero altamente recomendada para operaciones profesionales con más de cuatro baterías en flota.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 3.3 ============ -->
+  <section class="bloque" id="l33">
+    <div class="leccion">
+      <span class="etiqueta">Lección 3.3</span>
+      <h2>Módulo RTK y servicios de corrección</h2>
+
+      <p>El módulo <strong>RTK (Real-Time Kinematic)</strong> integrado de la aeronave aporta posicionamiento de precisión centimétrica. Es resistente a interferencias magnéticas de estructuras metálicas y líneas de alta tensión, capacidad crítica para operaciones de inspección en infraestructura energética donde el GNSS sin corrección puede degradarse significativamente.</p>
+
+      <h3>Especificaciones de posicionamiento</h3>
+      <div class="spec-grid">
+        <div class="spec-card"><strong>Constelaciones</strong><span class="valor">GPS L1/L2 + Galileo + BeiDou + QZSS</span></div>
+        <div class="spec-card"><strong>Hover sin RTK (visión)</strong><span class="valor">±0.1 m vertical, ±0.1 m horizontal</span></div>
+        <div class="spec-card"><strong>Hover sin RTK (GNSS)</strong><span class="valor">±0.5 m vertical, ±0.5 m horizontal</span></div>
+        <div class="spec-card"><strong>Hover con RTK fix</strong><span class="valor">±0.1 m</span></div>
+        <div class="spec-card"><strong>Precisión RTK fix</strong><span class="valor">1 cm + 1 ppm horizontal</span></div>
+        <div class="spec-card"><strong>Precisión vertical RTK</strong><span class="valor">1.5 cm + 1 ppm</span></div>
+      </div>
+
+      <h3>Tipos de servicio RTK soportados</h3>
+      <p>El operador puede seleccionar entre cuatro tipos de servicio según el contexto de operación, en DJI Pilot 2 → Vista de cámara → ⚙ → RTK:</p>
+
+      <table class="tabla-curso">
+        <thead><tr><th>Tipo</th><th>Descripción</th><th>Caso de uso</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>D-RTK 3</strong></td>
+            <td>Estación base D-RTK 3 propia desplegada en sitio.</td>
+            <td>Operaciones donde no hay cobertura celular o se requiere autonomía total.</td>
+          </tr>
+          <tr>
+            <td><strong>Mobile Station Network RTK</strong></td>
+            <td>Servicio público de red RTK accesible vía control remoto con conexión a internet.</td>
+            <td>Mapeo en zonas urbanas con cobertura de red NTRIP local.</td>
+          </tr>
+          <tr>
+            <td><strong>Custom Network RTK</strong></td>
+            <td>Servidor NTRIP propio del operador o cliente con credenciales personalizadas.</td>
+            <td>Empresas con infraestructura geodésica propia (mineras, autopistas).</td>
+          </tr>
+          <tr>
+            <td><strong>D-RTK Relay</strong></td>
+            <td>Configuración avanzada con estación base y repetidor.</td>
+            <td>Operaciones de gran cobertura geográfica con visibilidad bloqueada.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Activación y configuración</h3>
+      <p>Antes de cada operación que requiera precisión RTK debe verificarse:</p>
+      <ol>
+        <li>RTK habilitado en menú DJI Pilot 2 → Vista de cámara → ⚙ → RTK.</li>
+        <li>Servicio correctamente seleccionado y configurado.</li>
+        <li>El estado de posicionamiento de la aeronave en la tabla de estado muestra <strong>"FIX"</strong>. Si muestra "FLOAT" o "SINGLE", la posición no es centimétrica.</li>
+        <li>Para Network RTK: control remoto con tarjeta nano-SIM en el adaptador celular DJI o conexión WiFi a internet.</li>
+        <li>El modo de mantenimiento de precisión de posicionamiento se puede activar tras obtener fix RTK.</li>
+      </ol>
+
+      <h3>Configuración de Custom Network RTK</h3>
+      <p>Para usar un servidor NTRIP propio:</p>
+      <ol>
+        <li>Conecte el control remoto a internet (4G o WiFi).</li>
+        <li>Vincule el RC con la aeronave.</li>
+        <li>Acceda a DJI Pilot 2 → Vista de cámara → ⚙ → RTK → seleccione "Red RTK personalizada".</li>
+        <li>Complete: dirección IP del servidor NTRIP, puerto, mountpoint, usuario y contraseña.</li>
+        <li>Pulse "Guardar" y espere a que el estado cambie a "FIX".</li>
+      </ol>
+
+      <div class="callout">
+        <strong>Posicionamiento RTK durante el vuelo</strong>
+        El posicionamiento RTK puede activarse y desactivarse durante el vuelo. Tras activarse, queda disponible el modo de precisión de mantenimiento de posicionamiento ("Position Hold Precision Mode"), recomendado para misiones de mapeo y inspección estática.
+      </div>
+
+      <h3>Limitaciones físicas del RTK</h3>
+      <ul>
+        <li>El RTK requiere correcciones diferenciales con latencia &lt; 2 segundos. Pérdidas de enlace 4G prolongadas hacen caer el fix.</li>
+        <li>Bajo dosel arbóreo denso o cerca de estructuras metálicas masivas (subestaciones), pueden producirse pérdidas momentáneas de fix.</li>
+        <li>La distancia entre la aeronave y la estación base afecta la precisión: el error sistemático es de 1 ppm, es decir 1 cm cada 10 km adicionales.</li>
+        <li>En regiones polares (latitudes extremas) la geometría satelital degrada la precisión.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ LECCIÓN 3.4 ============ -->
+  <section class="bloque" id="l34">
+    <div class="leccion">
+      <span class="etiqueta">Lección 3.4</span>
+      <h2>Mecanismos de protección eléctrica</h2>
+
+      <p>La placa de gestión (BMS) de la TB100 incorpora mecanismos de protección que actúan automáticamente ante condiciones anómalas. Estos mecanismos previenen daños a la batería y minimizan riesgos de evento térmico (fuga térmica). Conocer su comportamiento permite al operador interpretar correctamente las alertas y actuar con criterio.</p>
+
+      <h3>Protecciones durante la carga</h3>
+      <table class="tabla-curso">
+        <thead><tr><th>Patrón LED</th><th>Condición detectada</th></tr></thead>
+        <tbody>
+          <tr><td>LED 2 parpadea 2 veces/seg</td><td>Sobrecorriente</td></tr>
+          <tr><td>LED 2 parpadea 3 veces/seg</td><td>Cortocircuito</td></tr>
+          <tr><td>LED 3 parpadea 2 veces/seg</td><td>Sobrecarga</td></tr>
+          <tr><td>LED 3 parpadea 3 veces/seg</td><td>Cargador con sobretensión</td></tr>
+          <tr><td>LED 4 parpadea 2 veces/seg</td><td>Temperatura de carga muy baja</td></tr>
+          <tr><td>LED 4 parpadea 3 veces/seg</td><td>Temperatura de carga muy alta</td></tr>
+        </tbody>
+      </table>
+
+      <p>Para reanudar la carga: desconecte el cargador y vuelva a conectarlo. Si la causa es temperatura, espere a que vuelva al rango y la carga se reanudará automáticamente.</p>
+
+      <h3>Protecciones en operación</h3>
+      <ul>
+        <li><strong>Protección térmica:</strong> si la batería supera los 70 °C internos en vuelo, el sistema reduce potencia y muestra alerta. Si llega a 80 °C, ejecuta RPO automático.</li>
+        <li><strong>Protección por bajo voltaje:</strong> al alcanzar voltaje crítico, ejecuta RPO automático con cuenta atrás. Si el operador rechaza, la aeronave aterrizará localmente sin posibilidad de cancelar.</li>
+        <li><strong>Protección por sobredescarga (en tierra):</strong> la batería deja de descargarse al llegar a un mínimo cuando está inactiva. Para reactivarla, basta con conectarla a la carga.</li>
+        <li><strong>Modo Hibernación:</strong> bajo 10 % de carga sin uso por tiempo prolongado, la batería entra en hibernación profunda. Una recarga la reactiva, pero si entra en hibernación tras varios meses, puede haber sufrido daños permanentes.</li>
+      </ul>
+
+      <h3>Almacenamiento y transporte</h3>
+      <table class="tabla-curso">
+        <thead><tr><th>Condición</th><th>Recomendación</th></tr></thead>
+        <tbody>
+          <tr><td>Almacenamiento &lt; 10 días</td><td>50–60 % de carga, ambiente fresco y seco</td></tr>
+          <tr><td>Almacenamiento &gt; 10 días</td><td>40–50 % de carga, ambiente 22–28 °C</td></tr>
+          <tr><td>Almacenamiento &gt; 3 meses</td><td>Cargar y descargar al menos una vez para mantener garantía</td></tr>
+          <tr><td>Transporte terrestre</td><td>Bolsa antiincendio LiPo guard, en compartimento ventilado</td></tr>
+          <tr><td>Transporte aéreo (IATA)</td><td>≤ 30 % de carga, mínimo 2 baterías por bolsa, etiquetado UN3480/UN3481</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout alerta">
+        <strong>Recordatorio normativo</strong>
+        Las baterías TB100 contienen 977 Wh, lo que las clasifica como mercancía peligrosa de categoría especial. Su transporte aéreo requiere autorización específica del operador del vuelo (cargo expreso). Su transporte por carretera nacional debe cumplir con las normas de transporte de mercancías peligrosas (D.S. 298/95 MTT en Chile y normas equivalentes en otros países).
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CASO PRÁCTICO ============ -->
+  <section id="caso">
+    <div class="caso-practico">
+      <div class="header-caso">
+        <div class="icono">CP</div>
+        <h2 style="margin:0;border:none;">Caso práctico — Misión de mapeo de gran extensión con limitaciones de batería</h2>
+      </div>
+
+      <div class="escenario">
+        <strong>Escenario operacional</strong>
+        <p>Una empresa minera del norte de Chile encarga el levantamiento fotogramétrico mensual de un rajo abierto de 4.2 km × 3.1 km a 3 800 m de altitud (densidad atmosférica reducida). La temperatura ambiente al inicio de la operación, a las 09:00, es de 6 °C. El cliente exige precisión topográfica horizontal de ±5 cm y vertical de ±10 cm para cubicación. La conectividad celular es marginal (1 barra esporádica). La operación tiene ventana de 4 horas antes de que el viento supere 12 m/s. El operador dispone de un Matrice 4E con un set de 6 baterías TB100, hub de carga y un grupo electrógeno de 5 kVA en sitio.</p>
+      </div>
+
+      <strong>Preguntas guía</strong>
+      <ul class="preguntas-caso">
+        <li>¿Qué tipo de servicio RTK recomienda usar y por qué? Justifique técnicamente.</li>
+        <li>¿Cómo afecta la altitud (3 800 m) y la temperatura (6 °C) al tiempo nominal de vuelo de la TB100?</li>
+        <li>Calcule cuántos vuelos serán necesarios y proponga un esquema de gestión de batería con el hub.</li>
+        <li>¿Qué configuración de hub usaría y por qué? ¿Cómo gestionaría el rotación de baterías frías?</li>
+        <li>¿Cuál es el riesgo principal si pierde el FIX RTK durante un waypoint y cómo lo mitiga?</li>
+      </ul>
+
+      <details class="respuestas-modelo">
+        <summary>Respuesta modelo</summary>
+        <div style="padding:14px 6px;">
+          <p><strong>Servicio RTK:</strong> dada la conectividad marginal, se descarta Mobile Station Network RTK. La opción correcta es <strong>D-RTK 3 desplegada en sitio</strong>: una estación base sobre punto geodésico conocido del cliente o sobre punto identificado con observación estática previa. El alcance radio del D-RTK es suficiente para cubrir 4.2 × 3.1 km y elimina dependencia de red celular. Como respaldo, se prepara configuración Custom NTRIP con caché para los momentos en que aparezca cobertura celular.</p>
+          <p><strong>Impacto altitud y temperatura:</strong> a 3 800 m la densidad atmosférica es ≈ 65 % del nivel del mar, lo que obliga a la aeronave a girar los rotores a mayor RPM para sostentar — el consumo eléctrico aumenta cerca de 25–30 %. La temperatura de 6 °C reduce la capacidad útil de la TB100 en ≈ 10 %. El tiempo efectivo de vuelo cae de los 49 min nominales a aproximadamente 28–32 min reales. Se planifica conservadoramente con 25 minutos de vuelo útil por batería para mantener reserva del 20 %.</p>
+          <p><strong>Esquema de vuelos:</strong> el área de 13 km² requiere, con altitud de vuelo 120 m AGL, sobreposición 80/70 % y velocidad 8 m/s, aproximadamente 14 km lineales por hectárea. Se estiman entre 7 y 9 vuelos. Con 6 baterías, el ciclo es: 1 batería en aeronave, 1 esperando junto al RC, 4 en hub. Se opera en relevos.</p>
+          <p><strong>Hub:</strong> modo "Listo para Volar" (90 %) durante la operación para minimizar tiempo entre relevos. Solo al finalizar la jornada se activa modo Estándar para llevar todas al 100 %. Se mantiene una caja térmica con bolsas calefaccionadas para precalentar baterías frías a 22 °C antes de cargarlas en el aeronave.</p>
+          <p><strong>Riesgo de pérdida de FIX:</strong> si se pierde el FIX en pleno waypoint, la aeronave continúa el vuelo pero las imágenes capturadas pierden la georeferenciación centimétrica para esos disparos, comprometiendo precisión global del producto. Mitigación: configurar pausa automática del waypoint si el estado RTK degrada de FIX a FLOAT/SINGLE por más de 5 segundos; programar puntos de control terrestres (GCP) cada 800 m para reanclar el modelo en post-proceso; mantener vuelo dentro de los 10 km de la estación base para conservar precisión 1 cm + 1 ppm.</p>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <nav class="nav-modulos">
+    <a href="javascript:void(0)"><small>← Anterior</small>Módulo 2 · Aeronave</a>
+    <a class="next" href="javascript:void(0)"><small>Siguiente</small>Módulo 4 · Control y software →</a>
+  </nav>
+
+</main>
+
+<footer class="pie-curso">
+  <p>© 2026 ENAE — Curso Operador Profesional DJI Matrice 4 Series · Módulo 3</p>
+</footer>
+
+</body>
+</html>

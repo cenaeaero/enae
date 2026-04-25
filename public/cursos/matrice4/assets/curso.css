@@ -1,0 +1,516 @@
+/* ==========================================================================
+   CURSO DJI MATRICE 4 SERIES - ENAE
+   Estilos profesionales aeronáuticos
+   ========================================================================== */
+
+:root {
+  --azul-aeronautico: #0a3d62;
+  --azul-claro: #3c6382;
+  --azul-cielo: #82ccdd;
+  --acento: #e58e26;
+  --acento-claro: #f6b26b;
+  --gris-fondo: #f4f6f8;
+  --gris-borde: #d6dde3;
+  --gris-texto: #2c3e50;
+  --gris-suave: #6b7c8c;
+  --blanco: #ffffff;
+  --rojo-alerta: #c0392b;
+  --verde-ok: #27ae60;
+  --amarillo-aviso: #f1c40f;
+  --sombra-suave: 0 2px 8px rgba(10, 61, 98, 0.08);
+  --sombra-media: 0 4px 16px rgba(10, 61, 98, 0.12);
+  --radio: 8px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--gris-texto);
+  background: var(--gris-fondo);
+}
+
+/* ===== HEADER ===== */
+.header-curso {
+  background: linear-gradient(135deg, var(--azul-aeronautico) 0%, var(--azul-claro) 100%);
+  color: var(--blanco);
+  padding: 28px 40px;
+  box-shadow: var(--sombra-media);
+  position: relative;
+}
+
+.header-curso::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 4px;
+  background: var(--acento);
+}
+
+.header-curso .marca {
+  font-size: 13px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  opacity: 0.85;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.header-curso h1 {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  letter-spacing: 0.3px;
+}
+
+.header-curso .subtitulo {
+  font-size: 15px;
+  opacity: 0.92;
+  font-weight: 400;
+}
+
+/* ===== NAV BREADCRUMBS ===== */
+.breadcrumbs {
+  background: var(--blanco);
+  padding: 12px 40px;
+  border-bottom: 1px solid var(--gris-borde);
+  font-size: 14px;
+}
+
+.breadcrumbs a {
+  color: var(--azul-aeronautico);
+  text-decoration: none;
+  font-weight: 500;
+}
+.breadcrumbs a:hover { text-decoration: underline; }
+.breadcrumbs .separador { margin: 0 10px; color: var(--gris-suave); }
+.breadcrumbs .actual { color: var(--gris-suave); }
+
+/* ===== CONTENEDORES ===== */
+.contenedor {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 40px;
+}
+
+/* ===== HERO PORTADA ===== */
+.hero {
+  background: var(--blanco);
+  border-radius: var(--radio);
+  padding: 36px;
+  box-shadow: var(--sombra-suave);
+  margin-bottom: 28px;
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 32px;
+  align-items: center;
+}
+.hero img { width: 100%; border-radius: var(--radio); }
+.hero h2 { font-size: 26px; color: var(--azul-aeronautico); margin-bottom: 12px; }
+.hero .descripcion { font-size: 16px; color: var(--gris-texto); margin-bottom: 18px; }
+.hero .ficha { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+.hero .ficha .item { font-size: 14px; }
+.hero .ficha .item strong { display: block; color: var(--azul-aeronautico); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+
+/* ===== SECCIÓN ===== */
+section.bloque {
+  background: var(--blanco);
+  border-radius: var(--radio);
+  padding: 32px;
+  box-shadow: var(--sombra-suave);
+  margin-bottom: 24px;
+}
+
+section.bloque h2 {
+  color: var(--azul-aeronautico);
+  font-size: 22px;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--acento);
+  display: inline-block;
+}
+
+section.bloque h3 {
+  color: var(--azul-claro);
+  font-size: 18px;
+  margin: 22px 0 10px;
+}
+
+section.bloque p { margin-bottom: 12px; }
+
+/* ===== LISTAS ===== */
+section.bloque ul, section.bloque ol {
+  margin: 10px 0 14px 24px;
+}
+section.bloque li { margin-bottom: 6px; }
+
+/* ===== CARDS DE MÓDULOS ===== */
+.grid-modulos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 18px;
+}
+
+.card-modulo {
+  background: var(--blanco);
+  border-radius: var(--radio);
+  border: 1px solid var(--gris-borde);
+  overflow: hidden;
+  text-decoration: none;
+  color: var(--gris-texto);
+  transition: all 0.25s ease;
+  display: flex;
+  flex-direction: column;
+}
+.card-modulo:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--sombra-media);
+  border-color: var(--azul-claro);
+}
+.card-modulo .head {
+  background: var(--azul-aeronautico);
+  color: var(--blanco);
+  padding: 14px 18px;
+  font-size: 13px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.card-modulo .head .num {
+  display: inline-block;
+  background: var(--acento);
+  padding: 3px 9px;
+  border-radius: 12px;
+  margin-right: 8px;
+  font-size: 12px;
+}
+.card-modulo .body { padding: 18px; flex: 1; display: flex; flex-direction: column; }
+.card-modulo .body h3 { font-size: 17px; color: var(--azul-aeronautico); margin-bottom: 8px; line-height: 1.35; }
+.card-modulo .body p { font-size: 14px; color: var(--gris-suave); flex: 1; }
+.card-modulo .body .meta { margin-top: 12px; font-size: 12px; color: var(--gris-suave); display: flex; justify-content: space-between; padding-top: 10px; border-top: 1px solid var(--gris-borde); }
+
+/* Card examen */
+.card-modulo.examen .head { background: var(--acento); }
+.card-modulo.examen .head .num { background: var(--azul-aeronautico); }
+
+/* ===== LECCIONES ===== */
+.leccion {
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px dashed var(--gris-borde);
+}
+.leccion:last-child { border-bottom: none; }
+.leccion .etiqueta {
+  display: inline-block;
+  background: var(--azul-cielo);
+  color: var(--azul-aeronautico);
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+/* ===== CALLOUTS ===== */
+.callout {
+  border-left: 4px solid var(--azul-claro);
+  background: #eaf4f9;
+  padding: 14px 18px;
+  margin: 16px 0;
+  border-radius: 0 var(--radio) var(--radio) 0;
+  font-size: 15px;
+}
+.callout.alerta { border-color: var(--rojo-alerta); background: #fdecea; }
+.callout.aviso  { border-color: var(--amarillo-aviso); background: #fef9e6; }
+.callout.exito  { border-color: var(--verde-ok); background: #e9f7ef; }
+.callout strong { display: block; margin-bottom: 4px; color: var(--azul-aeronautico); }
+.callout.alerta strong { color: var(--rojo-alerta); }
+.callout.aviso strong  { color: #b88500; }
+.callout.exito strong  { color: var(--verde-ok); }
+
+/* ===== TABLAS ===== */
+.tabla-curso {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 14px 0;
+  font-size: 14px;
+  background: var(--blanco);
+}
+.tabla-curso th {
+  background: var(--azul-aeronautico);
+  color: var(--blanco);
+  padding: 10px 12px;
+  text-align: left;
+  font-weight: 600;
+}
+.tabla-curso td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--gris-borde);
+}
+.tabla-curso tr:nth-child(even) td { background: var(--gris-fondo); }
+.tabla-curso tr:hover td { background: #eaf4f9; }
+
+/* ===== IMÁGENES ===== */
+.fig {
+  margin: 18px 0;
+  text-align: center;
+}
+.fig img {
+  max-width: 100%;
+  border-radius: var(--radio);
+  box-shadow: var(--sombra-suave);
+  border: 1px solid var(--gris-borde);
+}
+.fig figcaption {
+  font-size: 13px;
+  color: var(--gris-suave);
+  margin-top: 8px;
+  font-style: italic;
+}
+
+/* Imágenes de dos columnas */
+.fig-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin: 18px 0;
+}
+
+/* ===== CASO PRÁCTICO ===== */
+.caso-practico {
+  background: linear-gradient(135deg, #fff8ee 0%, #fef0d6 100%);
+  border: 1px solid var(--acento-claro);
+  border-radius: var(--radio);
+  padding: 28px;
+  margin-top: 28px;
+}
+.caso-practico .header-caso {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.caso-practico .header-caso .icono {
+  background: var(--acento);
+  color: var(--blanco);
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700;
+}
+.caso-practico h2 { color: #b86d10; border: none; }
+.caso-practico .escenario {
+  background: var(--blanco);
+  padding: 16px;
+  border-radius: var(--radio);
+  margin: 14px 0;
+  border-left: 3px solid var(--acento);
+}
+.caso-practico .preguntas-caso {
+  margin: 18px 0;
+}
+.caso-practico .preguntas-caso li {
+  padding: 8px 0;
+  border-bottom: 1px dashed #f6b26b;
+}
+.caso-practico .respuestas-modelo {
+  background: var(--blanco);
+  padding: 16px;
+  border-radius: var(--radio);
+  border: 1px solid var(--gris-borde);
+  margin-top: 14px;
+}
+.caso-practico .respuestas-modelo summary {
+  font-weight: 600;
+  color: var(--azul-aeronautico);
+  cursor: pointer;
+  padding: 6px 0;
+}
+
+/* ===== OBJETIVOS ===== */
+.objetivos {
+  background: #eaf4f9;
+  border-radius: var(--radio);
+  padding: 18px 22px;
+  margin: 18px 0;
+}
+.objetivos h3 {
+  color: var(--azul-aeronautico);
+  margin-bottom: 8px;
+  font-size: 16px;
+}
+.objetivos ul { margin: 0 0 0 20px; }
+
+/* ===== NAV ENTRE MÓDULOS ===== */
+.nav-modulos {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 32px;
+}
+.nav-modulos a {
+  flex: 1;
+  text-decoration: none;
+  background: var(--blanco);
+  border: 1px solid var(--gris-borde);
+  padding: 14px 18px;
+  border-radius: var(--radio);
+  color: var(--azul-aeronautico);
+  font-weight: 600;
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+.nav-modulos a:hover { border-color: var(--azul-aeronautico); background: var(--azul-aeronautico); color: var(--blanco); }
+.nav-modulos a.next { text-align: right; }
+.nav-modulos a small { display: block; color: var(--gris-suave); font-size: 11px; text-transform: uppercase; font-weight: 500; }
+.nav-modulos a:hover small { color: var(--azul-cielo); }
+
+/* ===== FOOTER ===== */
+footer.pie-curso {
+  background: var(--azul-aeronautico);
+  color: var(--blanco);
+  text-align: center;
+  padding: 22px;
+  font-size: 13px;
+  margin-top: 40px;
+}
+footer.pie-curso a { color: var(--azul-cielo); }
+
+/* ===== EXAMEN ===== */
+.examen-intro {
+  background: var(--blanco);
+  border-radius: var(--radio);
+  padding: 32px;
+  box-shadow: var(--sombra-media);
+  margin-bottom: 24px;
+}
+.pregunta {
+  background: var(--blanco);
+  border-radius: var(--radio);
+  padding: 22px;
+  margin-bottom: 14px;
+  box-shadow: var(--sombra-suave);
+  border-left: 4px solid var(--azul-claro);
+}
+.pregunta .num {
+  display: inline-block;
+  background: var(--azul-aeronautico);
+  color: var(--blanco);
+  padding: 3px 11px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  margin-right: 8px;
+}
+.pregunta h4 {
+  color: var(--gris-texto);
+  font-size: 16px;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+.opciones { list-style: none; padding-left: 0; }
+.opciones li {
+  padding: 10px 14px;
+  margin-bottom: 6px;
+  border: 1px solid var(--gris-borde);
+  border-radius: var(--radio);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 15px;
+}
+.opciones li:hover { background: #eaf4f9; border-color: var(--azul-cielo); }
+.opciones li.seleccionada { background: var(--azul-aeronautico); color: var(--blanco); border-color: var(--azul-aeronautico); }
+.opciones li.correcta { background: #d4edda; border-color: var(--verde-ok); color: var(--verde-ok); font-weight: 600; }
+.opciones li.incorrecta { background: #f8d7da; border-color: var(--rojo-alerta); color: var(--rojo-alerta); }
+
+.btn {
+  background: var(--azul-aeronautico);
+  color: var(--blanco);
+  border: none;
+  padding: 12px 28px;
+  border-radius: var(--radio);
+  font-size: 16px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  display: inline-block;
+}
+.btn:hover { background: var(--azul-claro); transform: translateY(-1px); box-shadow: var(--sombra-media); }
+.btn.acento { background: var(--acento); }
+.btn.acento:hover { background: #d97e10; }
+
+.resultado-examen {
+  background: var(--blanco);
+  border-radius: var(--radio);
+  padding: 28px;
+  margin-top: 20px;
+  text-align: center;
+  box-shadow: var(--sombra-media);
+  border-top: 4px solid var(--acento);
+}
+.resultado-examen h3 { color: var(--azul-aeronautico); margin-bottom: 14px; font-size: 24px; }
+.puntaje { font-size: 48px; font-weight: 700; color: var(--acento); margin: 14px 0; }
+.aprobado { color: var(--verde-ok); }
+.reprobado { color: var(--rojo-alerta); }
+
+/* ===== INDICE LECCIONES ===== */
+.indice-leccion {
+  background: #eaf4f9;
+  border-left: 4px solid var(--azul-aeronautico);
+  padding: 16px 22px;
+  border-radius: 0 var(--radio) var(--radio) 0;
+  margin: 18px 0 26px;
+}
+.indice-leccion h4 { color: var(--azul-aeronautico); margin-bottom: 8px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; }
+.indice-leccion ol { margin: 0 0 0 20px; }
+.indice-leccion li { padding: 3px 0; }
+.indice-leccion a { color: var(--azul-claro); text-decoration: none; font-size: 14px; }
+.indice-leccion a:hover { text-decoration: underline; }
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  .hero { grid-template-columns: 1fr; }
+  .header-curso { padding: 22px 20px; }
+  .header-curso h1 { font-size: 22px; }
+  .contenedor { padding: 20px; }
+  section.bloque { padding: 20px; }
+  .nav-modulos { flex-direction: column; }
+}
+
+/* ===== UTILIDADES ===== */
+.text-acento { color: var(--acento); }
+.text-azul   { color: var(--azul-aeronautico); }
+.spec-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin: 16px 0;
+}
+.spec-card {
+  background: #eaf4f9;
+  padding: 14px 16px;
+  border-radius: var(--radio);
+  border: 1px solid var(--gris-borde);
+}
+.spec-card strong {
+  display: block;
+  color: var(--azul-aeronautico);
+  font-size: 12px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  letter-spacing: 0.5px;
+}
+.spec-card .valor { font-size: 16px; font-weight: 600; color: var(--gris-texto); }
+
+/* Diferencia M4T vs M4E */
+.tabla-comparativa th { text-align: center; }
+.tabla-comparativa td:first-child { font-weight: 600; background: var(--gris-fondo); width: 40%; }
+.tabla-comparativa .col-m4t { background: #eaf4f9 !important; }
+.tabla-comparativa .col-m4e { background: #fdf3e6 !important; }
