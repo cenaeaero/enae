@@ -2,8 +2,18 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
 import Image from "next/image";
+
+// Use implicit flow client: the recovery email link arrives with hash
+// fragments (#access_token=...&type=recovery), which the PKCE-configured
+// @supabase/ssr client does not process. detectSessionInUrl + flowType:implicit
+// makes the SDK consume the hash on load and emit PASSWORD_RECOVERY.
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  { auth: { flowType: "implicit", detectSessionInUrl: true, persistSession: true, autoRefreshToken: true } }
+);
 
 export default function RestablecerClavePage() {
   return (
