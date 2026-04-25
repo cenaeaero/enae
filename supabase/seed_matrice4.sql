@@ -2,15 +2,29 @@
 -- Seed: Curso Operador Profesional DJI Matrice 4 Series
 -- =====================================================
 -- Idempotent: re-running this script replaces the course.
-BEGIN;
+-- 1. Ensure module_activities accepts type=html (admin UI uses it)
+DO $check$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'module_activities_type_check'
+      AND pg_get_constraintdef(oid) LIKE '%html%'
+  ) THEN
+    ALTER TABLE module_activities DROP CONSTRAINT IF EXISTS module_activities_type_check;
+    ALTER TABLE module_activities ADD CONSTRAINT module_activities_type_check
+      CHECK (type IN ('task', 'exam', 'discussion', 'zoom', 'reading', 'html'));
+  END IF;
+END
+$check$;
 
--- 1. Ensure module_activities accepts type='html' (admin UI uses it)
-ALTER TABLE module_activities DROP CONSTRAINT IF EXISTS module_activities_type_check;
-ALTER TABLE module_activities ADD CONSTRAINT module_activities_type_check
-  CHECK (type IN ('task', 'exam', 'discussion', 'zoom', 'reading', 'html'));
-
--- 2. Drop existing course (cascades to modules, activities, exams, questions)
-DELETE FROM courses WHERE code = 'ENAE/UAS/M4';
+-- 2. Skip if course already exists (idempotency without DELETE)
+DO $exists$
+BEGIN
+  IF EXISTS (SELECT 1 FROM courses WHERE code = 'ENAE/UAS/M4') THEN
+    RAISE EXCEPTION 'Course ENAE/UAS/M4 already exists. Run update_matrice4_modules.sql instead, or DELETE the course first.';
+  END IF;
+END
+$exists$;
 
 -- 3. Insert course
 WITH new_course AS (
@@ -47,6 +61,7 @@ DECLARE
   v_module_id UUID;
   v_activity_id UUID;
   v_exam_id UUID;
+  v_grade_item_id UUID;
 BEGIN
   SELECT id INTO v_course_id FROM courses WHERE code = 'ENAE/UAS/M4';
 
@@ -369,16 +384,11 @@ BEGIN
     </div>
   </section>
 
-  <nav class="nav-modulos">
-    <a href="javascript:void(0)"><small>Volver</small>Inicio del curso</a>
-    <a class="next" href="javascript:void(0)"><small>Siguiente</small>Módulo 2 · Aeronave →</a>
-  </nav>
+  
 
 </main>
 
-<footer class="pie-curso">
-  <p>© 2026 ENAE — Curso Operador Profesional DJI Matrice 4 Series · Módulo 1</p>
-</footer>
+
 
 </body>
 </html>
@@ -740,16 +750,11 @@ BEGIN
     </div>
   </section>
 
-  <nav class="nav-modulos">
-    <a href="javascript:void(0)"><small>← Anterior</small>Módulo 1 · Fundamentos</a>
-    <a class="next" href="javascript:void(0)"><small>Siguiente</small>Módulo 3 · Energía y RTK →</a>
-  </nav>
+  
 
 </main>
 
-<footer class="pie-curso">
-  <p>© 2026 ENAE — Curso Operador Profesional DJI Matrice 4 Series · Módulo 2</p>
-</footer>
+
 
 </body>
 </html>
@@ -1104,16 +1109,11 @@ BEGIN
     </div>
   </section>
 
-  <nav class="nav-modulos">
-    <a href="javascript:void(0)"><small>← Anterior</small>Módulo 2 · Aeronave</a>
-    <a class="next" href="javascript:void(0)"><small>Siguiente</small>Módulo 4 · Control y software →</a>
-  </nav>
+  
 
 </main>
 
-<footer class="pie-curso">
-  <p>© 2026 ENAE — Curso Operador Profesional DJI Matrice 4 Series · Módulo 3</p>
-</footer>
+
 
 </body>
 </html>
@@ -1493,16 +1493,11 @@ BEGIN
     </div>
   </section>
 
-  <nav class="nav-modulos">
-    <a href="javascript:void(0)"><small>← Anterior</small>Módulo 3 · Energía y RTK</a>
-    <a class="next" href="javascript:void(0)"><small>Siguiente</small>Módulo 5 · Operaciones de vuelo →</a>
-  </nav>
+  
 
 </main>
 
-<footer class="pie-curso">
-  <p>© 2026 ENAE — Curso Operador Profesional DJI Matrice 4 Series · Módulo 4</p>
-</footer>
+
 
 </body>
 </html>
@@ -1928,16 +1923,11 @@ BEGIN
     </div>
   </section>
 
-  <nav class="nav-modulos">
-    <a href="javascript:void(0)"><small>← Anterior</small>Módulo 4 · Control y software</a>
-    <a class="next" href="javascript:void(0)"><small>Siguiente</small>Módulo 6 · Operaciones especializadas →</a>
-  </nav>
+  
 
 </main>
 
-<footer class="pie-curso">
-  <p>© 2026 ENAE — Curso Operador Profesional DJI Matrice 4 Series · Módulo 5</p>
-</footer>
+
 
 </body>
 </html>
@@ -2305,16 +2295,11 @@ BEGIN
     </div>
   </section>
 
-  <nav class="nav-modulos">
-    <a href="javascript:void(0)"><small>← Anterior</small>Módulo 5 · Operaciones de vuelo</a>
-    <a class="next" href="javascript:void(0)"><small>Siguiente</small>Módulo 7 · Mantenimiento →</a>
-  </nav>
+  
 
 </main>
 
-<footer class="pie-curso">
-  <p>© 2026 ENAE — Curso Operador Profesional DJI Matrice 4 Series · Módulo 6</p>
-</footer>
+
 
 </body>
 </html>
@@ -2670,16 +2655,11 @@ BEGIN
     </div>
   </section>
 
-  <nav class="nav-modulos">
-    <a href="javascript:void(0)"><small>← Anterior</small>Módulo 6 · Operaciones especializadas</a>
-    <a class="next" href="javascript:void(0)"><small>Siguiente</small>Examen final →</a>
-  </nav>
+  
 
 </main>
 
-<footer class="pie-curso">
-  <p>© 2026 ENAE — Curso Operador Profesional DJI Matrice 4 Series · Módulo 7</p>
-</footer>
+
 
 </body>
 </html>
@@ -2692,8 +2672,13 @@ BEGIN
   INSERT INTO module_activities (module_id, sort_order, type, title, description)
   VALUES (v_module_id, 0, 'exam', 'Examen final · Curso Matrice 4 Series', 'Banco de 70 preguntas. 90 minutos recomendados. Aprobación 70%.')
   RETURNING id INTO v_activity_id;
-  INSERT INTO exams (activity_id, time_limit_minutes, passing_score, max_attempts, shuffle_questions, is_final_exam)
-  VALUES (v_activity_id, 90, 70, 3, true, true)
+  -- Grade item (one for the final exam → unlocks auto-diploma flow)
+  INSERT INTO grade_items (course_id, sort_order, name, weight)
+  VALUES (v_course_id, 0, 'Modulo 8: Examen final integrador', 100)
+  RETURNING id INTO v_grade_item_id;
+
+  INSERT INTO exams (activity_id, time_limit_minutes, passing_score, max_attempts, shuffle_questions, is_final_exam, grade_item_id)
+  VALUES (v_activity_id, 90, 70, 3, true, true, v_grade_item_id)
   RETURNING id INTO v_exam_id;
 
   -- 70 exam questions
@@ -2769,7 +2754,6 @@ BEGIN
   INSERT INTO exam_questions (exam_id, sort_order, question_type, question_text, options, correct_answer, points) VALUES (v_exam_id, 70, 'multiple_choice', 'Frente a un incidente con daño material o evento de seguridad, el operador profesional bajo DAN 151 Ed. 4 debe:', '[{"label": "A", "text": "Reportar a la DGAC dentro de los plazos establecidos, conservar evidencias y producir un Air Safety Report (ASR) con análisis de causa raíz."}, {"label": "B", "text": "No reportar para no generar incidentes administrativos."}, {"label": "C", "text": "Borrar inmediatamente los logs para evitar responsabilidad."}, {"label": "D", "text": "Reportar solo al cliente, sin comunicar a las autoridades."}]'::JSONB, 'A', 1);
 END $$;
 
-COMMIT;
 
 -- Verify
 SELECT id, code, title FROM courses WHERE code = 'ENAE/UAS/M4';

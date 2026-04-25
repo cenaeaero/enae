@@ -63,6 +63,13 @@ export default function AdminInscripcionPage() {
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Existing-student search
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<Student[]>([]);
+  const [selectedSearch, setSelectedSearch] = useState<Set<string>>(new Set());
+  const searchAbortRef = useRef<AbortController | null>(null);
+
   useEffect(() => {
     // Load courses
     supabase
@@ -133,6 +140,84 @@ export default function AdminInscripcionPage() {
         }
       });
   }, [selectedCourse]);
+
+  async function runSearch(q: string) {
+    const trimmed = q.trim();
+    if (trimmed.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    searchAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    searchAbortRef.current = ctrl;
+    setSearching(true);
+    try {
+      const escaped = trimmed.replace(/[%,]/g, " ");
+      const pattern = `%${escaped}%`;
+      const { data } = await supabase
+        .from("profiles")
+        .select(
+          "first_name, last_name, email, rut, organization, organization_type, job_title, phone, secondary_phone, address, city, state, postal_code, country, supervisor_name, supervisor_email"
+        )
+        .eq("role", "student")
+        .or(
+          `first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern},rut.ilike.${pattern}`
+        )
+        .order("last_name")
+        .limit(50);
+      if (ctrl.signal.aborted) return;
+      const mapped: Student[] = (data || []).map((p: any) => ({
+        firstName: p.first_name || "",
+        lastName: p.last_name || "",
+        email: p.email || "",
+        rut: p.rut || "",
+        company: p.organization || "",
+        organizationType: p.organization_type || "",
+        jobTitle: p.job_title || "",
+        phone: p.phone || "",
+        secondaryPhone: p.secondary_phone || "",
+        address: p.address || "",
+        city: p.city || "",
+        state: p.state || "",
+        postalCode: p.postal_code || "",
+        country: p.country || "",
+        supervisorName: p.supervisor_name || "",
+        supervisorEmail: p.supervisor_email || "",
+      }));
+      setSearchResults(mapped);
+    } finally {
+      if (!ctrl.signal.aborted) setSearching(false);
+    }
+  }
+
+  useEffect(() => {
+    const t = setTimeout(() => runSearch(searchQuery), 250);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  function toggleSearchSelect(email: string) {
+    setSelectedSearch((prev) => {
+      const next = new Set(prev);
+      if (next.has(email)) next.delete(email);
+      else next.add(email);
+      return next;
+    });
+  }
+
+  function addSelectedToList() {
+    const picked = searchResults.filter((s) => selectedSearch.has(s.email));
+    if (picked.length === 0) return;
+    setStudents((prev) => {
+      const existingEmails = new Set(prev.filter((s) => s.email).map((s) => s.email.toLowerCase()));
+      const onlyEmpty = prev.length === 1 && !prev[0].email && !prev[0].firstName && !prev[0].lastName;
+      const base = onlyEmpty ? [] : prev;
+      const fresh = picked.filter((p) => !existingEmails.has(p.email.toLowerCase()));
+      return [...base, ...fresh];
+    });
+    setSelectedSearch(new Set());
+    setSearchResults([]);
+    setSearchQuery("");
+  }
 
   function updateStudent(idx: number, field: keyof Student, value: string) {
     setStudents((prev) => prev.map((s, i) => (i === idx ? { ...s, [field]: value } : s)));
@@ -327,6 +412,71 @@ export default function AdminInscripcionPage() {
             <input type="date" value={practicalEnd} onChange={(e) => setPracticalEnd(e.target.value)} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
           </div>
         </div>
+      </div>
+
+      {/* Search existing students */}
+      <div className="bg-white rounded-lg border border-gray-200 p-5 mb-6">
+        <h2 className="text-sm font-semibold text-gray-800 mb-3">Buscar alumnos existentes</h2>
+        <p className="text-xs text-gray-500 mb-3">Busca por nombre, apellido, email o RUT. Marca los que quieras inscribir y agrégalos a la lista.</p>
+        <div className="flex gap-2 mb-3">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Mínimo 2 caracteres..."
+            className="flex-1 border border-gray-200 rounded px-3 py-2 text-sm"
+          />
+          <button
+            type="button"
+            onClick={addSelectedToList}
+            disabled={selectedSearch.size === 0}
+            className="bg-[#0072CE] hover:bg-[#005fa3] disabled:bg-gray-300 text-white px-4 py-2 rounded text-sm font-medium transition"
+          >
+            Agregar seleccionados ({selectedSearch.size})
+          </button>
+        </div>
+        {searching && <p className="text-xs text-gray-400">Buscando...</p>}
+        {!searching && searchQuery.trim().length >= 2 && searchResults.length === 0 && (
+          <p className="text-xs text-gray-400">Sin resultados.</p>
+        )}
+        {searchResults.length > 0 && (
+          <div className="max-h-64 overflow-y-auto border border-gray-100 rounded">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr className="text-left text-xs text-gray-500 uppercase">
+                  <th className="px-3 py-2 w-10">
+                    <input
+                      type="checkbox"
+                      checked={searchResults.length > 0 && selectedSearch.size === searchResults.length}
+                      onChange={(e) => setSelectedSearch(e.target.checked ? new Set(searchResults.map((s) => s.email)) : new Set())}
+                    />
+                  </th>
+                  <th className="px-3 py-2">Nombre</th>
+                  <th className="px-3 py-2">Email</th>
+                  <th className="px-3 py-2">RUT</th>
+                  <th className="px-3 py-2">Empresa</th>
+                </tr>
+              </thead>
+              <tbody>
+                {searchResults.map((s) => (
+                  <tr key={s.email} className="border-t border-gray-50 hover:bg-blue-50/30">
+                    <td className="px-3 py-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedSearch.has(s.email)}
+                        onChange={() => toggleSearchSelect(s.email)}
+                      />
+                    </td>
+                    <td className="px-3 py-2">{s.firstName} {s.lastName}</td>
+                    <td className="px-3 py-2 text-gray-600">{s.email}</td>
+                    <td className="px-3 py-2 text-gray-600">{s.rut || "—"}</td>
+                    <td className="px-3 py-2 text-gray-600">{s.company || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Students list */}
