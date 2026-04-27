@@ -287,6 +287,30 @@ export default function RegistroDetailPage() {
 
   async function saveProfile() {
     setSavingProfile(true);
+
+    // If email changed, change it everywhere first via admin API (auth + profiles + registrations)
+    const newEmail = (editForm.email || "").trim().toLowerCase();
+    const oldEmail = (profile.email || "").trim().toLowerCase();
+    if (newEmail && newEmail !== oldEmail) {
+      try {
+        const res = await fetch("/api/admin/cambiar-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ registration_id: id, new_email: newEmail }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          alert("No se pudo cambiar el email: " + (json.error || res.statusText));
+          setSavingProfile(false);
+          return;
+        }
+      } catch (err: any) {
+        alert("Error cambiando email: " + (err?.message || "desconocido"));
+        setSavingProfile(false);
+        return;
+      }
+    }
+
     // Update profile table
     if (profileId) {
       await supabase
@@ -312,7 +336,7 @@ export default function RegistroDetailPage() {
         .eq("id", profileId);
     }
 
-    // Also update registration record
+    // Also update registration record (other fields besides email — email already updated above)
     await supabase
       .from("registrations")
       .update({
@@ -642,7 +666,7 @@ export default function RegistroDetailPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <EditField label="Nombre" value={editForm.first_name} onChange={(v) => setEditForm({ ...editForm, first_name: v })} />
             <EditField label="Apellido" value={editForm.last_name} onChange={(v) => setEditForm({ ...editForm, last_name: v })} />
-            <EditField label="Email" value={editForm.email} disabled />
+            <EditField label="Email" value={editForm.email} onChange={(v) => setEditForm({ ...editForm, email: v.trim() })} />
             <EditField label="RUT / DNI" value={editForm.rut} onChange={(v) => setEditForm({ ...editForm, rut: v })} />
             <EditField label="Telefono" value={editForm.phone} onChange={(v) => setEditForm({ ...editForm, phone: v })} />
             <EditField label="Telefono Secundario" value={editForm.secondary_phone} onChange={(v) => setEditForm({ ...editForm, secondary_phone: v })} />
