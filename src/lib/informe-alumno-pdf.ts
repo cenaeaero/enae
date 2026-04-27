@@ -1,12 +1,10 @@
 import { jsPDF } from "jspdf";
 import { supabase } from "@/lib/supabase";
 
-type ProfileRow = {
-  id: string;
-  user_id: string;
+type StudentProfile = {
   email: string;
-  first_name: string | null;
-  last_name: string | null;
+  first_name: string;
+  last_name: string;
   rut: string | null;
   phone: string | null;
   organization: string | null;
@@ -37,25 +35,12 @@ type RegistrationFull = {
   finalScore: number | null;
 };
 
-type StudentReport = {
-  profile: Partial<ProfileRow> & { email: string; first_name: string; last_name: string };
+export type StudentReport = {
+  profile: StudentProfile;
   registrations: RegistrationFull[];
 };
 
 const PAGE = 1000;
-
-async function fetchAllPaged<T>(query: () => any): Promise<T[]> {
-  const result: T[] = [];
-  let from = 0;
-  while (true) {
-    const { data, error } = await query().range(from, from + PAGE - 1);
-    if (error || !data || data.length === 0) break;
-    result.push(...data);
-    if (data.length < PAGE) break;
-    from += PAGE;
-  }
-  return result;
-}
 
 export async function buildStudentReports(registrationIds: string[]): Promise<StudentReport[]> {
   if (registrationIds.length === 0) return [];
@@ -69,8 +54,8 @@ export async function buildStudentReports(registrationIds: string[]): Promise<St
   if (!regs || regs.length === 0) return [];
 
   // 2. Get unique emails to fetch profiles
-  const emails = Array.from(new Set(regs.map((r: any) => r.email).filter(Boolean)));
-  const profilesByEmail: Record<string, ProfileRow> = {};
+  const emails: string[] = Array.from(new Set((regs as any[]).map((r) => r.email).filter(Boolean)));
+  const profilesByEmail: Record<string, any> = {};
   for (let i = 0; i < emails.length; i += 500) {
     const chunk = emails.slice(i, i + 500);
     const { data: profs } = await supabase
@@ -78,12 +63,12 @@ export async function buildStudentReports(registrationIds: string[]): Promise<St
       .select("*")
       .in("email", chunk);
     (profs || []).forEach((p: any) => {
-      profilesByEmail[p.email.toLowerCase()] = p;
+      if (p.email) profilesByEmail[String(p.email).toLowerCase()] = p;
     });
   }
 
   // 3. Fetch course modules + activities for total counts
-  const courseIds = Array.from(new Set(regs.map((r: any) => r.course_id).filter(Boolean)));
+  const courseIds: string[] = Array.from(new Set((regs as any[]).map((r) => r.course_id).filter(Boolean)));
   const activitiesPerCourse: Record<string, number> = {};
   if (courseIds.length > 0) {
     const { data: modules } = await supabase
@@ -183,8 +168,8 @@ export async function buildStudentReports(registrationIds: string[]): Promise<St
   // 7. Build per-student report
   const studentMap: Record<string, StudentReport> = {};
   for (const r of regs as any[]) {
-    const email = r.email?.toLowerCase() || "";
-    const profile = profilesByEmail[email] || null;
+    const email: string = String(r.email || "").toLowerCase();
+    const profile: any = profilesByEmail[email] || null;
 
     const totalActivities = activitiesPerCourse[r.course_id] || 0;
     const completed = completedByReg[r.id] || 0;
@@ -229,15 +214,22 @@ export async function buildStudentReports(registrationIds: string[]): Promise<St
     };
 
     if (!studentMap[email]) {
-      studentMap[email] = {
-        profile: profile || {
-          email: r.email,
-          first_name: r.first_name || "",
-          last_name: r.last_name || "",
-          rut: null,
-        } as any,
-        registrations: [],
+      const fullProfile: StudentProfile = {
+        email: r.email || "",
+        first_name: profile?.first_name || r.first_name || "",
+        last_name: profile?.last_name || r.last_name || "",
+        rut: profile?.rut || null,
+        phone: profile?.phone || null,
+        organization: profile?.organization || null,
+        organization_type: profile?.organization_type || null,
+        job_title: profile?.job_title || null,
+        address: profile?.address || null,
+        city: profile?.city || null,
+        state: profile?.state || null,
+        country: profile?.country || null,
+        folio_enae: profile?.folio_enae || null,
       };
+      studentMap[email] = { profile: fullProfile, registrations: [] };
     }
     studentMap[email].registrations.push(reg);
   }
