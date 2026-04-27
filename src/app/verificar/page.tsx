@@ -2,7 +2,6 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -38,33 +37,52 @@ function VerificarContent() {
 
   async function searchDiploma(searchCode: string) {
     if (!searchCode.trim()) return;
-
     setSearching(true);
     setResult(null);
     setNotFound(false);
-
-    const { data } = await supabase
-      .from("diplomas")
-      .select(
-        "verification_code, student_name, course_title, course_code, final_score, status, issued_date, theoretical_start, practical_end"
-      )
-      .eq("verification_code", searchCode.trim().toUpperCase())
-      .single();
-
-    if (data) {
-      setResult(data as DiplomaResult);
-    } else {
+    try {
+      const res = await fetch(`/api/verificar?code=${encodeURIComponent(searchCode.trim().toUpperCase())}`);
+      const json = await res.json();
+      if (json.found && json.result) {
+        setResult(json.result as DiplomaResult);
+      } else {
+        setNotFound(true);
+      }
+    } catch {
       setNotFound(true);
     }
     setSearching(false);
   }
 
-  // Auto-search if code is in URL
+  // Lookup by registration_id (used by certificates when no diploma exists)
+  async function searchByRegistration(regId: string) {
+    setSearching(true);
+    setResult(null);
+    setNotFound(false);
+    try {
+      const res = await fetch(`/api/verificar?reg=${encodeURIComponent(regId)}`);
+      const json = await res.json();
+      if (json.found && json.result) {
+        setResult(json.result as DiplomaResult);
+      } else {
+        setNotFound(true);
+      }
+    } catch {
+      setNotFound(true);
+    }
+    setSearching(false);
+  }
+
+  // Auto-search if code or reg is in URL
   useEffect(() => {
     const urlCode = searchParams.get("code");
+    const urlReg = searchParams.get("reg");
     if (urlCode) {
       setCode(urlCode.toUpperCase());
       searchDiploma(urlCode);
+    } else if (urlReg) {
+      // Certificate QR fallback: look up by registration_id
+      searchByRegistration(urlReg);
     }
   }, [searchParams]);
 
