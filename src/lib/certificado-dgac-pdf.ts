@@ -16,6 +16,7 @@ export type DgacCertificateData = {
   habilitaciones?: string | null;
   modules?: { sort_order: number; title: string }[] | null;
   verificationUrl: string;
+  verificationCode?: string | null;
   aocNumber?: string;
   resolutionNumber?: string;
   danNorms?: string;
@@ -274,18 +275,33 @@ export async function generateDgacCertificatePdf(data: DgacCertificateData): Pro
     doc.setFontSize(9);
     doc.setTextColor(0, 29, 61);
     doc.text("Verificación de Autenticidad", pw / 2, y2 + qrSize + 5, { align: "center" });
+
+    // Verification code (large, monospace, prominent)
+    if (data.verificationCode) {
+      doc.setFont("courier", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(0, 51, 102);
+      doc.text(`Código: ${data.verificationCode}`, pw / 2, y2 + qrSize + 10, { align: "center" });
+    }
+
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(100, 100, 100);
-    doc.text("Escanee el código QR para validar la autenticidad de este certificado en", pw / 2, y2 + qrSize + 10, { align: "center" });
+    const urlYOffset = data.verificationCode ? 15 : 10;
+    doc.text("Escanee el código QR o ingrese el código en", pw / 2, y2 + qrSize + urlYOffset, { align: "center" });
     doc.setTextColor(0, 114, 206);
-    doc.text(data.verificationUrl, pw / 2, y2 + qrSize + 14, { align: "center" });
+    doc.text(data.verificationUrl, pw / 2, y2 + qrSize + urlYOffset + 4, { align: "center" });
   } catch (err) {
     // QR code generation failed — just show the URL
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(100, 100, 100);
-    doc.text(`Verificación: ${data.verificationUrl}`, pw / 2, y2, { align: "center" });
+    if (data.verificationCode) {
+      doc.text(`Código: ${data.verificationCode}`, pw / 2, y2, { align: "center" });
+      doc.text(`URL: ${data.verificationUrl}`, pw / 2, y2 + 4, { align: "center" });
+    } else {
+      doc.text(`Verificación: ${data.verificationUrl}`, pw / 2, y2, { align: "center" });
+    }
   }
 
   drawFooter(doc, pw, ph, pieEnae, logoDgac);
