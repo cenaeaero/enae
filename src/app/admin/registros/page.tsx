@@ -10,6 +10,7 @@ type Registration = {
   last_name: string;
   email: string;
   company?: string | null;
+  rut?: string | null;
   delivery_mode?: string | null;
   status: string;
   created_at: string;
@@ -57,6 +58,7 @@ export default function AdminRegistrosPage() {
   const [bulkDownloading, setBulkDownloading] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [generatingReport, setGeneratingReport] = useState(false);
 
   useEffect(() => {
     loadRegistrations();
@@ -109,27 +111,31 @@ export default function AdminRegistrosPage() {
       }
     }
 
-    // Backfill missing company from profile.organization (paginated)
-    const missingCompanyEmails = Array.from(new Set(
-      baseRegs.filter((r) => !r.company && r.email).map((r) => r.email!)
+    // Fetch profiles to backfill missing company AND get RUTs (paginated)
+    const allEmails = Array.from(new Set(
+      baseRegs.filter((r) => r.email).map((r) => r.email!)
     ));
-    if (missingCompanyEmails.length > 0) {
-      const profilesByEmail: Record<string, string> = {};
+    if (allEmails.length > 0) {
+      const profilesByEmail: Record<string, { organization: string | null; rut: string | null }> = {};
       const PFPAGE = 500;
-      for (let i = 0; i < missingCompanyEmails.length; i += PFPAGE) {
-        const chunk = missingCompanyEmails.slice(i, i + PFPAGE);
+      for (let i = 0; i < allEmails.length; i += PFPAGE) {
+        const chunk = allEmails.slice(i, i + PFPAGE);
         const { data: profs } = await supabase
           .from("profiles")
-          .select("email, organization")
+          .select("email, organization, rut")
           .in("email", chunk);
         (profs || []).forEach((p: any) => {
-          if (p.organization) profilesByEmail[p.email.toLowerCase()] = p.organization;
+          profilesByEmail[p.email.toLowerCase()] = { organization: p.organization, rut: p.rut };
         });
       }
-      baseRegs = baseRegs.map((r) => ({
-        ...r,
-        company: r.company || (r.email ? profilesByEmail[r.email.toLowerCase()] : null) || null,
-      }));
+      baseRegs = baseRegs.map((r) => {
+        const prof = r.email ? profilesByEmail[r.email.toLowerCase()] : null;
+        return {
+          ...r,
+          company: r.company || prof?.organization || null,
+          rut: prof?.rut || null,
+        };
+      });
     }
 
     // Show registrations immediately, then enrich with progress + access
@@ -295,7 +301,8 @@ export default function AdminRegistrosPage() {
       r.last_name.toLowerCase().includes(q) ||
       r.email.toLowerCase().includes(q) ||
       (r.course_title || "").toLowerCase().includes(q) ||
-      (r.company || "").toLowerCase().includes(q)
+      (r.company || "").toLowerCase().includes(q) ||
+      (r.rut || "").toLowerCase().includes(q)
     );
   });
 
@@ -335,7 +342,7 @@ export default function AdminRegistrosPage() {
       <div className="mb-4 flex flex-wrap gap-3">
         <input
           type="text"
-          placeholder="Buscar por nombre, email, curso o empresa..."
+          placeholder="Buscar por nombre, email, RUT, curso o empresa..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="flex-1 min-w-[240px] md:max-w-md border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0072CE] focus:border-transparent"
@@ -368,6 +375,51 @@ export default function AdminRegistrosPage() {
             Limpiar filtros
           </button>
         )}
+        {/* Generar Informe PDF button — works in any filter mode */}
+        <button
+          onClick={async () => {
+            const targetIds = selectedIds.size > 0
+              ? Array.from(selectedIds).filter((id) => filtered.some((r) => r.id === id))
+              : filtered.map((r) => r.id);
+            if (targetIds.length === 0) {
+              alert("No hay alumnos para generar el informe.");
+              return;
+            }
+            const limit = 200;
+            if (targetIds.length > limit) {
+              if (!confirm(`Vas a generar un informe para ${targetIds.length} registros. Esto puede tardar unos segundos. ¿Continuar?`)) return;
+            }
+            setGeneratingReport(true);
+            try {
+              const { buildStudentReports, generateInformePDF } = await import("@/lib/informe-alumno-pdf");
+              const reports = await buildStudentReports(targetIds);
+              if (reports.length === 0) {
+                alert("No se pudo generar el informe.");
+                return;
+              }
+              const doc = generateInformePDF(reports);
+              const date = new Date().toISOString().split("T")[0];
+              const fname = reports.length === 1
+                ? `Informe_${reports[0].profile.first_name}_${reports[0].profile.last_name}_${date}.pdf`.replace(/\s+/g, "_")
+                : `Informe_alumnos_${reports.length}_${date}.pdf`;
+              doc.save(fname);
+            } catch (err: any) {
+              alert("Error: " + (err?.message || "No se pudo generar el informe"));
+            } finally {
+              setGeneratingReport(false);
+            }
+          }}
+          disabled={generatingReport}
+          className="inline-flex items-center gap-2 text-xs font-medium px-3 py-2.5 rounded-lg bg-[#003366] hover:bg-[#004B87] disabled:bg-gray-300 text-white transition"
+          title="Genera un informe PDF con datos personales, cursos, calificaciones y avance"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+          {generatingReport
+            ? "Generando..."
+            : selectedIds.size > 0
+              ? `Generar Informe PDF (${selectedIds.size})`
+              : `Generar Informe PDF (${filtered.length})`}
+        </button>
         {courseFilter !== "all" && (
           <button
             onClick={async () => {
@@ -468,23 +520,21 @@ export default function AdminRegistrosPage() {
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 text-left text-sm text-gray-500">
-                {courseFilter !== "all" && (
-                  <th className="pl-4 py-3 w-8">
-                    <input
-                      type="checkbox"
-                      className="rounded border-gray-300 text-[#0072CE] focus:ring-[#0072CE]"
-                      checked={filtered.length > 0 && filtered.every((r) => selectedIds.has(r.id))}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedIds(new Set(filtered.map((r) => r.id)));
-                        } else {
-                          setSelectedIds(new Set());
-                        }
-                      }}
-                      title="Seleccionar todos"
-                    />
-                  </th>
-                )}
+                <th className="pl-4 py-3 w-8">
+                  <input
+                    type="checkbox"
+                    className="rounded border-gray-300 text-[#0072CE] focus:ring-[#0072CE]"
+                    checked={filtered.length > 0 && filtered.every((r) => selectedIds.has(r.id))}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedIds(new Set(filtered.map((r) => r.id)));
+                      } else {
+                        setSelectedIds(new Set());
+                      }
+                    }}
+                    title="Seleccionar todos"
+                  />
+                </th>
                 <th className="px-4 py-3 font-medium">Nombre</th>
                 <th className="px-4 py-3 font-medium hidden lg:table-cell">Email</th>
                 <th className="px-4 py-3 font-medium hidden md:table-cell">Empresa</th>
@@ -515,23 +565,21 @@ export default function AdminRegistrosPage() {
                   key={reg.id}
                   className={`border-t border-gray-100 hover:bg-gray-50 ${selectedIds.has(reg.id) ? "bg-blue-50" : ""}`}
                 >
-                  {courseFilter !== "all" && (
-                    <td className="pl-4 py-3 w-8">
-                      <input
-                        type="checkbox"
-                        className="rounded border-gray-300 text-[#0072CE] focus:ring-[#0072CE]"
-                        checked={selectedIds.has(reg.id)}
-                        onChange={(e) => {
-                          setSelectedIds((prev) => {
-                            const next = new Set(prev);
-                            if (e.target.checked) next.add(reg.id);
-                            else next.delete(reg.id);
-                            return next;
-                          });
-                        }}
-                      />
-                    </td>
-                  )}
+                  <td className="pl-4 py-3 w-8">
+                    <input
+                      type="checkbox"
+                      className="rounded border-gray-300 text-[#0072CE] focus:ring-[#0072CE]"
+                      checked={selectedIds.has(reg.id)}
+                      onChange={(e) => {
+                        setSelectedIds((prev) => {
+                          const next = new Set(prev);
+                          if (e.target.checked) next.add(reg.id);
+                          else next.delete(reg.id);
+                          return next;
+                        });
+                      }}
+                    />
+                  </td>
                   <td className="px-4 py-3 text-sm font-medium">
                     <div className="flex items-center gap-2">
                       <Link
