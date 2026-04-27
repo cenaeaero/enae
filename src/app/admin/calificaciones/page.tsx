@@ -224,84 +224,82 @@ export default function CalificacionesPage() {
       }
     });
 
+    // Build bulk arrays in one pass (no awaits inside)
+    const gradeRows: { registration_id: string; grade_item_id: string; score: number }[] = [];
+    const activityProgressRows: { registration_id: string; activity_id: string; status: string; started_at: string; completed_at: string }[] = [];
+    const regUpdates: { registrationId: string; final_score: number | null; grade_status: string }[] = [];
+    const now = new Date().toISOString();
+
     for (const student of students) {
-      // Upsert each grade
       for (const item of gradeItems) {
         const score = student.grades[item.id];
         if (score !== null && score !== undefined) {
-          await supabase.from("student_grades").upsert(
-            {
-              registration_id: student.registrationId,
-              grade_item_id: item.id,
-              score,
-            },
-            { onConflict: "registration_id,grade_item_id" }
-          );
-
-          // Auto-mark the linked exam activity as completed so student can progress
+          gradeRows.push({
+            registration_id: student.registrationId,
+            grade_item_id: item.id,
+            score,
+          });
           const activityId = examsByGradeItem[item.id];
           if (activityId) {
-            // Use the student progress API to properly cascade module completion + unlock next
-            try {
-              await fetch("/api/actividades/progreso", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  registration_id: student.registrationId,
-                  activity_id: activityId,
-                  status: "completed",
-                }),
-              });
-            } catch {
-              // Fallback: upsert directly
-              await supabase.from("activity_progress").upsert(
-                {
-                  registration_id: student.registrationId,
-                  activity_id: activityId,
-                  status: "completed",
-                  started_at: new Date().toISOString(),
-                  completed_at: new Date().toISOString(),
-                },
-                { onConflict: "registration_id,activity_id" }
-              );
-            }
+            activityProgressRows.push({
+              registration_id: student.registrationId,
+              activity_id: activityId,
+              status: "completed",
+              started_at: now,
+              completed_at: now,
+            });
           }
         }
       }
 
-      // Calculate and save final
       const finalScore = calculateFinal(student.grades);
       const gradeStatus =
-        finalScore !== null
-          ? finalScore >= 80
-            ? "approved"
-            : "failed"
-          : "pending";
-
-      const { error: updateErr } = await supabase
-        .from("registrations")
-        .update({ final_score: finalScore, grade_status: gradeStatus })
-        .eq("id", student.registrationId);
-
-      if (updateErr) {
-        console.warn("Could not update final_score/grade_status:", updateErr.message);
-      }
-
+        finalScore !== null ? (finalScore >= 80 ? "approved" : "failed") : "pending";
+      regUpdates.push({
+        registrationId: student.registrationId,
+        final_score: finalScore,
+        grade_status: gradeStatus,
+      });
       student.finalScore = finalScore;
       student.gradeStatus = gradeStatus;
     }
 
-    // Trigger the full cascade: link exams to grade_items, recompute final_score,
-    // set status=completed when all graded, and auto-issue diploma if approved.
-    // This is what unlocks the survey and closes the course for the student.
     try {
+      // 1. Bulk upsert all grades in a single call
+      if (gradeRows.length > 0) {
+        await supabase
+          .from("student_grades")
+          .upsert(gradeRows, { onConflict: "registration_id,grade_item_id" });
+      }
+
+      // 2. Bulk upsert all activity_progress rows in a single call
+      if (activityProgressRows.length > 0) {
+        await supabase
+          .from("activity_progress")
+          .upsert(activityProgressRows, { onConflict: "registration_id,activity_id" });
+      }
+
+      // 3. Update registrations final_score in parallel
+      await Promise.all(
+        regUpdates.map((u) =>
+          supabase
+            .from("registrations")
+            .update({ final_score: u.final_score, grade_status: u.grade_status })
+            .eq("id", u.registrationId)
+        )
+      );
+
+      // 4. Single auto-calificar call for the course (cascades module completion + diploma)
       await fetch("/api/admin/auto-calificar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ course_id: selectedCourse }),
       });
-    } catch {
-      // Non-fatal; per-student final_score was already written above
+    } catch (err: any) {
+      console.error("Error saving grades:", err?.message);
+      setMessage("Error guardando: " + (err?.message || "desconocido"));
+      setSaving(false);
+      return;
     }
 
     setStudents([...students]);
