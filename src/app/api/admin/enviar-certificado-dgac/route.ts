@@ -124,9 +124,10 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     const site = process.env.NEXT_PUBLIC_SITE_URL || "https://www.enae.cl";
+    const verificationCode = diploma?.verification_code || String(reg.id).slice(0, 8).toUpperCase();
     const verificationUrl = diploma?.verification_code
-      ? `${site}/verificar?code=${diploma.verification_code}`
-      : `${site}/verificar?reg=${reg.id}`;
+      ? `${site}/verificar?code=${diploma.verification_code}&type=certificate`
+      : `${site}/verificar?reg=${reg.id}&type=certificate`;
 
     const pdfBuffer = await generateDgacCertificatePdf({
       studentName: `${reg.first_name || ""} ${reg.last_name || ""}`.trim(),
@@ -141,6 +142,7 @@ export async function POST(request: Request) {
       habilitaciones: c.dgac_habilitaciones || null,
       modules: modules || null,
       verificationUrl,
+      verificationCode,
     });
 
     const folio = (prof?.folio_enae || "SIN_FOLIO").replace(/[^A-Za-z0-9]+/g, "_");
@@ -156,7 +158,7 @@ export async function POST(request: Request) {
       fileName,
     );
 
-    return NextResponse.json({ ok: true, sent_to: reg.email });
+    return NextResponse.json({ success: true, ok: true, email: reg.email, sent_to: reg.email });
   } catch (err: any) {
     console.error("[enviar-certificado-dgac] Error:", err);
     return NextResponse.json({ error: err?.message || "Error interno" }, { status: 500 });
