@@ -33,17 +33,19 @@ export async function GET(request: Request) {
         .eq("id", reg)
         .maybeSingle();
 
-      if (!r || (r.status !== "completed" && r.is_alumni !== true)) {
+      // Cancelled or rejected → not valid; otherwise return data
+      if (!r || r.status === "cancelled" || r.status === "rejected" || r.status === "pending") {
         return NextResponse.json({ found: false });
       }
 
+      const isCompleted = r.status === "completed" || r.is_alumni === true;
       const result = {
         verification_code: String(r.id).slice(0, 8).toUpperCase(),
         student_name: `${r.first_name || ""} ${r.last_name || ""}`.trim(),
         course_title: (r as any).courses?.title || "",
         course_code: (r as any).courses?.code || null,
         final_score: r.final_score,
-        status: "approved",
+        status: isCompleted ? "approved" : "in_progress",
         issued_date: r.practical_end || r.created_at,
         theoretical_start: r.theoretical_start,
         practical_end: r.practical_end,
