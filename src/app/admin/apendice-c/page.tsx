@@ -35,6 +35,7 @@ export default function AdminApendiceCPage() {
   const [downloading, setDownloading] = useState<string | null>(null);
   const [downloadingPrep, setDownloadingPrep] = useState<string | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTargetId, setUploadTargetId] = useState<string | null>(null);
 
@@ -237,6 +238,28 @@ export default function AdminApendiceCPage() {
   function triggerUpload(regId: string) {
     setUploadTargetId(regId);
     fileInputRef.current?.click();
+  }
+
+  async function handleDelete(r: ApendiceRow) {
+    if (!confirm(`¿Eliminar el Apéndice C de ${r.first_name} ${r.last_name}? El alumno deberá volver a subir el documento firmado.`)) return;
+    setDeleting(r.registration_id);
+    try {
+      const res = await fetch("/api/apendice-c/upload", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registration_id: r.registration_id }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        await loadData();
+      } else {
+        alert("Error al eliminar: " + (json.error || res.statusText));
+      }
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setDeleting(null);
+    }
   }
 
   async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
@@ -458,6 +481,16 @@ export default function AdminApendiceCPage() {
                         >
                           {uploading === r.registration_id ? "Subiendo..." : (r.apendice_c_file_url ? "🔄 Reemplazar" : "⬆ Subir")}
                         </button>
+                        {r.apendice_c_file_url && (
+                          <button
+                            onClick={() => handleDelete(r)}
+                            disabled={deleting === r.registration_id}
+                            className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-800 hover:bg-red-50 px-2 py-1 rounded transition disabled:opacity-50"
+                            title="Eliminar el Apéndice C subido para que pueda ser reemplazado"
+                          >
+                            {deleting === r.registration_id ? "..." : "🗑 Eliminar"}
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

@@ -1217,22 +1217,48 @@ export default function RegistroDetailPage() {
                     />
                   </label>
                   {procedure.apendice_c_file_url && (
-                    <button
-                      onClick={async () => {
-                        try {
-                          const res = await fetch(`/api/apendice-c/download?registration_id=${id}`);
-                          const json = await res.json();
-                          if (!res.ok) throw new Error(json?.error || "Error");
-                          window.open(json.url, "_blank");
-                        } catch (err: any) {
-                          alert("Error descargando: " + (err?.message || "desconocido"));
-                        }
-                      }}
-                      className="inline-flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg bg-[#0072CE] hover:bg-[#005BA1] text-white transition"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                      Descargar firmado
-                    </button>
+                    <>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`/api/apendice-c/download?registration_id=${id}`);
+                            const json = await res.json();
+                            if (!res.ok) throw new Error(json?.error || "Error");
+                            window.open(json.url, "_blank");
+                          } catch (err: any) {
+                            alert("Error descargando: " + (err?.message || "desconocido"));
+                          }
+                        }}
+                        className="inline-flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg bg-[#0072CE] hover:bg-[#005BA1] text-white transition"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        Descargar firmado
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (!confirm("¿Eliminar el Apéndice C subido? El alumno deberá volver a subirlo.")) return;
+                          setApendiceAdminMsg("");
+                          try {
+                            const res = await fetch("/api/apendice-c/upload", {
+                              method: "DELETE",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ registration_id: id }),
+                            });
+                            const json = await res.json();
+                            if (!res.ok || !json.success) throw new Error(json?.error || "Error eliminando");
+                            setApendiceAdminMsg("Apéndice C eliminado correctamente.");
+                            await loadData();
+                          } catch (err: any) {
+                            setApendiceAdminMsg("Error eliminando: " + (err?.message || "desconocido"));
+                          }
+                        }}
+                        className="inline-flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition"
+                        title="Eliminar el documento subido"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" /></svg>
+                        Eliminar
+                      </button>
+                    </>
                   )}
                 </div>
               </div>

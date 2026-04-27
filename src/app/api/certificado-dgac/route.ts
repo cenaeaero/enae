@@ -113,8 +113,8 @@ export async function GET(request: Request) {
 
     const site = process.env.NEXT_PUBLIC_SITE_URL || "https://www.enae.cl";
     const verificationUrl = diploma?.verification_code
-      ? `${site}/verificar?code=${diploma.verification_code}`
-      : `${site}/verificar?reg=${reg.id}`;
+      ? `${site}/verificar?code=${diploma.verification_code}&type=certificate`
+      : `${site}/verificar?reg=${reg.id}&type=certificate`;
 
     const pdfBuffer = await generateDgacCertificatePdf({
       studentName: `${reg.first_name || ""} ${reg.last_name || ""}`.trim(),

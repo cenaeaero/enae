@@ -28,6 +28,9 @@ export default function VerificarPage() {
 
 function VerificarContent() {
   const searchParams = useSearchParams();
+  const docType = searchParams.get("type") === "certificate" ? "certificate" : "diploma";
+  const docLabel = docType === "certificate" ? "Certificado DGAC" : "Diploma";
+  const docLabelShort = docType === "certificate" ? "certificado" : "diploma";
   const [code, setCode] = useState("");
   const [result, setResult] = useState<DiplomaResult | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -100,11 +103,11 @@ function VerificarContent() {
             />
           </div>
           <h1 className="text-3xl font-bold mb-2">
-            Verificacion de Diploma
+            Verificación de {docLabel}
           </h1>
           <p className="text-blue-200 mb-8">
-            Ingresa el codigo de verificacion para validar la autenticidad del
-            certificado emitido por la Escuela de Navegacion Aerea.
+            Ingresa el código de verificación para validar la autenticidad del{" "}
+            {docLabelShort} emitido por la Escuela de Navegación Aérea.
           </p>
 
           <form onSubmit={handleSearch} className="max-w-md mx-auto">
@@ -149,10 +152,10 @@ function VerificarContent() {
                 </svg>
                 <div>
                   <h2 className="font-bold text-green-800">
-                    Diploma Verificado
+                    {docLabel} Verificado
                   </h2>
                   <p className="text-sm text-green-600">
-                    Este certificado es autentico y fue emitido por la Escuela de Navegacion Aerea.
+                    Este {docLabelShort} es auténtico y fue emitido por la Escuela de Navegación Aérea.
                   </p>
                 </div>
               </div>
@@ -295,11 +298,11 @@ function VerificarContent() {
                 </svg>
                 <div>
                   <h2 className="font-bold text-red-800">
-                    Diploma No Encontrado
+                    {docLabel} No Encontrado
                   </h2>
                   <p className="text-sm text-red-600">
-                    El codigo &quot;{code}&quot; no corresponde a ningun diploma
-                    registrado en nuestro sistema. Verifique que el codigo sea
+                    El código &quot;{code}&quot; no corresponde a ningún {docLabelShort}
+                    {" "}registrado en nuestro sistema. Verifique que el código sea
                     correcto.
                   </p>
                 </div>
@@ -318,8 +321,8 @@ function VerificarContent() {
           {!result && !notFound && (
             <div className="text-center text-gray-400 py-8">
               <p className="text-sm">
-                Ingresa un codigo de verificacion para consultar la validez de
-                un diploma.
+                Ingresa un código de verificación para consultar la validez de
+                un {docLabelShort}.
               </p>
             </div>
           )}
