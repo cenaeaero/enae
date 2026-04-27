@@ -56,6 +56,7 @@ export default function EditCoursePage({
   const [apendiceCRequired, setApendiceCRequired] = useState(false);
   const [apendiceCHabilitationText, setApendiceCHabilitationText] = useState("");
   const [hasDgacCertificate, setHasDgacCertificate] = useState(false);
+  const [dgacHabilitaciones, setDgacHabilitaciones] = useState("");
 
   // Sessions
   const [sessions, setSessions] = useState<SessionData[]>([]);
@@ -89,6 +90,7 @@ export default function EditCoursePage({
       setApendiceCRequired(!!data.apendice_c_required);
       setApendiceCHabilitationText(data.apendice_c_habilitation_text || "");
       setHasDgacCertificate(!!data.has_dgac_certificate);
+      setDgacHabilitaciones(data.dgac_habilitaciones || "");
       setSessions(
         data.sessions?.map((s: SessionData) => ({
           id: s.id,
@@ -140,6 +142,7 @@ export default function EditCoursePage({
         apendice_c_required: apendiceCRequired,
         apendice_c_habilitation_text: apendiceCRequired ? (apendiceCHabilitationText || null) : null,
         has_dgac_certificate: hasDgacCertificate,
+        dgac_habilitaciones: hasDgacCertificate ? (dgacHabilitaciones.trim() || null) : null,
       });
 
       // Sync module names with course_modules table (LMS)
@@ -564,6 +567,23 @@ export default function EditCoursePage({
           <p className="text-xs text-gray-500 mb-4 ml-6">
             Si está activo, el curso aparecerá en la sección Certificados y los alumnos podrán descargar el Certificado DGAC al completar el 100% del curso.
           </p>
+          {hasDgacCertificate && (
+            <div className="ml-6 mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Habilitaciones del Certificado DGAC
+              </label>
+              <p className="text-xs text-gray-500 mb-2">
+                Texto que aparecerá en la línea <em>&quot;Habilitación de tipo XXX&quot;</em> del certificado. Ejemplo: <em>&quot;MATRICE 4 SERIES&quot;</em> o <em>&quot;MAVIC SERIES, PHANTOM SERIES, MATRICE SERIES&quot;</em>. Si lo dejas vacío se usa el texto por defecto.
+              </p>
+              <input
+                type="text"
+                value={dgacHabilitaciones}
+                onChange={(e) => setDgacHabilitaciones(e.target.value)}
+                placeholder="MATRICE 4 SERIES"
+                className="w-full py-2.5 px-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0072CE]"
+              />
+            </div>
+          )}
           <label className="flex items-center gap-2 cursor-pointer mb-4">
             <input
               type="checkbox"
