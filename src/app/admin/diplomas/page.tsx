@@ -6,6 +6,7 @@ import { downloadDiplomaPDF, generateDiplomaPDF, getDiplomaPDFBase64 } from "@/l
 
 type Diploma = {
   id: string;
+  registration_id: string;
   verification_code: string;
   student_name: string;
   course_title: string;
@@ -15,6 +16,9 @@ type Diploma = {
   issued_date: string;
   theoretical_start: string | null;
   practical_end: string | null;
+  // Enriched
+  email?: string;
+  company?: string | null;
 };
 
 type ApprovedStudent = {
@@ -41,6 +45,9 @@ export default function AdminDiplomasPage() {
   const [issuing, setIssuing] = useState<string | null>(null);
   const [sending, setSending] = useState<string | null>(null);
   const [tab, setTab] = useState<"diplomas" | "pending">("diplomas");
+  const [search, setSearch] = useState("");
+  const [companyFilter, setCompanyFilter] = useState("all");
+  const [downloading, setDownloading] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -53,7 +60,43 @@ export default function AdminDiplomasPage() {
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (diplomaData) setDiplomas(diplomaData as Diploma[]);
+    // Enrich diplomas with email + company from registrations and profiles
+    let enrichedDiplomas: Diploma[] = (diplomaData || []) as Diploma[];
+    if (enrichedDiplomas.length > 0) {
+      const dRegIds = enrichedDiplomas.map((d) => d.registration_id).filter(Boolean);
+      const { data: dRegs } = await supabase
+        .from("registrations")
+        .select("id, email, company, organization")
+        .in("id", dRegIds)
+        .limit(10000);
+      const regsByDId: Record<string, { email: string; company: string | null }> = {};
+      const dEmails: string[] = [];
+      (dRegs || []).forEach((r: any) => {
+        regsByDId[r.id] = { email: r.email, company: r.company || r.organization || null };
+        if (r.email) dEmails.push(r.email);
+      });
+      // Fetch profiles for additional company info
+      const profileCompanyByEmail: Record<string, string> = {};
+      if (dEmails.length > 0) {
+        for (let i = 0; i < dEmails.length; i += 500) {
+          const chunk = dEmails.slice(i, i + 500);
+          const { data: profs } = await supabase
+            .from("profiles")
+            .select("email, organization")
+            .in("email", chunk);
+          (profs || []).forEach((p: any) => {
+            if (p.organization) profileCompanyByEmail[String(p.email).toLowerCase()] = p.organization;
+          });
+        }
+      }
+      enrichedDiplomas = enrichedDiplomas.map((d) => {
+        const reg = regsByDId[d.registration_id];
+        const email = reg?.email || "";
+        const company = reg?.company || (email ? profileCompanyByEmail[email.toLowerCase()] : null) || null;
+        return { ...d, email, company };
+      });
+    }
+    setDiplomas(enrichedDiplomas);
 
     // Load approved students (status completed OR grade_status approved)
     const { data: regs } = await supabase
@@ -260,6 +303,50 @@ export default function AdminDiplomasPage() {
     setSending(null);
   }
 
+  async function handleDownloadCertificate(d: Diploma) {
+    setDownloading(`cert-${d.id}`);
+    try {
+      const res = await fetch(`/api/certificado-dgac?registration_id=${d.registration_id}&skip_grade_check=true`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert("No se pudo descargar el certificado: " + (err.error || res.statusText));
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const cd = res.headers.get("Content-Disposition") || "";
+      const match = cd.match(/filename="([^"]+)"/);
+      a.download = match?.[1] || `Certificado_${d.student_name.replace(/\s+/g, "_")}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setDownloading(null);
+    }
+  }
+
+  async function handleDownloadApendice(d: Diploma) {
+    setDownloading(`ap-${d.id}`);
+    try {
+      const res = await fetch(`/api/apendice-c/download?registration_id=${d.registration_id}`);
+      const json = await res.json();
+      if (!res.ok || !json.url) {
+        alert("El alumno aún no ha subido el Apéndice C firmado.");
+        return;
+      }
+      window.open(json.url, "_blank");
+    } catch (err: any) {
+      alert("Error: " + (err?.message || "Error desconocido"));
+    } finally {
+      setDownloading(null);
+    }
+  }
+
   function formatDate(d: string | null) {
     if (!d) return "—";
     return new Date(d).toLocaleDateString("es-CL", {
@@ -269,11 +356,60 @@ export default function AdminDiplomasPage() {
     });
   }
 
+  // Apply filters to diplomas
+  const filteredDiplomas = diplomas.filter((d) => {
+    if (companyFilter !== "all" && (d.company || "").trim() !== companyFilter) return false;
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      d.student_name.toLowerCase().includes(q) ||
+      d.course_title.toLowerCase().includes(q) ||
+      d.verification_code.toLowerCase().includes(q) ||
+      (d.company || "").toLowerCase().includes(q) ||
+      (d.email || "").toLowerCase().includes(q)
+    );
+  });
+
+  const uniqueDiplomaCompanies = Array.from(
+    new Set(diplomas.map((d) => (d.company || "").trim()).filter((c) => c.length > 0))
+  ).sort();
+
   const pendingStudents = approved.filter((s) => !s.hasDiploma);
 
   return (
     <div>
       <h1 className="text-2xl font-bold text-[#003366] mb-6">Diplomas</h1>
+
+      {/* Search + filters */}
+      {tab === "diplomas" && diplomas.length > 0 && (
+        <div className="mb-4 flex flex-wrap gap-3">
+          <input
+            type="text"
+            placeholder="Buscar por alumno, código, empresa, email o curso..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex-1 min-w-[240px] md:max-w-md border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0072CE] focus:border-transparent"
+          />
+          <select
+            value={companyFilter}
+            onChange={(e) => setCompanyFilter(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0072CE] focus:border-transparent min-w-[180px]"
+          >
+            <option value="all">Todas las empresas</option>
+            {uniqueDiplomaCompanies.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          {(companyFilter !== "all" || search) && (
+            <button
+              onClick={() => { setCompanyFilter("all"); setSearch(""); }}
+              className="text-xs text-gray-500 hover:text-[#0072CE] underline self-center"
+            >
+              Limpiar filtros
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-2 mb-6">
@@ -307,21 +443,25 @@ export default function AdminDiplomasPage() {
             <div className="p-8 text-center text-gray-400">
               No hay diplomas emitidos
             </div>
+          ) : filteredDiplomas.length === 0 ? (
+            <div className="p-8 text-center text-gray-400">
+              No hay diplomas que coincidan con la búsqueda
+            </div>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
                   <th className="px-4 py-3 font-medium">Código</th>
                   <th className="px-4 py-3 font-medium">Alumno</th>
+                  <th className="px-4 py-3 font-medium hidden lg:table-cell">Empresa</th>
                   <th className="px-4 py-3 font-medium hidden md:table-cell">Curso</th>
                   <th className="px-4 py-3 font-medium hidden sm:table-cell">Nota</th>
                   <th className="px-4 py-3 font-medium">Fecha</th>
-                  <th className="px-4 py-3 font-medium">Estado</th>
                   <th className="px-4 py-3 font-medium">Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {diplomas.map((d) => (
+                {filteredDiplomas.map((d) => (
                   <tr
                     key={d.id}
                     className="border-t border-gray-100 hover:bg-gray-50"
@@ -330,7 +470,11 @@ export default function AdminDiplomasPage() {
                       {d.verification_code}
                     </td>
                     <td className="px-4 py-3 font-medium text-gray-800">
-                      {d.student_name}
+                      <div>{d.student_name}</div>
+                      {d.email && <div className="text-[11px] text-gray-400">{d.email}</div>}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 hidden lg:table-cell text-xs">
+                      {d.company || "—"}
                     </td>
                     <td className="px-4 py-3 text-gray-600 hidden md:table-cell">
                       {d.course_title}
@@ -342,43 +486,44 @@ export default function AdminDiplomasPage() {
                       {formatDate(d.issued_date)}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-xs font-medium px-2 py-1 rounded bg-green-100 text-green-800">
-                        Emitido
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 flex-wrap">
                         <button
                           onClick={() => handleView(d)}
                           className="inline-flex items-center gap-1 text-xs text-[#0072CE] hover:text-[#003366] hover:bg-blue-50 px-2 py-1 rounded transition"
                           title="Ver diploma"
                         >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                          Ver
+                          👁 Ver
                         </button>
                         <button
                           onClick={() => handleDownload(d)}
                           className="inline-flex items-center gap-1 text-xs text-green-700 hover:text-green-900 hover:bg-green-50 px-2 py-1 rounded transition"
-                          title="Descargar PDF"
+                          title="Descargar diploma PDF"
                         >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                          </svg>
-                          Descargar
+                          📜 Diploma
+                        </button>
+                        <button
+                          onClick={() => handleDownloadCertificate(d)}
+                          disabled={downloading === `cert-${d.id}`}
+                          className="inline-flex items-center gap-1 text-xs text-purple-700 hover:text-purple-900 hover:bg-purple-50 px-2 py-1 rounded transition disabled:opacity-50"
+                          title="Descargar Certificado DGAC"
+                        >
+                          🏅 {downloading === `cert-${d.id}` ? "..." : "Certificado"}
+                        </button>
+                        <button
+                          onClick={() => handleDownloadApendice(d)}
+                          disabled={downloading === `ap-${d.id}`}
+                          className="inline-flex items-center gap-1 text-xs text-blue-700 hover:text-blue-900 hover:bg-blue-50 px-2 py-1 rounded transition disabled:opacity-50"
+                          title="Descargar Apéndice C"
+                        >
+                          📄 {downloading === `ap-${d.id}` ? "..." : "Apéndice C"}
                         </button>
                         <button
                           onClick={() => handleSendEmail(d)}
                           disabled={sending === d.id}
                           className="inline-flex items-center gap-1 text-xs text-[#F57C00] hover:text-[#E65100] hover:bg-orange-50 px-2 py-1 rounded transition disabled:opacity-50"
-                          title="Enviar por email"
+                          title="Enviar diploma por email"
                         >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                          </svg>
-                          {sending === d.id ? "Enviando..." : "Enviar"}
+                          ✉ {sending === d.id ? "..." : "Email"}
                         </button>
                       </div>
                     </td>

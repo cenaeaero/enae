@@ -5,21 +5,58 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-const navItems = [
-  { href: "/admin", label: "Dashboard", icon: "📊" },
-  { href: "/admin/programas", label: "Programas", icon: "📦" },
-  { href: "/admin/cursos", label: "Cursos", icon: "📚" },
-  { href: "/admin/inscripcion", label: "Inscripción", icon: "✏️" },
-  { href: "/admin/registros", label: "Registros", icon: "📋" },
-  { href: "/admin/calificaciones", label: "Calificaciones", icon: "🎓" },
-  { href: "/admin/diplomas", label: "Diplomas", icon: "📜" },
-  { href: "/admin/pagos", label: "Pagos", icon: "💳" },
-  { href: "/admin/encuestas", label: "Encuestas", icon: "📝" },
-  { href: "/admin/mensajes", label: "Mensajes", icon: "💬" },
-  { href: "/admin/perfiles", label: "Perfiles", icon: "👥" },
-  { href: "/admin/instructores", label: "Instructores", icon: "🧑‍🏫" },
-  { href: "/admin/alumni", label: "Alumni", icon: "🎓" },
+type NavItem = { href: string; label: string; icon: string };
+type NavSection = { section?: string; items: NavItem[] };
+
+const navSections: NavSection[] = [
+  {
+    items: [
+      { href: "/admin", label: "Dashboard", icon: "📊" },
+    ],
+  },
+  {
+    section: "Académico",
+    items: [
+      { href: "/admin/programas", label: "Programas", icon: "📦" },
+      { href: "/admin/cursos", label: "Cursos", icon: "📚" },
+      { href: "/admin/inscripcion", label: "Inscripción", icon: "✏️" },
+      { href: "/admin/calificaciones", label: "Calificaciones", icon: "🎯" },
+    ],
+  },
+  {
+    section: "Documentos",
+    items: [
+      { href: "/admin/registros", label: "Registros", icon: "📋" },
+      { href: "/admin/diplomas", label: "Diplomas", icon: "📜" },
+      { href: "/admin/certificados", label: "Certificados", icon: "🏅" },
+      { href: "/admin/apendice-c", label: "Apéndice C", icon: "📄" },
+    ],
+  },
+  {
+    section: "Comunicación",
+    items: [
+      { href: "/admin/mensajes", label: "Mensajes", icon: "💬" },
+      { href: "/admin/encuestas", label: "Encuestas", icon: "📝" },
+    ],
+  },
+  {
+    section: "Personas",
+    items: [
+      { href: "/admin/perfiles", label: "Perfiles", icon: "👥" },
+      { href: "/admin/instructores", label: "Instructores", icon: "🧑‍🏫" },
+      { href: "/admin/alumni", label: "Alumni", icon: "🎓" },
+    ],
+  },
+  {
+    section: "Finanzas",
+    items: [
+      { href: "/admin/pagos", label: "Pagos", icon: "💳" },
+    ],
+  },
 ];
+
+// Flat list for mobile nav (top items only to fit bottom bar)
+const navItems = navSections.flatMap((s) => s.items);
 
 type PendingReg = {
   id: string;
@@ -170,26 +207,37 @@ export default function AdminLayout({
             )}
           </div>
         </div>
-        <nav className="p-3 space-y-1 flex-1 overflow-y-auto">
-          {navItems.map((item) => {
-            const isActive =
-              pathname === item.href ||
-              (item.href !== "/admin" && pathname.startsWith(item.href));
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition ${
-                  isActive
-                    ? "bg-[#0072CE] text-white"
-                    : "text-blue-200 hover:bg-[#003366]"
-                }`}
-              >
-                <span>{item.icon}</span>
-                {item.label}
-              </Link>
-            );
-          })}
+        <nav className="p-3 flex-1 overflow-y-auto">
+          {navSections.map((section, sIdx) => (
+            <div key={sIdx} className={sIdx > 0 ? "mt-4" : ""}>
+              {section.section && (
+                <p className="px-4 mb-1.5 text-[10px] font-bold uppercase tracking-wider text-blue-400/70">
+                  {section.section}
+                </p>
+              )}
+              <div className="space-y-1">
+                {section.items.map((item) => {
+                  const isActive =
+                    pathname === item.href ||
+                    (item.href !== "/admin" && pathname.startsWith(item.href));
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition ${
+                        isActive
+                          ? "bg-[#0072CE] text-white"
+                          : "text-blue-200 hover:bg-[#003366]"
+                      }`}
+                    >
+                      <span>{item.icon}</span>
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
         <div className="p-4 border-t border-blue-800 space-y-1 shrink-0">
           <Link
