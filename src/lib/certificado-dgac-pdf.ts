@@ -155,9 +155,11 @@ export async function generateDgacCertificatePdf(data: DgacCertificateData): Pro
   y = writeJustified(doc, compendio2, mx, y, contentW, 4.8);
   y += 4;
 
-  // Habilitaciones bullet
-  const bullet = `•  Habilitación de tipo ${habilitaciones}.`;
+  // Habilitaciones bullet — render whatever the course defines, uppercased + bold.
+  doc.setFont("helvetica", "bold");
+  const bullet = `•  ${(habilitaciones || "").toUpperCase()}.`;
   y = writeJustified(doc, bullet, mx + 2, y, contentW - 2, 4.8);
+  doc.setFont("helvetica", "normal");
   y += 5;
 
   // Closing statement
