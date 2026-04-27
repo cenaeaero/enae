@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
 type CertificateRow = {
@@ -301,7 +302,12 @@ export default function AdminCertificadosPage() {
                       />
                     </td>
                     <td className="px-4 py-3 font-medium text-gray-800">
-                      <div>{r.first_name} {r.last_name}</div>
+                      <Link
+                        href={`/admin/registros/${r.registration_id}`}
+                        className="text-[#0072CE] hover:text-[#003366] hover:underline"
+                      >
+                        {r.first_name} {r.last_name}
+                      </Link>
                       <div className="text-[11px] text-gray-400">{r.email}</div>
                     </td>
                     <td className="px-4 py-3 text-gray-600 hidden md:table-cell text-xs">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
 type ApendiceRow = {
@@ -179,17 +180,53 @@ export default function AdminApendiceCPage() {
     }
   }
 
+  async function viewSigned(r: ApendiceRow) {
+    if (!r.apendice_c_file_url) {
+      alert("El alumno aún no ha subido el Apéndice C firmado.");
+      return;
+    }
+    setDownloading(`view-${r.registration_id}`);
+    try {
+      const res = await fetch(`/api/apendice-c/download?registration_id=${r.registration_id}`);
+      const json = await res.json();
+      if (!res.ok || !json.url) throw new Error(json?.error || "Error abriendo documento");
+      window.open(json.url, "_blank");
+    } catch (err: any) {
+      alert("Error: " + (err?.message || "Error desconocido"));
+    } finally {
+      setDownloading(null);
+    }
+  }
+
   async function downloadSigned(r: ApendiceRow) {
     if (!r.apendice_c_file_url) {
       alert("El alumno aún no ha subido el Apéndice C firmado.");
       return;
     }
-    setDownloading(r.registration_id);
+    setDownloading(`dl-${r.registration_id}`);
     try {
       const res = await fetch(`/api/apendice-c/download?registration_id=${r.registration_id}`);
       const json = await res.json();
       if (!res.ok || !json.url) throw new Error(json?.error || "Error descargando");
-      window.open(json.url, "_blank");
+      // Fetch the file as a blob to force download (cross-origin signed URL)
+      const fileRes = await fetch(json.url);
+      const blob = await fileRes.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      // Determine extension from content-type or URL
+      const ct = fileRes.headers.get("Content-Type") || "";
+      let ext = "pdf";
+      if (ct.includes("image/jpeg")) ext = "jpg";
+      else if (ct.includes("image/png")) ext = "png";
+      else if (json.url.match(/\.(jpg|jpeg|png|pdf)/i)) {
+        ext = json.url.match(/\.(jpg|jpeg|png|pdf)/i)![1].toLowerCase();
+      }
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `ApendiceC_${r.first_name}_${r.last_name}.${ext}`.replace(/\s+/g, "_");
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
     } catch (err: any) {
       alert("Error: " + (err?.message || "Error desconocido"));
     } finally {
@@ -358,7 +395,12 @@ export default function AdminApendiceCPage() {
                 {filtered.map((r) => (
                   <tr key={r.registration_id} className="border-t border-gray-100 hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-800">
-                      <div>{r.first_name} {r.last_name}</div>
+                      <Link
+                        href={`/admin/registros/${r.registration_id}`}
+                        className="text-[#0072CE] hover:text-[#003366] hover:underline"
+                      >
+                        {r.first_name} {r.last_name}
+                      </Link>
                       <div className="text-[11px] text-gray-400">{r.email}</div>
                     </td>
                     <td className="px-4 py-3 text-gray-600 hidden md:table-cell text-xs">
@@ -389,14 +431,24 @@ export default function AdminApendiceCPage() {
                           {downloadingPrep === r.registration_id ? "..." : "📥 Pre-llenado"}
                         </button>
                         {r.apendice_c_file_url && (
-                          <button
-                            onClick={() => downloadSigned(r)}
-                            disabled={downloading === r.registration_id}
-                            className="inline-flex items-center gap-1 text-xs text-green-700 hover:text-green-900 hover:bg-green-50 px-2 py-1 rounded transition disabled:opacity-50"
-                            title="Descargar el documento firmado por el alumno"
-                          >
-                            {downloading === r.registration_id ? "..." : "✓ Firmado"}
-                          </button>
+                          <>
+                            <button
+                              onClick={() => viewSigned(r)}
+                              disabled={downloading === `view-${r.registration_id}`}
+                              className="inline-flex items-center gap-1 text-xs text-purple-700 hover:text-purple-900 hover:bg-purple-50 px-2 py-1 rounded transition disabled:opacity-50"
+                              title="Ver el documento firmado por el alumno"
+                            >
+                              {downloading === `view-${r.registration_id}` ? "..." : "👁 Ver"}
+                            </button>
+                            <button
+                              onClick={() => downloadSigned(r)}
+                              disabled={downloading === `dl-${r.registration_id}`}
+                              className="inline-flex items-center gap-1 text-xs text-green-700 hover:text-green-900 hover:bg-green-50 px-2 py-1 rounded transition disabled:opacity-50"
+                              title="Descargar el documento firmado por el alumno"
+                            >
+                              {downloading === `dl-${r.registration_id}` ? "..." : "📥 Descargar"}
+                            </button>
+                          </>
                         )}
                         <button
                           onClick={() => triggerUpload(r.registration_id)}

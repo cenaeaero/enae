@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { downloadDiplomaPDF, generateDiplomaPDF, getDiplomaPDFBase64 } from "@/lib/diploma-pdf";
 
@@ -470,7 +471,12 @@ export default function AdminDiplomasPage() {
                       {d.verification_code}
                     </td>
                     <td className="px-4 py-3 font-medium text-gray-800">
-                      <div>{d.student_name}</div>
+                      <Link
+                        href={`/admin/registros/${d.registration_id}`}
+                        className="text-[#0072CE] hover:text-[#003366] hover:underline"
+                      >
+                        {d.student_name}
+                      </Link>
                       {d.email && <div className="text-[11px] text-gray-400">{d.email}</div>}
                     </td>
                     <td className="px-4 py-3 text-gray-600 hidden lg:table-cell text-xs">
