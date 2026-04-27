@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-service";
-import { sendStudentMessageNotification } from "@/lib/email";
+import { sendStudentMessageNotification, sendStaffMessageToStudent } from "@/lib/email";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "escuela@enae.cl";
 
@@ -130,8 +130,39 @@ export async function POST(request: Request) {
             console.warn(`[mensajes] email notify failed for ${email}:`, err?.message || err);
           }
         }
-      } else {
-        console.log(`[mensajes] skip notification — isStudentSender=${isStudentSender} course_id=${reg?.course_id}`);
+      } else if (reg?.course_id && reg?.email) {
+        // Staff → student: send email notification to the student
+        try {
+          const { data: course } = await supabaseAdmin
+            .from("courses")
+            .select("title")
+            .eq("id", reg.course_id)
+            .single();
+
+          const { data: senderProfile } = await supabaseAdmin
+            .from("profiles")
+            .select("first_name, last_name")
+            .eq("id", profile.id)
+            .maybeSingle();
+
+          const staffName = senderProfile
+            ? `${senderProfile.first_name || ""} ${senderProfile.last_name || ""}`.trim() || "ENAE"
+            : "ENAE";
+          const studentName = `${reg.first_name || ""} ${reg.last_name || ""}`.trim();
+
+          await sendStaffMessageToStudent(
+            reg.email,
+            studentName,
+            staffName,
+            course?.title || "Curso ENAE",
+            message.trim(),
+            reg.id,
+          );
+          notified++;
+          console.log(`[mensajes] notified student ${reg.email} about message from ${staffName}`);
+        } catch (err: any) {
+          console.warn(`[mensajes] student email notify failed:`, err?.message || err);
+        }
       }
     } catch (err: any) {
       console.warn("[mensajes] notify block error:", err?.message || err);

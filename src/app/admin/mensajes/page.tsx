@@ -36,6 +36,15 @@ export default function AdminMensajesPage() {
   const [error, setError] = useState("");
   const threadEnd = useRef<HTMLDivElement | null>(null);
 
+  // New conversation modal state
+  const [showNewModal, setShowNewModal] = useState(false);
+  const [allRegs, setAllRegs] = useState<{ id: string; first_name: string; last_name: string; email: string; company: string | null; course_title: string }[]>([]);
+  const [loadingRegs, setLoadingRegs] = useState(false);
+  const [newSearch, setNewSearch] = useState("");
+  const [newReg, setNewReg] = useState<string | null>(null);
+  const [newMessage, setNewMessage] = useState("");
+  const [creating, setCreating] = useState(false);
+
   // Load conversations list
   async function loadConversations() {
     setLoading(true);
@@ -129,6 +138,59 @@ export default function AdminMensajesPage() {
     return () => clearInterval(threadInterval);
   }, [selectedReg]);
 
+  async function loadAllRegistrations() {
+    setLoadingRegs(true);
+    const { data: regs } = await supabase
+      .from("registrations")
+      .select("id, first_name, last_name, email, company, organization, courses(title)")
+      .or("status.eq.confirmed,status.eq.completed,is_alumni.eq.true")
+      .order("first_name")
+      .limit(2000);
+    if (regs) {
+      setAllRegs((regs as any[]).map((r) => ({
+        id: r.id,
+        first_name: r.first_name || "",
+        last_name: r.last_name || "",
+        email: r.email || "",
+        company: r.company || r.organization || null,
+        course_title: r.courses?.title || "",
+      })));
+    }
+    setLoadingRegs(false);
+  }
+
+  function openNewModal() {
+    setShowNewModal(true);
+    setNewSearch("");
+    setNewReg(null);
+    setNewMessage("");
+    if (allRegs.length === 0) loadAllRegistrations();
+  }
+
+  async function sendNewMessage() {
+    if (!newReg || !newMessage.trim()) return;
+    setCreating(true);
+    setError("");
+    try {
+      const res = await fetch("/api/mensajes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registrationId: newReg, message: newMessage.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Error al enviar");
+      } else {
+        setShowNewModal(false);
+        setSelectedReg(newReg);
+        await loadConversations();
+      }
+    } catch (err: any) {
+      setError(err?.message || "Error al enviar");
+    }
+    setCreating(false);
+  }
+
   async function sendReply() {
     if (!reply.trim() || !selectedReg) return;
     setSending(true);
@@ -182,12 +244,21 @@ export default function AdminMensajesPage() {
             {unreadCount > 0 && <span className="text-red-600 font-medium">{unreadCount} sin responder</span>}
           </p>
         </div>
-        <button
-          onClick={loadConversations}
-          className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded"
-        >
-          Actualizar
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={openNewModal}
+            className="inline-flex items-center gap-1.5 text-xs bg-[#0072CE] hover:bg-[#005BA1] text-white px-3 py-1.5 rounded font-medium"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+            Nuevo mensaje
+          </button>
+          <button
+            onClick={loadConversations}
+            className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded"
+          >
+            Actualizar
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -347,6 +418,99 @@ export default function AdminMensajesPage() {
           )}
         </div>
       </div>
+
+      {/* New conversation modal */}
+      {showNewModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setShowNewModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="font-semibold text-gray-800">Nuevo mensaje a un alumno</h2>
+              <button onClick={() => setShowNewModal(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+            </div>
+
+            <div className="p-5 space-y-3 overflow-y-auto flex-1">
+              {/* Student picker */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Buscar alumno por nombre, email, empresa o curso</label>
+                <input
+                  type="text"
+                  value={newSearch}
+                  onChange={(e) => { setNewSearch(e.target.value); setNewReg(null); }}
+                  placeholder="Empieza a escribir..."
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-[#0072CE] focus:ring-1 focus:ring-[#0072CE] outline-none"
+                />
+              </div>
+
+              {loadingRegs ? (
+                <p className="text-sm text-gray-400 text-center py-4">Cargando alumnos...</p>
+              ) : newSearch.trim() === "" ? (
+                <p className="text-xs text-gray-400 text-center py-2">Escribe el nombre, email, empresa o curso del alumno</p>
+              ) : (
+                <div className="max-h-60 overflow-y-auto border border-gray-100 rounded-lg">
+                  {(() => {
+                    const q = newSearch.toLowerCase();
+                    const matches = allRegs.filter((r) =>
+                      r.first_name.toLowerCase().includes(q) ||
+                      r.last_name.toLowerCase().includes(q) ||
+                      r.email.toLowerCase().includes(q) ||
+                      (r.company || "").toLowerCase().includes(q) ||
+                      r.course_title.toLowerCase().includes(q)
+                    ).slice(0, 50);
+                    if (matches.length === 0) return <p className="text-sm text-gray-400 text-center py-3">Sin resultados</p>;
+                    return matches.map((r) => (
+                      <button
+                        key={r.id}
+                        onClick={() => setNewReg(r.id)}
+                        className={`w-full text-left px-3 py-2 border-b border-gray-50 transition ${
+                          newReg === r.id ? "bg-blue-50" : "hover:bg-gray-50"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-800 truncate">{r.first_name} {r.last_name}</p>
+                            <p className="text-xs text-gray-500 truncate">{r.email} {r.company ? `· ${r.company}` : ""}</p>
+                            <p className="text-[11px] text-gray-400 truncate">{r.course_title}</p>
+                          </div>
+                          {newReg === r.id && <span className="text-[#0072CE] text-lg">✓</span>}
+                        </div>
+                      </button>
+                    ));
+                  })()}
+                </div>
+              )}
+
+              {/* Message */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Mensaje</label>
+                <textarea
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="Escribe el mensaje al alumno..."
+                  rows={5}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:border-[#0072CE] focus:ring-1 focus:ring-[#0072CE] outline-none"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">El alumno recibirá una notificación por correo electrónico avisando del nuevo mensaje.</p>
+              </div>
+            </div>
+
+            <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowNewModal(false)}
+                className="text-sm px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={sendNewMessage}
+                disabled={!newReg || !newMessage.trim() || creating}
+                className="bg-[#003366] hover:bg-[#004B87] disabled:bg-gray-300 text-white text-sm font-medium px-5 py-2 rounded-lg transition"
+              >
+                {creating ? "Enviando..." : "Enviar mensaje"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
