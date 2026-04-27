@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     // Load registration (rut and folio_enae live on profiles, not registrations)
     const { data: reg } = await supabaseAdmin
       .from("registrations")
-      .select("id, first_name, last_name, email, instruction_city, organization, created_at, completed_at, status, final_score, course_id")
+      .select("id, first_name, last_name, email, instruction_city, organization, created_at, completed_at, status, final_score, grade_status, is_alumni, delivery_mode, course_id")
       .eq("id", registrationId)
       .maybeSingle();
 
@@ -47,14 +47,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
-    // STRICT GATE 1: block download until every grade_item has a score
-    // (including the practical evaluation entered manually). Apply to both
-    // admin and student — a certificate for an incomplete record must not
-    // leave the platform.
+    // GATE 1: require all grade_items filled, OR alumno already approved
+    // (grade_status="approved" / is_alumni=true / status="completed"),
+    // since those mean the grade book was reviewed and approved.
     //
     // Exception: admins can pre-print certificates for presencial courses
     // with ?skip_grade_check=true (certificates get signed at training).
-    if (!(isAdmin && skipGradeCheck)) {
+    const isApprovedAlumno = reg.grade_status === "approved" || reg.is_alumni === true || reg.status === "completed";
+    if (!isApprovedAlumno && !(isAdmin && skipGradeCheck)) {
       const grades = await allGradesEntered(reg.id, reg.course_id);
       if (!grades.allGraded) {
         return NextResponse.json(
@@ -73,13 +73,8 @@ export async function GET(request: Request) {
     // course activities. Skip for presencial courses (attendance is the
     // proof of completion) and for the admin pre-print path.
     {
-      const { data: regWithMode } = await supabaseAdmin
-        .from("registrations")
-        .select("delivery_mode, is_alumni")
-        .eq("id", reg.id)
-        .maybeSingle();
-      const isPresencial = regWithMode?.delivery_mode === "presencial";
-      const isAlumni = regWithMode?.is_alumni === true;
+      const isPresencial = reg.delivery_mode === "presencial";
+      const isAlumni = reg.is_alumni === true;
 
       // Presencial → skip (in-person attendance verifies completion).
       // Alumni → skip (already graduated; certificate may be re-issued).

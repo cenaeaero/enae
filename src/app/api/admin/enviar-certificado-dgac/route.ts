@@ -25,7 +25,7 @@ export async function POST(request: Request) {
 
     const { data: reg } = await supabaseAdmin
       .from("registrations")
-      .select("id, first_name, last_name, email, instruction_city, created_at, completed_at, status, course_id")
+      .select("id, first_name, last_name, email, instruction_city, created_at, completed_at, status, course_id, final_score, grade_status, is_alumni, delivery_mode")
       .eq("id", registration_id)
       .maybeSingle();
 
@@ -37,18 +37,54 @@ export async function POST(request: Request) {
       .eq("email", reg.email)
       .maybeSingle();
 
-    // STRICT GATE: all grade_items (including practical) must have a score.
-    const grades = await allGradesEntered(reg.id, reg.course_id);
-    if (!grades.allGraded) {
-      return NextResponse.json(
-        {
-          error: "No se puede enviar el certificado: faltan calificaciones por ingresar.",
-          missing: grades.missing,
-          filled: grades.filled,
-          total: grades.total,
-        },
-        { status: 400 }
-      );
+    // GATE: require the alumno to have all grade_items filled OR be already
+    // approved (grade_status="approved" or is_alumni=true or status="completed"),
+    // since those imply grades have been fully reviewed.
+    const isApproved = reg.grade_status === "approved" || reg.is_alumni === true || reg.status === "completed";
+    if (!isApproved) {
+      const grades = await allGradesEntered(reg.id, reg.course_id);
+      if (!grades.allGraded) {
+        return NextResponse.json(
+          {
+            error: "No se puede enviar el certificado: faltan calificaciones por ingresar.",
+            missing: grades.missing,
+            filled: grades.filled,
+            total: grades.total,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Also block send when the alumno hasn't completed all activities (online courses)
+    if (reg.delivery_mode !== "presencial" && !reg.is_alumni) {
+      const { data: modulesGate } = await supabaseAdmin
+        .from("course_modules")
+        .select("id")
+        .eq("course_id", reg.course_id);
+      const moduleIds = (modulesGate || []).map((m: any) => m.id);
+      if (moduleIds.length > 0) {
+        const { data: activities } = await supabaseAdmin
+          .from("module_activities")
+          .select("id")
+          .in("module_id", moduleIds);
+        const activityIds = (activities || []).map((a: any) => a.id);
+        if (activityIds.length > 0) {
+          const { data: prog } = await supabaseAdmin
+            .from("activity_progress")
+            .select("activity_id")
+            .eq("registration_id", reg.id)
+            .eq("status", "completed")
+            .in("activity_id", activityIds);
+          const completed = (prog || []).length;
+          if (completed < activityIds.length) {
+            return NextResponse.json(
+              { error: `No se puede enviar el certificado: el alumno aún no ha finalizado todos los módulos (${completed}/${activityIds.length} actividades).` },
+              { status: 400 }
+            );
+          }
+        }
+      }
     }
 
     const { data: course, error: courseErr } = await supabaseAdmin
