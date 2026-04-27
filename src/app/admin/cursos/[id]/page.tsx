@@ -55,6 +55,7 @@ export default function EditCoursePage({
   const [isActive, setIsActive] = useState(true);
   const [apendiceCRequired, setApendiceCRequired] = useState(false);
   const [apendiceCHabilitationText, setApendiceCHabilitationText] = useState("");
+  const [hasDgacCertificate, setHasDgacCertificate] = useState(false);
 
   // Sessions
   const [sessions, setSessions] = useState<SessionData[]>([]);
@@ -87,6 +88,7 @@ export default function EditCoursePage({
       setIsActive(data.is_active);
       setApendiceCRequired(!!data.apendice_c_required);
       setApendiceCHabilitationText(data.apendice_c_habilitation_text || "");
+      setHasDgacCertificate(!!data.has_dgac_certificate);
       setSessions(
         data.sessions?.map((s: SessionData) => ({
           id: s.id,
@@ -137,6 +139,7 @@ export default function EditCoursePage({
         is_active: isActive,
         apendice_c_required: apendiceCRequired,
         apendice_c_habilitation_text: apendiceCRequired ? (apendiceCHabilitationText || null) : null,
+        has_dgac_certificate: hasDgacCertificate,
       });
 
       // Sync module names with course_modules table (LMS)
@@ -547,8 +550,20 @@ export default function EditCoursePage({
         {/* Apéndice C (DGAC) */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-[#003366] mb-4">
-            Apéndice C (DGAC)
+            Documentación DGAC
           </h2>
+          <label className="flex items-center gap-2 cursor-pointer mb-3">
+            <input
+              type="checkbox"
+              checked={hasDgacCertificate}
+              onChange={(e) => setHasDgacCertificate(e.target.checked)}
+              className="rounded border-gray-300 text-[#0072CE]"
+            />
+            <span className="text-sm text-gray-700">Este curso emite Certificado DGAC</span>
+          </label>
+          <p className="text-xs text-gray-500 mb-4 ml-6">
+            Si está activo, el curso aparecerá en la sección Certificados y los alumnos podrán descargar el Certificado DGAC al completar el 100% del curso.
+          </p>
           <label className="flex items-center gap-2 cursor-pointer mb-4">
             <input
               type="checkbox"
