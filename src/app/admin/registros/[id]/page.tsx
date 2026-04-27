@@ -132,6 +132,7 @@ export default function RegistroDetailPage() {
   const [savingCert, setSavingCert] = useState(false);
   const [sendingCert, setSendingCert] = useState(false);
   const [markingAlumni, setMarkingAlumni] = useState(false);
+  const [markingComplete, setMarkingComplete] = useState(false);
   const [apendiceRequired, setApendiceRequired] = useState(false);
   const [habilitationText, setHabilitationText] = useState("");
   const [apendiceAdminMsg, setApendiceAdminMsg] = useState("");
@@ -723,9 +724,45 @@ export default function RegistroDetailPage() {
         <div className="mb-4">
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs text-gray-500">Progreso del curso</span>
-            <span className="text-xs font-medium text-gray-700">
-              {progress.filter((p) => p.status === "completed").length} / {totalActivities} actividades
-            </span>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={async () => {
+                  const completedCount = progress.filter((p) => p.status === "completed").length;
+                  if (completedCount === totalActivities && totalActivities > 0) {
+                    alert("El alumno ya tiene todas las actividades completadas.");
+                    return;
+                  }
+                  if (!confirm(`¿Marcar TODAS las actividades del curso como completadas para este alumno? Solo úsalo cuando estés seguro de que el alumno ya realizó el contenido. (Los exámenes no se marcan, requieren ser rendidos.)`)) return;
+                  setMarkingComplete(true);
+                  try {
+                    const res = await fetch("/api/admin/marcar-completado", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ registration_id: id }),
+                    });
+                    const json = await res.json();
+                    if (!res.ok || !json.success) {
+                      alert("Error: " + (json.error || res.statusText));
+                    } else {
+                      alert(`${json.marked} actividades marcadas como completadas. Recargando...`);
+                      await loadData();
+                    }
+                  } catch (err: any) {
+                    alert("Error: " + (err?.message || "desconocido"));
+                  } finally {
+                    setMarkingComplete(false);
+                  }
+                }}
+                disabled={markingComplete}
+                className="text-[11px] text-orange-600 hover:text-orange-800 hover:underline disabled:opacity-50"
+                title="Marca todas las actividades del curso (excepto exámenes) como completadas"
+              >
+                {markingComplete ? "Marcando..." : "Marcar todas como completadas"}
+              </button>
+              <span className="text-xs font-medium text-gray-700">
+                {progress.filter((p) => p.status === "completed").length} / {totalActivities} actividades
+              </span>
+            </div>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2.5">
             <div

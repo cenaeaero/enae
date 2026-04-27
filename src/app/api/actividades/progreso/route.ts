@@ -29,13 +29,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Registro no encontrado" }, { status: 404 });
     }
 
-    const isOwner = registration.email === user.email;
+    const isOwner = (registration.email || "").toLowerCase() === (user.email || "").toLowerCase();
     let isAdmin = false;
     if (!isOwner) {
       const { data: profile } = await supabaseAdmin
         .from("profiles")
         .select("role")
-        .eq("email", user.email!)
+        .ilike("email", user.email!)
         .maybeSingle();
       isAdmin = profile?.role === "admin";
     }
