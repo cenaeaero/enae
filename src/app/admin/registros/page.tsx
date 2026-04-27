@@ -76,7 +76,7 @@ export default function AdminRegistrosPage() {
             first_name: r.first_name,
             last_name: r.last_name,
             email: r.email,
-            company: r.company,
+            company: r.company || r.organization || null,
             delivery_mode: r.delivery_mode,
             status: r.status,
             created_at: r.created_at,
@@ -91,7 +91,7 @@ export default function AdminRegistrosPage() {
     if (baseRegs.length === 0) {
       const { data } = await supabase
         .from("registrations")
-        .select("id, first_name, last_name, email, company, delivery_mode, status, created_at, course_id, courses(title)")
+        .select("id, first_name, last_name, email, company, organization, delivery_mode, status, created_at, course_id, courses(title)")
         .order("created_at", { ascending: false });
 
       if (data) {
@@ -100,13 +100,36 @@ export default function AdminRegistrosPage() {
           first_name: r.first_name,
           last_name: r.last_name,
           email: r.email,
-          company: r.company,
+          company: r.company || r.organization || null,
           status: r.status,
           created_at: r.created_at,
           course_title: r.courses?.title,
           course_id: r.course_id,
         }));
       }
+    }
+
+    // Backfill missing company from profile.organization (paginated)
+    const missingCompanyEmails = Array.from(new Set(
+      baseRegs.filter((r) => !r.company && r.email).map((r) => r.email!)
+    ));
+    if (missingCompanyEmails.length > 0) {
+      const profilesByEmail: Record<string, string> = {};
+      const PFPAGE = 500;
+      for (let i = 0; i < missingCompanyEmails.length; i += PFPAGE) {
+        const chunk = missingCompanyEmails.slice(i, i + PFPAGE);
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("email, organization")
+          .in("email", chunk);
+        (profs || []).forEach((p: any) => {
+          if (p.organization) profilesByEmail[p.email.toLowerCase()] = p.organization;
+        });
+      }
+      baseRegs = baseRegs.map((r) => ({
+        ...r,
+        company: r.company || (r.email ? profilesByEmail[r.email.toLowerCase()] : null) || null,
+      }));
     }
 
     // Show registrations immediately, then enrich with progress + access
