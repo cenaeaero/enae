@@ -47,7 +47,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
-    // STRICT GATE: block download until every grade_item has a score
+    // STRICT GATE 1: block download until every grade_item has a score
     // (including the practical evaluation entered manually). Apply to both
     // admin and student — a certificate for an incomplete record must not
     // leave the platform.
@@ -66,6 +66,62 @@ export async function GET(request: Request) {
           },
           { status: 400 }
         );
+      }
+    }
+
+    // STRICT GATE 2: block download until alumno has completed 100% of
+    // course activities. Skip for presencial courses (attendance is the
+    // proof of completion) and for the admin pre-print path.
+    {
+      const { data: regWithMode } = await supabaseAdmin
+        .from("registrations")
+        .select("delivery_mode, is_alumni")
+        .eq("id", reg.id)
+        .maybeSingle();
+      const isPresencial = regWithMode?.delivery_mode === "presencial";
+      const isAlumni = regWithMode?.is_alumni === true;
+
+      // Presencial → skip (in-person attendance verifies completion).
+      // Alumni → skip (already graduated; certificate may be re-issued).
+      // Otherwise (online courses) the gate applies even for admins with
+      // skip_grade_check, because the requirement is "100% módulos finalizados".
+      if (!isPresencial && !isAlumni) {
+        // Compute progress: completed activity_progress rows / total activities in course
+        const { data: modules } = await supabaseAdmin
+          .from("course_modules")
+          .select("id")
+          .eq("course_id", reg.course_id);
+        const moduleIds = (modules || []).map((m: any) => m.id);
+        let totalActivities = 0;
+        let completedActivities = 0;
+        if (moduleIds.length > 0) {
+          const { data: activities } = await supabaseAdmin
+            .from("module_activities")
+            .select("id")
+            .in("module_id", moduleIds);
+          const activityIds = (activities || []).map((a: any) => a.id);
+          totalActivities = activityIds.length;
+          if (totalActivities > 0) {
+            const { data: prog } = await supabaseAdmin
+              .from("activity_progress")
+              .select("activity_id")
+              .eq("registration_id", reg.id)
+              .eq("status", "completed")
+              .in("activity_id", activityIds);
+            completedActivities = (prog || []).length;
+          }
+        }
+
+        if (totalActivities > 0 && completedActivities < totalActivities) {
+          return NextResponse.json(
+            {
+              error: `No se puede descargar el certificado: el alumno aún no ha finalizado todos los módulos (${completedActivities}/${totalActivities} actividades completadas).`,
+              completed_activities: completedActivities,
+              total_activities: totalActivities,
+            },
+            { status: 400 }
+          );
+        }
       }
     }
 
