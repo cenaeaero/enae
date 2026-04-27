@@ -153,37 +153,46 @@ export default function AdminRegistrosPage() {
       }
     }
 
-    // Get progress per registration (use high limit to avoid Supabase 1000-row default)
-    const { data: allProgress } = await supabase
-      .from("activity_progress")
-      .select("registration_id, status")
-      .in("registration_id", regIds)
-      .eq("status", "completed")
-      .limit(100000);
-
+    // Get progress per registration — paginate to bypass Supabase 1000-row max-rows
     const completedByReg: Record<string, number> = {};
-    (allProgress || []).forEach((p: any) => {
-      if (p.status === "completed") {
+    const PAGE = 1000;
+    let from = 0;
+    while (true) {
+      const { data: page, error: pErr } = await supabase
+        .from("activity_progress")
+        .select("registration_id")
+        .in("registration_id", regIds)
+        .eq("status", "completed")
+        .range(from, from + PAGE - 1);
+      if (pErr || !page || page.length === 0) break;
+      page.forEach((p: any) => {
         completedByReg[p.registration_id] = (completedByReg[p.registration_id] || 0) + 1;
-      }
-    });
+      });
+      if (page.length < PAGE) break;
+      from += PAGE;
+    }
 
-    // Get last access per registration
+    // Get last access per registration — paginate to get all rows
     const accessByReg: Record<string, { last: string | null; count: number }> = {};
     try {
-      const { data: accessLogs } = await supabase
-        .from("course_access_log")
-        .select("registration_id, accessed_at")
-        .in("registration_id", regIds)
-        .order("accessed_at", { ascending: false })
-        .limit(100000);
-
-      (accessLogs || []).forEach((a: any) => {
-        if (!accessByReg[a.registration_id]) {
-          accessByReg[a.registration_id] = { last: a.accessed_at, count: 0 };
-        }
-        accessByReg[a.registration_id].count += 1;
-      });
+      let aFrom = 0;
+      while (true) {
+        const { data: page, error: aErr } = await supabase
+          .from("course_access_log")
+          .select("registration_id, accessed_at")
+          .in("registration_id", regIds)
+          .order("accessed_at", { ascending: false })
+          .range(aFrom, aFrom + PAGE - 1);
+        if (aErr || !page || page.length === 0) break;
+        page.forEach((a: any) => {
+          if (!accessByReg[a.registration_id]) {
+            accessByReg[a.registration_id] = { last: a.accessed_at, count: 0 };
+          }
+          accessByReg[a.registration_id].count += 1;
+        });
+        if (page.length < PAGE) break;
+        aFrom += PAGE;
+      }
     } catch {}
 
     // Merge enriched data
