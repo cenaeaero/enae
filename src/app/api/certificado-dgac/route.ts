@@ -180,7 +180,7 @@ export async function GET(request: Request) {
       totalHours,
       folio: prof?.folio_enae || null,
       year: new Date(completedAt).getFullYear(),
-      habilitaciones: c.dgac_habilitaciones || null,
+      habilitaciones: c.dgac_habilitaciones || c.apendice_c_habilitation_text || null,
       modules: modules || null,
       verificationUrl,
       verificationCode,

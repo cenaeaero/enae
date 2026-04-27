@@ -140,9 +140,12 @@ export default function EditCoursePage({
         prerequisites: prerequisites.filter((p) => p.trim()),
         is_active: isActive,
         apendice_c_required: apendiceCRequired,
-        apendice_c_habilitation_text: apendiceCRequired ? (apendiceCHabilitationText || null) : null,
+        // Single source of truth: same habilitation text used by both
+        // the Apéndice C document (point 1) and the DGAC certificate
+        // (line "Habilitación de tipo XXX").
+        apendice_c_habilitation_text: (hasDgacCertificate || apendiceCRequired) ? ((apendiceCHabilitationText || "").trim() || null) : null,
         has_dgac_certificate: hasDgacCertificate,
-        dgac_habilitaciones: hasDgacCertificate ? (dgacHabilitaciones.trim() || null) : null,
+        dgac_habilitaciones: (hasDgacCertificate || apendiceCRequired) ? ((apendiceCHabilitationText || "").trim() || null) : null,
       });
 
       // Sync module names with course_modules table (LMS)
@@ -567,23 +570,6 @@ export default function EditCoursePage({
           <p className="text-xs text-gray-500 mb-4 ml-6">
             Si está activo, el curso aparecerá en la sección Certificados y los alumnos podrán descargar el Certificado DGAC al completar el 100% del curso.
           </p>
-          {hasDgacCertificate && (
-            <div className="ml-6 mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Habilitaciones del Certificado DGAC
-              </label>
-              <p className="text-xs text-gray-500 mb-2">
-                Texto que aparecerá en la línea <em>&quot;Habilitación de tipo XXX&quot;</em> del certificado. Ejemplo: <em>&quot;MATRICE 4 SERIES&quot;</em> o <em>&quot;MAVIC SERIES, PHANTOM SERIES, MATRICE SERIES&quot;</em>. Si lo dejas vacío se usa el texto por defecto.
-              </p>
-              <input
-                type="text"
-                value={dgacHabilitaciones}
-                onChange={(e) => setDgacHabilitaciones(e.target.value)}
-                placeholder="MATRICE 4 SERIES"
-                className="w-full py-2.5 px-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0072CE]"
-              />
-            </div>
-          )}
           <label className="flex items-center gap-2 cursor-pointer mb-4">
             <input
               type="checkbox"
@@ -593,20 +579,24 @@ export default function EditCoursePage({
             />
             <span className="text-sm text-gray-700">Este curso requiere Apéndice C</span>
           </label>
-          {apendiceCRequired && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Texto de habilitación
+          {(hasDgacCertificate || apendiceCRequired) && (
+            <div className="ml-6 bg-blue-50 border border-blue-100 rounded-lg p-3">
+              <label className="block text-sm font-medium text-gray-800 mb-1">
+                Habilitación del curso (Certificado DGAC + Apéndice C)
               </label>
-              <p className="text-xs text-gray-500 mb-2">
-                Texto que aparece en el punto 1 del Apéndice C. Ejemplo: <em>&quot;INSTRUCCIÓN TEÓRICA DE OPERADOR RPAS Y PRÁCTICA RESPECTO AL USO DE UNA AERONAVE NO TRIPULADA RPA MODELO: MAVIC SERIES, PHANTOM SERIES...&quot;</em>
+              <p className="text-xs text-gray-600 mb-2">
+                Este texto se usa tanto en el <strong>Certificado DGAC</strong> (línea &quot;Habilitación de tipo XXX&quot;) como en el <strong>punto 1 del Apéndice C</strong>.<br />
+                Ejemplo: <code className="bg-white px-1.5 py-0.5 rounded">MATRICE 4 SERIES</code> o <code className="bg-white px-1.5 py-0.5 rounded">MAVIC SERIES, PHANTOM SERIES, MATRICE SERIES</code>.
               </p>
               <textarea
                 value={apendiceCHabilitationText}
-                onChange={(e) => setApendiceCHabilitationText(e.target.value)}
-                rows={4}
-                className="w-full py-2.5 px-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0072CE]"
-                placeholder="INSTRUCCIÓN TEÓRICA..."
+                onChange={(e) => {
+                  setApendiceCHabilitationText(e.target.value);
+                  setDgacHabilitaciones(e.target.value);
+                }}
+                rows={3}
+                className="w-full py-2.5 px-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0072CE] bg-white"
+                placeholder="MATRICE 4 SERIES"
               />
             </div>
           )}
