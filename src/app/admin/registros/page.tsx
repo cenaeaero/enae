@@ -464,6 +464,7 @@ export default function AdminRegistrosPage() {
                 )}
                 <th className="px-4 py-3 font-medium">Nombre</th>
                 <th className="px-4 py-3 font-medium hidden lg:table-cell">Email</th>
+                <th className="px-4 py-3 font-medium hidden md:table-cell">Empresa</th>
                 <th className="px-4 py-3 font-medium hidden md:table-cell">Curso</th>
                 <th className="px-4 py-3 font-medium hidden xl:table-cell">Fecha</th>
                 <th className="px-4 py-3 font-medium">Avance</th>
@@ -522,12 +523,16 @@ export default function AdminRegistrosPage() {
                         </span>
                       )}
                     </div>
+                    {/* On small screens, show company under name since column is hidden */}
                     {reg.company && (
-                      <div className="text-[11px] text-gray-400 mt-0.5 truncate max-w-[180px]">{reg.company}</div>
+                      <div className="text-[11px] text-gray-400 mt-0.5 truncate max-w-[180px] md:hidden">{reg.company}</div>
                     )}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600 hidden lg:table-cell">
                     {reg.email}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600 hidden md:table-cell max-w-[180px] truncate">
+                    {reg.company || "—"}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600 hidden md:table-cell max-w-[200px] truncate">
                     {reg.course_title || "—"}
