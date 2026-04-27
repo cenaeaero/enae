@@ -126,7 +126,8 @@ export default function AdminRegistrosPage() {
       const { data: modules } = await supabase
         .from("course_modules")
         .select("id, course_id")
-        .in("course_id", courseIds);
+        .in("course_id", courseIds)
+        .limit(10000);
       const modulesByCourseId: Record<string, string[]> = {};
       (modules || []).forEach((m: any) => {
         if (!modulesByCourseId[m.course_id]) modulesByCourseId[m.course_id] = [];
@@ -138,7 +139,8 @@ export default function AdminRegistrosPage() {
         const { data: activities } = await supabase
           .from("module_activities")
           .select("id, module_id")
-          .in("module_id", allModuleIds);
+          .in("module_id", allModuleIds)
+          .limit(50000);
 
         const activitiesByModule: Record<string, number> = {};
         (activities || []).forEach((a: any) => {
@@ -151,11 +153,13 @@ export default function AdminRegistrosPage() {
       }
     }
 
-    // Get progress per registration
+    // Get progress per registration (use high limit to avoid Supabase 1000-row default)
     const { data: allProgress } = await supabase
       .from("activity_progress")
       .select("registration_id, status")
-      .in("registration_id", regIds);
+      .in("registration_id", regIds)
+      .eq("status", "completed")
+      .limit(100000);
 
     const completedByReg: Record<string, number> = {};
     (allProgress || []).forEach((p: any) => {
@@ -171,7 +175,8 @@ export default function AdminRegistrosPage() {
         .from("course_access_log")
         .select("registration_id, accessed_at")
         .in("registration_id", regIds)
-        .order("accessed_at", { ascending: false });
+        .order("accessed_at", { ascending: false })
+        .limit(100000);
 
       (accessLogs || []).forEach((a: any) => {
         if (!accessByReg[a.registration_id]) {
