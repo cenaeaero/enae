@@ -44,6 +44,8 @@ export default function EditCoursePage({
   const [subarea, setSubarea] = useState("");
   const [level, setLevel] = useState("Basico");
   const [duration, setDuration] = useState("");
+  const [theoreticalHours, setTheoreticalHours] = useState<number | "">("");
+  const [practicalHours, setPracticalHours] = useState<number | "">("");
   const [modality, setModality] = useState("Presencial");
   const [language, setLanguage] = useState("Espanol");
   const [goal, setGoal] = useState("");
@@ -76,6 +78,8 @@ export default function EditCoursePage({
       setSubarea(data.subarea || "");
       setLevel(data.level);
       setDuration(data.duration);
+      setTheoreticalHours(data.theoretical_hours ?? data.horas_teoricas ?? "");
+      setPracticalHours(data.practical_hours ?? data.horas_practicas ?? "");
       setModality(data.modality);
       setLanguage(data.language || "Espanol");
       setGoal(data.goal || "");
@@ -131,6 +135,8 @@ export default function EditCoursePage({
         subarea: subarea || null,
         level,
         duration,
+        theoretical_hours: theoreticalHours === "" ? null : Number(theoreticalHours),
+        practical_hours: practicalHours === "" ? null : Number(practicalHours),
         modality,
         language,
         goal: goal || null,
@@ -479,15 +485,44 @@ export default function EditCoursePage({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Duración
+                Duración (texto)
               </label>
               <input
                 type="text"
                 value={duration}
                 onChange={(e) => setDuration(e.target.value)}
                 className="w-full py-2.5 px-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0072CE]"
-                placeholder="40 horas"
+                placeholder="3 días / 40 horas"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Horas teóricas
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={theoreticalHours}
+                onChange={(e) => setTheoreticalHours(e.target.value === "" ? "" : Number(e.target.value))}
+                className="w-full py-2.5 px-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0072CE]"
+                placeholder="20"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Horas prácticas
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={practicalHours}
+                onChange={(e) => setPracticalHours(e.target.value === "" ? "" : Number(e.target.value))}
+                className="w-full py-2.5 px-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0072CE]"
+                placeholder="5"
+              />
+              <p className="text-[11px] text-gray-400 mt-1">
+                Suma teóricas + prácticas se usa en el certificado DGAC.
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">

@@ -128,7 +128,7 @@ export async function generateDgacCertificatePdf(data: DgacCertificateData): Pro
   const rutText = data.rut ? `RUT N° ${data.rut}` : "identificado(a) en los registros internos";
   const para2 =
     `Que el(la) señor(a) ${data.studentName.toUpperCase()}, identificado(a) con ${rutText}, ha cursado y ` +
-    `aprobado en esta institución el ${data.courseName}, desarrollado en la ciudad de ${data.city}, durante ` +
+    `aprobado en esta institución el curso de ${data.courseName}, desarrollado en la ciudad de ${data.city}, durante ` +
     `el periodo comprendido entre los días ${start.day} de ${start.month} y ${end.day} de ${end.month} de ` +
     `${end.year}, con una carga horaria total de ${data.totalHours} horas de instrucción teórica y práctica.`;
   y = writeJustified(doc, para2, mx, y, contentW, 4.8);
