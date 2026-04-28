@@ -24,11 +24,13 @@ type CourseDelivery = {
   session_dates: string;
   session_location: string;
   session_modality: string;
+  course_modality: string;
   moodle_url: string | null;
   instructor_name: string | null;
   instructor_whatsapp: string | null;
   student_name: string;
   apendice_c_required: boolean;
+  has_dgac_certificate: boolean;
   apendice_c_habilitation_text: string | null;
 };
 
@@ -572,6 +574,34 @@ export default function TpemsCourseDetail() {
     doc.save(`Calificaciones_${course.course_code || "curso"}.pdf`);
   }
 
+  async function downloadCertificadoDGAC() {
+    if (!course) return;
+    setDownloadingCert(true);
+    try {
+      const res = await fetch(`/api/certificado-dgac?registration_id=${registrationId}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert("No se pudo descargar el certificado: " + (err.error || res.statusText));
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const cd = res.headers.get("Content-Disposition") || "";
+      const match = cd.match(/filename="([^"]+)"/);
+      a.download = match?.[1] || `Certificado_DGAC_${course.course_code || "curso"}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert("Error: " + (err?.message || "Error desconocido"));
+    } finally {
+      setDownloadingCert(false);
+    }
+  }
+
   async function downloadDiplomaPDF() {
     if (!diploma || !course) return;
     const doc = new jsPDF("landscape");
@@ -749,7 +779,7 @@ export default function TpemsCourseDetail() {
           first_name,
           last_name,
           course_id,
-          courses (title, code, duration, description, modules, moodle_url, instructor_name, instructor_whatsapp, apendice_c_required, apendice_c_habilitation_text),
+          courses (title, code, duration, description, modules, moodle_url, instructor_name, instructor_whatsapp, apendice_c_required, apendice_c_habilitation_text, has_dgac_certificate, modality),
           sessions (dates, location, modality)
         `
         )
@@ -781,11 +811,13 @@ export default function TpemsCourseDetail() {
           session_dates: r.sessions?.dates || "",
           session_location: r.sessions?.location || "",
           session_modality: r.sessions?.modality || "",
+          course_modality: r.courses?.modality || "",
           moodle_url: r.courses?.moodle_url || null,
           instructor_name: r.courses?.instructor_name || null,
           instructor_whatsapp: r.courses?.instructor_whatsapp || null,
           student_name: `${r.first_name || ""} ${r.last_name || ""}`.trim(),
           apendice_c_required: !!r.courses?.apendice_c_required,
+          has_dgac_certificate: !!r.courses?.has_dgac_certificate,
           apendice_c_habilitation_text: r.courses?.apendice_c_habilitation_text || null,
         };
         setCourse(courseData);
@@ -1174,7 +1206,7 @@ export default function TpemsCourseDetail() {
                   <div className="w-9 h-9 rounded-lg bg-purple-100 flex items-center justify-center text-purple-600 text-sm">🎓</div>
                   <div>
                     <p className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Modalidad</p>
-                    <p className="text-sm font-semibold text-gray-800">{course.session_modality}</p>
+                    <p className="text-sm font-semibold text-gray-800">{course.course_modality || course.session_modality || "—"}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3">
@@ -2146,6 +2178,15 @@ d.addEventListener('mousedown',function(e){if(e.detail>1)e.preventDefault();},tr
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                           Descargar Diploma (PDF)
                         </button>
+                        {course.has_dgac_certificate && (
+                          <button
+                            onClick={downloadCertificadoDGAC}
+                            className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                            Descargar Certificado DGAC
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
