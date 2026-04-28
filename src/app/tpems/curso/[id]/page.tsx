@@ -576,7 +576,6 @@ export default function TpemsCourseDetail() {
 
   async function downloadCertificadoDGAC() {
     if (!course) return;
-    setDownloadingCert(true);
     try {
       const res = await fetch(`/api/certificado-dgac?registration_id=${registrationId}`);
       if (!res.ok) {
@@ -597,8 +596,6 @@ export default function TpemsCourseDetail() {
       URL.revokeObjectURL(url);
     } catch (err: any) {
       alert("Error: " + (err?.message || "Error desconocido"));
-    } finally {
-      setDownloadingCert(false);
     }
   }
 
