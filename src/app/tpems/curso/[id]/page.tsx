@@ -1689,7 +1689,13 @@ export default function TpemsCourseDetail() {
                                     {status === "completed" ? (
                                       <div className="bg-green-50 border border-green-200 rounded-xl p-6">
                                         <div className="text-3xl mb-2">✅</div>
-                                        <p className="text-green-800 font-medium">Examen completado</p>
+                                        <p className="text-green-800 font-medium mb-4">Examen completado</p>
+                                        <button
+                                          onClick={() => setFullscreenExam({ lessonId: les.id, lessonTitle: les.title })}
+                                          className="bg-white border border-[#0072CE] text-[#0072CE] hover:bg-[#0072CE] hover:text-white px-6 py-2.5 rounded-lg font-medium transition text-sm"
+                                        >
+                                          Revisar examen
+                                        </button>
                                       </div>
                                     ) : (
                                       <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
