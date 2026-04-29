@@ -1059,8 +1059,8 @@ export default function TpemsCourseDetail() {
   // Course is "completed" for survey/diploma purposes if status is completed OR 100% progress OR presencial
   const courseCompleted = isPresencial || course?.status === "completed" || progressPercent === 100;
 
-  // Egresado: alumni flag set, course completed, or diploma issued — hide modules + Continuar button
-  const isEgresado = !!course?.is_alumni || course?.status === "completed" || !!diploma;
+  // Egresado: solo cuando el admin promueve al alumno (is_alumni). Mientras tanto puede revisar módulos.
+  const isEgresado = !!course?.is_alumni;
 
   const selectedModule = modules.find((m) => m.id === selectedModuleId);
 
@@ -1081,7 +1081,7 @@ export default function TpemsCourseDetail() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "info", label: "Info" },
-    ...(modules.length > 0 && lessons.length > 0 && !courseCompleted && !isEgresado ? [{ key: "modules" as Tab, label: `Módulos (${totalModules})` }] : []),
+    ...(modules.length > 0 && lessons.length > 0 && !isEgresado ? [{ key: "modules" as Tab, label: `Módulos (${totalModules})` }] : []),
     { key: "grades", label: "Calificaciones" },
     { key: "evaluation", label: "Encuesta" },
     { key: "messages", label: "Mensajes" },
@@ -1224,10 +1224,16 @@ export default function TpemsCourseDetail() {
                 </div>
               ) : modules.length > 0 && !isEgresado && (
                 courseCompleted ? (
-                  <button disabled className="inline-flex items-center gap-2 bg-green-100 text-green-700 text-sm font-semibold px-6 py-3 rounded-xl cursor-not-allowed">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                    Curso Completado
-                  </button>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="inline-flex items-center gap-2 bg-green-100 text-green-700 text-sm font-semibold px-5 py-3 rounded-xl">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                      Curso Completado
+                    </span>
+                    <button onClick={() => setActiveTab("modules")} className="inline-flex items-center gap-2 bg-white border border-[#0072CE] text-[#0072CE] hover:bg-[#0072CE] hover:text-white text-sm font-semibold px-5 py-3 rounded-xl transition">
+                      Revisar módulos
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                    </button>
+                  </div>
                 ) : (
                   <button onClick={() => setActiveTab("modules")} className="inline-flex items-center gap-2 bg-gradient-to-r from-[#0072CE] to-[#005BA1] hover:from-[#005BA1] hover:to-[#003366] text-white text-sm font-semibold px-6 py-3 rounded-xl transition shadow-sm shadow-blue-200">
                     {completedCount > 0 ? "Continuar Curso" : "Iniciar Curso"}
@@ -1394,7 +1400,7 @@ export default function TpemsCourseDetail() {
         )}
 
         {/* ============ MODULES TAB ============ */}
-        {activeTab === "modules" && modules.length > 0 && !courseCompleted && !isEgresado && (() => {
+        {activeTab === "modules" && modules.length > 0 && !isEgresado && (() => {
           const moduleLessons = selectedModuleId ? lessons.filter((l) => l.module_id === selectedModuleId) : [];
 
           function getLessonStatus(lessonId: string) {
