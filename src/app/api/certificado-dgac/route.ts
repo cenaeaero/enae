@@ -47,19 +47,18 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
-    // GATE 1: require all grade_items filled, OR alumno already approved
-    // (grade_status="approved" / is_alumni=true / status="completed"),
-    // since those mean the grade book was reviewed and approved.
-    //
-    // Exception: admins can pre-print certificates for presencial courses
-    // with ?skip_grade_check=true (certificates get signed at training).
-    const isApprovedAlumno = reg.grade_status === "approved" || reg.is_alumni === true || reg.status === "completed";
-    if (!isApprovedAlumno && !(isAdmin && skipGradeCheck)) {
+    // GATE 1: require all grade_items filled (incluye examen teorico y practico),
+    // salvo que el alumno ya esté egresado (is_alumni=true) o el libro de notas
+    // haya sido aprobado (grade_status="approved"). Para presenciales tambien
+    // se exige ingresar las notas antes de poder descargar el certificado.
+    void skipGradeCheck;
+    const isApprovedAlumno = reg.grade_status === "approved" || reg.is_alumni === true;
+    if (!isApprovedAlumno) {
       const grades = await allGradesEntered(reg.id, reg.course_id);
       if (!grades.allGraded) {
         return NextResponse.json(
           {
-            error: "No se puede generar el certificado: faltan calificaciones por ingresar.",
+            error: "No se puede generar el certificado: faltan calificaciones por ingresar (examen teórico y práctico).",
             missing: grades.missing,
             filled: grades.filled,
             total: grades.total,

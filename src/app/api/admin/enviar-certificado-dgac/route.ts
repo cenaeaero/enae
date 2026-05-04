@@ -37,16 +37,17 @@ export async function POST(request: Request) {
       .eq("email", reg.email)
       .maybeSingle();
 
-    // GATE: require the alumno to have all grade_items filled OR be already
-    // approved (grade_status="approved" or is_alumni=true or status="completed"),
-    // since those imply grades have been fully reviewed.
-    const isApproved = reg.grade_status === "approved" || reg.is_alumni === true || reg.status === "completed";
+    // GATE: require the alumno to have all grade_items filled (incluye examen
+    // teorico y practico), salvo que ya esté egresado (is_alumni=true) o que
+    // el libro de notas haya sido aprobado formalmente (grade_status="approved").
+    // Aplica también a presenciales: deben tener notas antes de enviar el cert.
+    const isApproved = reg.grade_status === "approved" || reg.is_alumni === true;
     if (!isApproved) {
       const grades = await allGradesEntered(reg.id, reg.course_id);
       if (!grades.allGraded) {
         return NextResponse.json(
           {
-            error: "No se puede enviar el certificado: faltan calificaciones por ingresar.",
+            error: "No se puede enviar el certificado: faltan calificaciones por ingresar (examen teórico y práctico).",
             missing: grades.missing,
             filled: grades.filled,
             total: grades.total,
