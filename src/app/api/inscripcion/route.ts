@@ -5,8 +5,10 @@ import crypto from "crypto";
 
 export async function POST(request: Request) {
   try {
-    const { students, courseId, sessionId, theoreticalStart, practicalEnd } =
+    const { students, courseId, sessionId, theoreticalStart, practicalEnd, deliveryMode } =
       await request.json();
+    const mode: "online" | "presencial" =
+      deliveryMode === "presencial" ? "presencial" : "online";
 
     if (!students || !courseId) {
       return NextResponse.json(
@@ -139,7 +141,8 @@ export async function POST(request: Request) {
           country: student.country || null,
           supervisor_name: student.supervisorName || null,
           supervisor_email: student.supervisorEmail || null,
-          status: "confirmed",
+          status: mode === "presencial" ? "completed" : "confirmed",
+          delivery_mode: mode,
           source: "admin",
         };
 
@@ -152,8 +155,9 @@ export async function POST(request: Request) {
 
         // If columns don't exist, retry without them
         if (regResult.error && regResult.error.message.includes("schema cache")) {
-          console.log("Date columns not found, retrying without them...");
-          regResult = await supabaseAdmin.from("registrations").insert(baseReg);
+          console.log("Optional columns not found, retrying with minimal payload...");
+          const { delivery_mode: _dm, ...fallback } = baseReg;
+          regResult = await supabaseAdmin.from("registrations").insert(fallback);
         }
 
         if (regResult.error) {
