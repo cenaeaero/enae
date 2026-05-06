@@ -25,6 +25,15 @@ export default function EvaluacionesPage({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
+  // Normalize for accent/case-insensitive matching ("Práctica" → "practica")
+  const normalize = (s: string) =>
+    (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const isPractica = (s: string) => normalize(s).includes("practica");
+  const isAutoLabel = (s: string) => {
+    const n = normalize(s);
+    return n.includes("modulo") || n.includes("dgac") || n.includes("simulador");
+  };
+
   async function loadItems() {
     const { data: course } = await supabase
       .from("courses")
@@ -314,8 +323,8 @@ export default function EvaluacionesPage({
       <div className="space-y-2">
         {items.map((item, idx) => (
           <div key={idx} className={`rounded-lg border px-5 py-3 flex items-center gap-4 ${
-            item.name.includes("Practica") ? "bg-orange-50 border-orange-200" :
-            item.name.includes("DGAC") || item.name.includes("Simulador") ? "bg-purple-50 border-purple-200" :
+            isPractica(item.name) ? "bg-orange-50 border-orange-200" :
+            normalize(item.name).includes("dgac") || normalize(item.name).includes("simulador") ? "bg-purple-50 border-purple-200" :
             "bg-white border-gray-200"
           }`}>
             <span className="text-xs text-gray-400 w-6">{idx + 1}</span>
@@ -337,10 +346,10 @@ export default function EvaluacionesPage({
               />
               <span className="text-xs text-gray-400">%</span>
             </div>
-            {item.name.includes("Practica") && (
+            {isPractica(item.name) && (
               <span className="text-xs text-orange-600 font-medium">Manual</span>
             )}
-            {(item.name.includes("Modulo") || item.name.includes("DGAC")) && (
+            {!isPractica(item.name) && isAutoLabel(item.name) && (
               <span className="text-xs text-blue-600 font-medium">Auto</span>
             )}
             <button onClick={() => removeItem(idx)} className="text-red-400 hover:text-red-600 text-sm">✕</button>
