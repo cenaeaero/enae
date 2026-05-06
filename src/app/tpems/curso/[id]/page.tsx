@@ -886,11 +886,20 @@ export default function TpemsCourseDetail() {
             if (actProg) setActivityProgress(actProg as ActivityProgress[]);
           }
 
-          // Auto-select last in-progress or first module
+          // Auto-select last in-progress or first module.
+          // Para presenciales solo se expone el módulo del simulador → autoseleccionarlo.
+          const isPresencialReg = r.delivery_mode === "presencial";
+          const stripAccents = (s: string) =>
+            (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+          const simuladorMod = isPresencialReg
+            ? (modulesData as any[]).find((m) => stripAccents(m.title).includes("simulador"))
+            : null;
           const inProgressMod = progressData?.find(
             (p: any) => p.status === "in_progress"
           );
-          if (inProgressMod) {
+          if (simuladorMod) {
+            setSelectedModuleId(simuladorMod.id);
+          } else if (inProgressMod) {
             setSelectedModuleId((inProgressMod as any).module_id);
           } else {
             setSelectedModuleId(modulesData[0].id);
@@ -1062,7 +1071,19 @@ export default function TpemsCourseDetail() {
   // Egresado: solo cuando el admin promueve al alumno (is_alumni). Mientras tanto puede revisar módulos.
   const isEgresado = !!course?.is_alumni;
 
-  const selectedModule = modules.find((m) => m.id === selectedModuleId);
+  // Para presenciales: solo se expone el módulo del simulador (módulo 9 / "Simulador")
+  // como práctica del examen DGAC. Los demás módulos del curso son online y no aplican.
+  const normalizeText = (s: string) =>
+    (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const visibleModules = isPresencial
+    ? modules.filter((m) => normalizeText(m.title).includes("simulador"))
+    : modules;
+  const visibleModuleIds = new Set(visibleModules.map((m) => m.id));
+  const visibleLessons = isPresencial
+    ? lessons.filter((l) => visibleModuleIds.has(l.module_id))
+    : lessons;
+
+  const selectedModule = visibleModules.find((m) => m.id === selectedModuleId);
 
   if (loading) {
     return <div className="text-center py-16 text-gray-400">Cargando...</div>;
@@ -1081,7 +1102,7 @@ export default function TpemsCourseDetail() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "info", label: "Info" },
-    ...(modules.length > 0 && lessons.length > 0 && !isEgresado ? [{ key: "modules" as Tab, label: `Módulos (${totalModules})` }] : []),
+    ...(visibleModules.length > 0 && visibleLessons.length > 0 && !isEgresado ? [{ key: "modules" as Tab, label: `Módulos (${visibleModules.length})` }] : []),
     { key: "grades", label: "Calificaciones" },
     { key: "evaluation", label: "Encuesta" },
     { key: "messages", label: "Mensajes" },
@@ -1223,7 +1244,7 @@ export default function TpemsCourseDetail() {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                     Curso presencial — contenido fuera de la plataforma
                   </div>
-                  {modules.length > 0 && lessons.length > 0 && !isEgresado && (
+                  {visibleModules.length > 0 && visibleLessons.length > 0 && !isEgresado && (
                     <button onClick={() => setActiveTab("modules")} className="inline-flex items-center gap-2 bg-white border border-[#0072CE] text-[#0072CE] hover:bg-[#0072CE] hover:text-white text-sm font-semibold px-5 py-3 rounded-xl transition">
                       Practicar simulador
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
@@ -1408,7 +1429,11 @@ export default function TpemsCourseDetail() {
         )}
 
         {/* ============ MODULES TAB ============ */}
-        {activeTab === "modules" && modules.length > 0 && !isEgresado && (() => {
+        {activeTab === "modules" && visibleModules.length > 0 && !isEgresado && (() => {
+          // Para presenciales: solo se ve el módulo del simulador. Reemplazamos
+          // las referencias locales para que toda la navegación quede acotada.
+          const modules = visibleModules;
+          const lessons = visibleLessons;
           const moduleLessons = selectedModuleId ? lessons.filter((l) => l.module_id === selectedModuleId) : [];
 
           function getLessonStatus(lessonId: string) {
