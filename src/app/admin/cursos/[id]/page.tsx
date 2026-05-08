@@ -327,6 +327,12 @@ export default function EditCoursePage({
             Evaluaciones
           </Link>
           <Link
+            href={`/admin/cursos/${id}/biblioteca`}
+            className="px-3 py-2 text-sm bg-[#7B1FA2] text-white rounded-lg hover:bg-[#5E1582]"
+          >
+            Biblioteca
+          </Link>
+          <Link
             href={`/cursos/${id}`}
             target="_blank"
             className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"

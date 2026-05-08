@@ -70,7 +70,7 @@ type Message = {
   profiles: { first_name: string; last_name: string; role: string } | null;
 };
 
-type Tab = "info" | "modules" | "grades" | "evaluation" | "messages";
+type Tab = "info" | "modules" | "library" | "grades" | "evaluation" | "messages";
 
 type GradeItemRow = { id: string; name: string; weight: number; is_practical?: boolean };
 type GradeRow = { grade_item_id: string; score: number | null };
@@ -141,6 +141,9 @@ export default function TpemsCourseDetail() {
   const [examAttempts, setExamAttempts] = useState<{ activity_id: string; score: number }[]>([]);
   const [diploma, setDiploma] = useState<DiplomaRow | null>(null);
   const [fullscreenExam, setFullscreenExam] = useState<{ lessonId: string; lessonTitle: string } | null>(null);
+  const [libraryDocs, setLibraryDocs] = useState<{ id: string; title: string; description: string | null; file_name: string | null; file_size: number | null; uploaded_at: string }[]>([]);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [libraryDownloading, setLibraryDownloading] = useState<string | null>(null);
 
   const registrationId = params.id as string;
 
@@ -150,6 +153,44 @@ export default function TpemsCourseDetail() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }, [expandedLessonId]);
+
+  // Lazy load library documents when the tab opens for the first time
+  useEffect(() => {
+    if (activeTab !== "library") return;
+    if (libraryDocs.length > 0 || libraryLoading) return;
+    const courseId = course?.course_id;
+    if (!courseId) return;
+    setLibraryLoading(true);
+    supabase
+      .from("course_documents")
+      .select("id, title, description, file_name, file_size, uploaded_at, sort_order")
+      .eq("course_id", courseId)
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+      .order("uploaded_at", { ascending: false })
+      .then(({ data }) => {
+        setLibraryDocs((data || []) as any);
+        setLibraryLoading(false);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, course?.course_id]);
+
+  async function downloadLibraryDoc(docId: string) {
+    setLibraryDownloading(docId);
+    try {
+      const res = await fetch(`/api/biblioteca/download?document_id=${docId}`);
+      const json = await res.json();
+      if (res.ok && json.url) {
+        window.open(json.url, "_blank");
+      } else {
+        alert(json.error || "Error al descargar documento");
+      }
+    } catch (e: any) {
+      alert(e?.message || "Error al descargar documento");
+    } finally {
+      setLibraryDownloading(null);
+    }
+  }
 
   // Content protection: block print, view source, save, copy, devtools
   useEffect(() => {
@@ -1103,6 +1144,7 @@ export default function TpemsCourseDetail() {
   const tabs: { key: Tab; label: string }[] = [
     { key: "info", label: "Info" },
     ...(visibleModules.length > 0 && visibleLessons.length > 0 && !isEgresado ? [{ key: "modules" as Tab, label: `Módulos (${visibleModules.length})` }] : []),
+    { key: "library", label: "Biblioteca" },
     { key: "grades", label: "Calificaciones" },
     { key: "evaluation", label: "Encuesta" },
     { key: "messages", label: "Mensajes" },
@@ -1126,6 +1168,7 @@ export default function TpemsCourseDetail() {
   const tabIcons: Record<Tab, string> = {
     info: "ℹ️",
     modules: "📚",
+    library: "📁",
     grades: "📊",
     evaluation: "📋",
     messages: "💬",
@@ -1959,6 +2002,49 @@ d.addEventListener('mousedown',function(e){if(e.detail>1)e.preventDefault();},tr
           </div>
           );
         })()}
+
+        {/* ============ LIBRARY TAB ============ */}
+        {activeTab === "library" && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-6 py-5 border-b border-gray-100 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-600 text-lg">📁</div>
+              <div>
+                <h2 className="text-base font-bold text-[#003366]">Biblioteca del curso</h2>
+                <p className="text-xs text-gray-500">Material complementario disponible para descarga</p>
+              </div>
+            </div>
+            {libraryLoading ? (
+              <div className="p-10 text-center text-gray-400 text-sm">Cargando documentos...</div>
+            ) : libraryDocs.length === 0 ? (
+              <div className="p-10 text-center text-gray-400 text-sm">
+                Aún no hay documentos disponibles para este curso.
+              </div>
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {libraryDocs.map((d) => (
+                  <li key={d.id} className="px-6 py-4 flex items-start gap-4 hover:bg-gray-50/60 transition">
+                    <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center text-red-500 text-sm shrink-0">PDF</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800">{d.title}</p>
+                      {d.description && <p className="text-xs text-gray-500 mt-0.5">{d.description}</p>}
+                      <p className="text-[11px] text-gray-400 mt-1">
+                        {d.file_name || ""}
+                        {d.file_size ? ` · ${(d.file_size / 1024 / 1024).toFixed(1)} MB` : ""}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => downloadLibraryDoc(d.id)}
+                      disabled={libraryDownloading === d.id}
+                      className="text-sm bg-[#0072CE] hover:bg-[#005BA1] text-white px-4 py-2 rounded-lg transition disabled:opacity-50 shrink-0"
+                    >
+                      {libraryDownloading === d.id ? "Abriendo..." : "Descargar"}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
         {/* ============ GRADES TAB ============ */}
         {activeTab === "grades" && (
