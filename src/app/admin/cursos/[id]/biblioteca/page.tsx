@@ -65,26 +65,58 @@ export default function AdminBibliotecaPage({
       setMessage("Ingresa un título");
       return;
     }
+    if (file.type && !file.type.includes("pdf")) {
+      setMessage("Error: Solo se aceptan archivos PDF");
+      return;
+    }
     setUploading(true);
     setMessage("");
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("course_id", courseId);
-    fd.append("title", title.trim());
-    if (description.trim()) fd.append("description", description.trim());
 
-    const res = await fetch("/api/admin/biblioteca", { method: "POST", body: fd });
-    const json = await res.json();
-    if (res.ok) {
+    try {
+      // Paso 1: pedir URL firmada para subir directo al bucket
+      const signRes = await fetch("/api/admin/biblioteca?action=sign-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ course_id: courseId, file_name: file.name }),
+      });
+      const signJson = await signRes.json();
+      if (!signRes.ok) throw new Error(signJson.error || signRes.statusText);
+
+      // Paso 2: subir el PDF directo al bucket (sin pasar por Vercel)
+      const putRes = await fetch(signJson.signedUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type || "application/pdf" },
+        body: file,
+      });
+      if (!putRes.ok) throw new Error("Falló la subida al bucket: " + putRes.status);
+
+      // Paso 3: registrar el documento en la BD
+      const commitRes = await fetch("/api/admin/biblioteca?action=commit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          course_id: courseId,
+          path: signJson.path,
+          title: title.trim(),
+          description: description.trim() || null,
+          file_name: file.name,
+          file_size: file.size,
+          mime_type: file.type || "application/pdf",
+        }),
+      });
+      const commitJson = await commitRes.json();
+      if (!commitRes.ok) throw new Error(commitJson.error || commitRes.statusText);
+
       setMessage("Documento subido");
       setTitle("");
       setDescription("");
       if (fileRef.current) fileRef.current.value = "";
       load();
-    } else {
-      setMessage("Error: " + (json.error || res.statusText));
+    } catch (err: any) {
+      setMessage("Error: " + (err?.message || "subida fallida"));
+    } finally {
+      setUploading(false);
     }
-    setUploading(false);
   }
 
   async function handleDelete(doc: Doc) {

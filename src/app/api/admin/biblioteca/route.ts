@@ -37,51 +37,52 @@ export async function GET(request: Request) {
   return NextResponse.json({ documents: data || [] });
 }
 
-// POST multipart/form-data: file + course_id + title + description?
+// POST: dos modos
+//   1) ?action=sign-upload  → JSON { course_id, file_name } → devuelve { path, signedUrl, token }
+//      El cliente sube el archivo PUT directo a signedUrl (evita el límite de
+//      ~4.5 MB de Vercel para body de rutas API).
+//   2) ?action=commit       → JSON { course_id, path, title, description?, file_name, file_size, mime_type? }
+//      Inserta el registro en course_documents una vez que el archivo ya está en Storage.
 export async function POST(request: Request) {
   const auth = await requireAdmin();
   if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-  const form = await request.formData();
-  const file = form.get("file") as File | null;
-  const courseId = form.get("course_id") as string | null;
-  const title = (form.get("title") as string | null) || "";
-  const description = (form.get("description") as string | null) || null;
+  const { searchParams } = new URL(request.url);
+  const action = searchParams.get("action") || "commit";
+  const body = await request.json().catch(() => ({}));
 
-  if (!file || !courseId || !title) {
-    return NextResponse.json({ error: "file, course_id y title son requeridos" }, { status: 400 });
+  if (action === "sign-upload") {
+    const { course_id, file_name } = body || {};
+    if (!course_id || !file_name) {
+      return NextResponse.json({ error: "course_id y file_name son requeridos" }, { status: 400 });
+    }
+    const safeName = String(file_name).replace(/[^a-zA-Z0-9._-]/g, "_");
+    const path = `${course_id}/${Date.now()}-${safeName}`;
+    const { data, error } = await supabaseAdmin.storage
+      .from(BUCKET)
+      .createSignedUploadUrl(path);
+    if (error || !data) {
+      return NextResponse.json({ error: "No se pudo firmar URL: " + (error?.message || "desconocido") }, { status: 500 });
+    }
+    return NextResponse.json({ path, signedUrl: data.signedUrl, token: data.token });
   }
 
-  // Validate it's a PDF (or at least pdf-friendly)
-  if (file.type && !file.type.includes("pdf")) {
-    return NextResponse.json({ error: "Solo se aceptan archivos PDF" }, { status: 400 });
-  }
-
-  const ext = (file.name.split(".").pop() || "pdf").toLowerCase();
-  const path = `${courseId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-  const arrayBuffer = await file.arrayBuffer();
-
-  const { error: uploadError } = await supabaseAdmin.storage
-    .from(BUCKET)
-    .upload(path, arrayBuffer, {
-      contentType: file.type || "application/pdf",
-      upsert: false,
-    });
-
-  if (uploadError) {
-    return NextResponse.json({ error: "Error al subir: " + uploadError.message }, { status: 500 });
+  // action === "commit"
+  const { course_id, path, title, description, file_name, file_size, mime_type } = body || {};
+  if (!course_id || !path || !title) {
+    return NextResponse.json({ error: "course_id, path y title son requeridos" }, { status: 400 });
   }
 
   const { data: inserted, error: insertError } = await supabaseAdmin
     .from("course_documents")
     .insert({
-      course_id: courseId,
+      course_id,
       title,
-      description,
+      description: description || null,
       file_url: path,
-      file_name: file.name,
-      file_size: file.size,
-      mime_type: file.type || "application/pdf",
+      file_name: file_name || null,
+      file_size: typeof file_size === "number" ? file_size : null,
+      mime_type: mime_type || "application/pdf",
       uploaded_by: auth.user!.id,
     })
     .select()
@@ -93,7 +94,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
 
-  void ext;
   return NextResponse.json({ document: inserted });
 }
 
