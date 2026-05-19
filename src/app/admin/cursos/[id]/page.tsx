@@ -13,6 +13,7 @@ import {
   deleteSession,
   uploadCourseImage,
 } from "@/lib/supabase-admin";
+import { isFreeFee, FREE_FEE_LABEL } from "@/lib/fees";
 
 type SessionData = {
   id?: string;
@@ -829,15 +830,32 @@ export default function EditCoursePage({
                       </label>
                       <input
                         type="text"
-                        value={session.fee}
+                        value={isFreeFee(session.fee) && session.fee ? "" : session.fee}
+                        disabled={isFreeFee(session.fee) && !!session.fee}
                         onChange={(e) => {
                           const updated = [...sessions];
                           updated[i] = { ...updated[i], fee: e.target.value };
                           setSessions(updated);
                         }}
-                        className="w-full py-2 px-3 border border-gray-300 rounded text-sm"
-                        placeholder="CLP $850.000"
+                        className="w-full py-2 px-3 border border-gray-300 rounded text-sm disabled:bg-gray-100 disabled:text-gray-400"
+                        placeholder={isFreeFee(session.fee) && session.fee ? FREE_FEE_LABEL : "CLP $850.000"}
                       />
+                      <label className="flex items-center gap-1.5 mt-1.5 text-xs text-gray-600 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isFreeFee(session.fee) && !!session.fee}
+                          onChange={(e) => {
+                            const updated = [...sessions];
+                            updated[i] = {
+                              ...updated[i],
+                              fee: e.target.checked ? FREE_FEE_LABEL : "",
+                            };
+                            setSessions(updated);
+                          }}
+                          className="rounded border-gray-300 text-[#0072CE] focus:ring-[#0072CE]"
+                        />
+                        Curso gratuito
+                      </label>
                     </div>
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">

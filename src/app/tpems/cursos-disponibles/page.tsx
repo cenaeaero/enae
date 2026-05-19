@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
-import { isFreeFee } from "@/lib/fees";
+import { isFreeFee, formatFee } from "@/lib/fees";
 
 type AvailableCourse = {
   id: string;
@@ -280,9 +280,9 @@ export default function CursosDisponiblesPage() {
                             </svg>
                             {nextSession.dates}
                           </span>
-                          {nextSession.fee && (
-                            <span className="font-medium text-[#003366]">
-                              {nextSession.fee}
+                          {(nextSession.fee || isFreeFee(nextSession.fee)) && (
+                            <span className={`font-medium ${isFreeFee(nextSession.fee) ? "text-green-700" : "text-[#003366]"}`}>
+                              {formatFee(nextSession.fee, "Consultar")}
                             </span>
                           )}
                         </>

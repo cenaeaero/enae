@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
+import { formatFee, isFreeFee } from "@/lib/fees";
 
 type DbSession = {
   id: string;
@@ -115,8 +116,8 @@ export default function CourseSessionsTable({
                   </span>
                 </td>
                 {sessions.some((s) => s.fee) && (
-                  <td className="px-4 py-3 text-sm font-medium text-gray-700">
-                    {session.fee || "—"}
+                  <td className={`px-4 py-3 text-sm font-medium ${session.fee && isFreeFee(session.fee) ? "text-green-700" : "text-gray-700"}`}>
+                    {formatFee(session.fee, "—")}
                   </td>
                 )}
                 <td className="px-4 py-3">

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { formatFee, isFreeFee } from "@/lib/fees";
 
 type DbCourse = {
   title: string;
@@ -168,7 +169,7 @@ export function DynamicFee({ courseCode, courseTitle, fallbackFee }: { courseCod
   return (
     <div className="flex items-center justify-between py-2 border-b border-gray-100">
       <span className="text-xs text-gray-400 uppercase tracking-wider">Valor</span>
-      <span className="text-sm font-bold text-[#003366]">{displayFee}</span>
+      <span className={`text-sm font-bold ${isFreeFee(displayFee) ? "text-green-700" : "text-[#003366]"}`}>{formatFee(displayFee)}</span>
     </div>
   );
 }

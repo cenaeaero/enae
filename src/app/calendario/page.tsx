@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
+import { formatFee, isFreeFee } from "@/lib/fees";
 
 type SessionRow = {
   id: string;
@@ -248,7 +249,7 @@ export default function CalendarioPage() {
                                 <span className="text-sm text-gray-700">{session.location}</span>
                               )}
                             </td>
-                            <td className="px-6 py-4 text-sm font-semibold text-gray-800 hidden lg:table-cell whitespace-nowrap">{session.fee || "Consultar"}</td>
+                            <td className={`px-6 py-4 text-sm font-semibold hidden lg:table-cell whitespace-nowrap ${session.fee && isFreeFee(session.fee) ? "text-green-700" : "text-gray-800"}`}>{formatFee(session.fee, "Consultar")}</td>
                             <td className="px-6 py-4 text-right">
                               <Link href={`/registro/${session.id}`} className="inline-flex items-center gap-1.5 bg-[#4FC3F7] hover:bg-[#29B6F6] text-white text-xs font-medium px-4 py-2 rounded-full transition">
                                 Inscripción
