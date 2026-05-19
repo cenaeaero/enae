@@ -70,6 +70,40 @@ export default function RegistroPage() {
           setLoading(false);
           return;
         }
+
+        // Fallback: maybe the UUID is a course id (link from /cursos/[id]).
+        // Look up the course and pick its first active session.
+        const { data: courseData } = await supabase
+          .from("courses")
+          .select(
+            "id, title, code, area, area_slug, duration, image_url, sessions(id, dates, location, modality, fee, is_active)"
+          )
+          .eq("id", id)
+          .single();
+
+        if (courseData) {
+          const c = courseData as any;
+          const firstSession =
+            (c.sessions || []).find((s: any) => s.is_active) ||
+            (c.sessions || [])[0] ||
+            null;
+          setSession({
+            sessionId: firstSession?.id || "",
+            courseId: c.id,
+            courseTitle: c.title || "",
+            courseCode: c.code || null,
+            courseArea: c.area || "",
+            courseDuration: c.duration || "",
+            courseAreaSlug: c.area_slug || "",
+            courseImage: c.image_url || null,
+            dates: firstSession?.dates || "Por confirmar",
+            location: firstSession?.location || "",
+            modality: firstSession?.modality || "",
+            fee: firstSession?.fee || null,
+          });
+          setLoading(false);
+          return;
+        }
       }
 
       // Fallback: try static course data (legacy slugs like "uas-basico")
@@ -320,6 +354,19 @@ export default function RegistroPage() {
           {!submitted && !existingStudent && (
             <form onSubmit={handleSubmit}>
               <div className="space-y-8">
+                {/* Already registered shortcut */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+                  <p className="text-sm text-gray-700">
+                    ¿Ya tienes una cuenta en ENAE? Inicia sesión y inscríbete a este curso desde <strong>Cursos Disponibles</strong>, sin volver a llenar tus datos.
+                  </p>
+                  <Link
+                    href="/tpems/login"
+                    className="shrink-0 inline-block bg-[#0072CE] hover:bg-[#005fa3] text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition text-center"
+                  >
+                    Ir al Portal de Alumnos
+                  </Link>
+                </div>
+
                 {/* Personal Information */}
                 <div className="bg-white rounded-lg border border-gray-200 p-6">
                   <h3 className="text-lg font-bold text-[#003366] mb-5 flex items-center gap-2">
