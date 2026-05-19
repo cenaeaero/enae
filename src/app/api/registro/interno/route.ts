@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-service";
 import { createSupabaseServer } from "@/lib/supabase-server";
+import { isFreeFee } from "@/lib/fees";
 
 export async function POST(request: Request) {
   try {
@@ -57,16 +58,29 @@ export async function POST(request: Request) {
 
     // Resolve session if not provided - get first active session
     let resolvedSessionId = sessionId || null;
+    let resolvedSessionFee: string | null = null;
     if (!resolvedSessionId) {
       const { data: firstSession } = await supabaseAdmin
         .from("sessions")
-        .select("id")
+        .select("id, fee")
         .eq("course_id", courseId)
         .eq("is_active", true)
         .limit(1)
         .single();
-      if (firstSession) resolvedSessionId = firstSession.id;
+      if (firstSession) {
+        resolvedSessionId = firstSession.id;
+        resolvedSessionFee = firstSession.fee;
+      }
+    } else {
+      const { data: sess } = await supabaseAdmin
+        .from("sessions")
+        .select("fee")
+        .eq("id", resolvedSessionId)
+        .single();
+      if (sess) resolvedSessionFee = sess.fee;
     }
+
+    const isFree = isFreeFee(resolvedSessionFee);
 
     // Create registration using existing profile data
     const { data: registration, error: regError } = await supabaseAdmin
@@ -87,7 +101,7 @@ export async function POST(request: Request) {
         postal_code: profile.postal_code,
         country: profile.country || "Chile",
         phone: profile.phone,
-        status: "pending",
+        status: isFree ? "confirmed" : "pending",
       })
       .select()
       .single();

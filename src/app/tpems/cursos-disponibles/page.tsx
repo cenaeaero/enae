@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
+import { isFreeFee } from "@/lib/fees";
 
 type AvailableCourse = {
   id: string;
@@ -205,7 +206,7 @@ export default function CursosDisponiblesPage() {
                       {/* Status / Action */}
                       <div className="shrink-0">
                         {reg ? (
-                          reg.status === "pending" ? (
+                          reg.status === "pending" && !isFreeFee(nextSession?.fee) ? (
                             <Link
                               href={`/tpems/curso/${reg.id}`}
                               className="inline-flex items-center gap-1.5 bg-yellow-100 text-yellow-800 border border-yellow-200 text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-yellow-200 transition"

@@ -4,6 +4,7 @@ import {
   sendStudentCredentials,
   sendAdminRegistrationNotification,
 } from "@/lib/email";
+import { isFreeFee } from "@/lib/fees";
 import crypto from "crypto";
 
 export async function POST(request: Request) {
@@ -180,27 +181,34 @@ export async function POST(request: Request) {
 
     // 4. Resolve session UUID
     let resolvedSessionId = null;
+    let resolvedSessionFee: string | null = null;
     if (sessionDates && resolvedCourseId) {
       const { data: sessionMatch } = await supabaseAdmin
         .from("sessions")
-        .select("id")
+        .select("id, fee")
         .eq("course_id", resolvedCourseId)
         .eq("dates", sessionDates)
         .single();
       if (sessionMatch) {
         resolvedSessionId = sessionMatch.id;
+        resolvedSessionFee = sessionMatch.fee;
       } else {
         // Fallback: get first active session for this course
         const { data: firstSession } = await supabaseAdmin
           .from("sessions")
-          .select("id")
+          .select("id, fee")
           .eq("course_id", resolvedCourseId)
           .eq("is_active", true)
           .limit(1)
           .single();
-        if (firstSession) resolvedSessionId = firstSession.id;
+        if (firstSession) {
+          resolvedSessionId = firstSession.id;
+          resolvedSessionFee = firstSession.fee;
+        }
       }
     }
+
+    const isFree = isFreeFee(resolvedSessionFee);
 
     // 5. Create registration
     const { data: registration, error: regError } = await supabaseAdmin
@@ -230,7 +238,7 @@ export async function POST(request: Request) {
         billing_country: billingCountry,
         how_found: howFound,
         comments,
-        status: "pending",
+        status: isFree ? "confirmed" : "pending",
         source: "self",
       })
       .select()

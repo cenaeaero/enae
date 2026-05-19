@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
+import { isFreeFee } from "@/lib/fees";
 
 type Registration = {
   id: string;
@@ -167,8 +168,9 @@ export default function TpemsDashboard() {
       ) : (
         <div className="space-y-4">
           {registrations.map((reg) => {
-            // Only allow access to course if registration is confirmed or completed (paid)
-            const hasAccess = reg.status === "confirmed" || reg.status === "completed";
+            // Allow access if confirmed/completed, OR if pending but the course is free
+            const isFree = isFreeFee(reg.session_fee);
+            const hasAccess = reg.status === "confirmed" || reg.status === "completed" || (reg.status === "pending" && isFree);
             const CardWrapper = hasAccess ? Link : "div";
             const cardProps = hasAccess
               ? { href: `/tpems/curso/${reg.id}`, className: "block bg-white rounded-lg border border-gray-200 hover:shadow-md transition overflow-hidden cursor-pointer" }
@@ -220,7 +222,7 @@ export default function TpemsDashboard() {
                   </div>
 
                   {/* Pay button */}
-                  {reg.status === "pending" && reg.session_fee && (
+                  {reg.status === "pending" && reg.session_fee && !isFreeFee(reg.session_fee) && (
                     <button
                       onClick={(e) => {
                         e.preventDefault();
