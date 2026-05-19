@@ -305,7 +305,7 @@ export default function RegistroPage() {
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <Link
-                  href="/tpems/login"
+                  href={`/tpems/login?next=${encodeURIComponent(`/tpems/cursos-disponibles?enroll=${session?.courseId || ""}`)}`}
                   className="inline-block bg-[#0072CE] hover:bg-[#005fa3] text-white font-medium px-6 py-3 rounded-lg transition"
                 >
                   Ir al Portal de Alumnos
@@ -336,7 +336,7 @@ export default function RegistroPage() {
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <Link
-                  href="/tpems/login"
+                  href={`/tpems/login?next=${encodeURIComponent(`/tpems/cursos-disponibles?enroll=${session?.courseId || ""}`)}`}
                   className="inline-block bg-[#0072CE] hover:bg-[#005fa3] text-white font-medium px-6 py-3 rounded-lg transition"
                 >
                   Ir al Portal de Alumnos
@@ -358,10 +358,10 @@ export default function RegistroPage() {
                 {/* Already registered shortcut */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
                   <p className="text-sm text-gray-700">
-                    ¿Ya tienes una cuenta en ENAE? Inicia sesión y inscríbete a este curso desde <strong>Cursos Disponibles</strong>, sin volver a llenar tus datos.
+                    ¿Ya tienes una cuenta en ENAE? Inicia sesión y te inscribimos a este curso automáticamente, sin volver a llenar tus datos.
                   </p>
                   <Link
-                    href="/tpems/login"
+                    href={`/tpems/login?next=${encodeURIComponent(`/tpems/cursos-disponibles?enroll=${session?.courseId || ""}`)}`}
                     className="shrink-0 inline-block bg-[#0072CE] hover:bg-[#005fa3] text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition text-center"
                   >
                     Ir al Portal de Alumnos

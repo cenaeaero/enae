@@ -112,7 +112,9 @@ export default function TpemsLoginPage() {
       }
 
       await new Promise((r) => setTimeout(r, 500));
-      window.location.href = "/tpems";
+      const nextParam = new URLSearchParams(window.location.search).get("next");
+      const safeNext = nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/tpems";
+      window.location.href = safeNext;
     } catch (err: any) {
       setError("Error de conexion. Intenta nuevamente.");
       if (tsWidgetId.current) window.turnstile.reset(tsWidgetId.current);

@@ -68,18 +68,56 @@ export default function CursosDisponiblesPage() {
       }
 
       // Load user's existing registrations
+      let regs: { id: string; course_id: string; status: string }[] = [];
       if (user?.email) {
-        const { data: regs } = await supabase
+        const { data } = await supabase
           .from("registrations")
           .select("id, course_id, status")
           .eq("email", user.email);
-
-        if (regs) {
-          setMyRegistrations(regs);
+        if (data) {
+          regs = data;
+          setMyRegistrations(data);
         }
       }
 
       setLoading(false);
+
+      // Auto-enroll if ?enroll=COURSE_ID is present and user not yet registered
+      const enrollId = new URLSearchParams(window.location.search).get("enroll");
+      if (enrollId && user) {
+        const existing = regs.find((r) => r.course_id === enrollId);
+        if (existing) {
+          window.location.href = `/tpems/curso/${existing.id}`;
+          return;
+        }
+        // Strip the query param so a refresh doesn't re-trigger
+        window.history.replaceState({}, "", "/tpems/cursos-disponibles");
+        await autoEnroll(enrollId);
+      }
+    }
+
+    async function autoEnroll(courseId: string) {
+      setEnrollingId(courseId);
+      try {
+        const res = await fetch("/api/registro/interno", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ courseId }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          window.location.href = `/tpems/curso/${data.registrationId}`;
+          return;
+        }
+        if (data.registrationId) {
+          window.location.href = `/tpems/curso/${data.registrationId}`;
+          return;
+        }
+        setErrorMsg(data.error || "No fue posible inscribirte automáticamente.");
+      } catch {
+        setErrorMsg("Error de conexión al inscribir automáticamente.");
+      }
+      setEnrollingId(null);
     }
 
     load();
