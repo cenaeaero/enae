@@ -25,16 +25,28 @@ export default function CalificacionesPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [search, setSearch] = useState("");
+  const [companyFilter, setCompanyFilter] = useState("");
 
   const searchNorm = search.trim().toLowerCase();
-  const filteredStudents = searchNorm
-    ? students.filter(
-        (s) =>
-          s.name.toLowerCase().includes(searchNorm) ||
-          s.email.toLowerCase().includes(searchNorm) ||
-          (s.company ?? "").toLowerCase().includes(searchNorm)
-      )
-    : students;
+  const companies = Array.from(
+    new Set(
+      students
+        .map((s) => (s.company ?? "").trim())
+        .filter((c) => c !== "")
+    )
+  ).sort((a, b) => a.localeCompare(b, "es"));
+
+  const filteredStudents = students.filter((s) => {
+    if (companyFilter && (s.company ?? "").trim() !== companyFilter) return false;
+    if (searchNorm) {
+      const hay =
+        s.name.toLowerCase().includes(searchNorm) ||
+        s.email.toLowerCase().includes(searchNorm) ||
+        (s.company ?? "").toLowerCase().includes(searchNorm);
+      if (!hay) return false;
+    }
+    return true;
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -325,6 +337,7 @@ export default function CalificacionesPage() {
               onChange={(e) => {
                 setSelectedCourse(e.target.value);
                 setSearch("");
+                setCompanyFilter("");
                 if (e.target.value) loadGrades(e.target.value);
               }}
               className="w-full border border-gray-200 rounded px-3 py-2 text-sm"
@@ -351,6 +364,30 @@ export default function CalificacionesPage() {
               />
             </div>
           )}
+          {selectedCourse && companies.length > 0 && (
+            <div className="min-w-[200px]">
+              <label className="block text-xs text-gray-500 uppercase mb-1">
+                Empresa
+              </label>
+              <select
+                value={companyFilter}
+                onChange={(e) => setCompanyFilter(e.target.value)}
+                className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#0072CE]"
+              >
+                <option value="">Todas ({students.length})</option>
+                {companies.map((c) => {
+                  const count = students.filter(
+                    (s) => (s.company ?? "").trim() === c
+                  ).length;
+                  return (
+                    <option key={c} value={c}>
+                      {c} ({count})
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
           {selectedCourse && students.length > 0 && (
             <button
               onClick={saveAll}
@@ -361,9 +398,10 @@ export default function CalificacionesPage() {
             </button>
           )}
         </div>
-        {selectedCourse && students.length > 0 && searchNorm && (
+        {selectedCourse && students.length > 0 && (searchNorm || companyFilter) && (
           <p className="text-xs text-gray-500 mt-2">
             Mostrando {filteredStudents.length} de {students.length} alumnos
+            {companyFilter && <> · Empresa: <strong>{companyFilter}</strong></>}
           </p>
         )}
       </div>
@@ -451,6 +489,11 @@ export default function CalificacionesPage() {
                         {student.name}
                       </p>
                       <p className="text-xs text-gray-400">{student.email}</p>
+                      {student.company && (
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {student.company}
+                        </p>
+                      )}
                     </td>
                     {gradeItems.map((item) => {
                       const isAuto = student.autoGrades.has(item.id);
