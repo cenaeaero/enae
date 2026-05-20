@@ -1101,6 +1101,23 @@ export default function TpemsCourseDetail() {
 
   // Progress calculation
   const isPresencial = course?.delivery_mode === "presencial";
+
+  // For presencial courses: gate downloads by presence of "examen final" grade.
+  // Match grade_items by name (case-insensitive, accent-insensitive).
+  const normalizeForMatch = (s: string) =>
+    (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const finalExamGradeItem = gradeItems.find((gi) => {
+    const n = normalizeForMatch(gi.name);
+    return n.includes("examen final") || n.trim() === "final";
+  });
+  const hasFinalExamGrade = finalExamGradeItem
+    ? studentGrades.some(
+        (g) => g.grade_item_id === finalExamGradeItem.id && g.score != null
+      )
+    : false;
+  // If the course has no item named "Examen Final", don't apply this extra gate.
+  const presencialDownloadAllowed =
+    !isPresencial || !finalExamGradeItem || hasFinalExamGrade;
   const completedCount = progress.filter((p) => p.status === "completed").length;
   const totalModules = modules.length;
   const rawProgress = totalModules > 0 ? Math.round((completedCount / totalModules) * 100) : 0;
@@ -2264,7 +2281,23 @@ d.addEventListener('mousedown',function(e){if(e.detail>1)e.preventDefault();},tr
                       </div>
                     </div>
 
-                    {!allSurveysCompleted ? (
+                    {!presencialDownloadAllowed ? (
+                      <div className="mt-4 pt-4 border-t border-gray-100">
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                          <div className="flex items-start gap-3">
+                            <span className="text-xl shrink-0">📝</span>
+                            <div>
+                              <p className="text-sm font-semibold text-amber-800">
+                                Pendiente de calificar el examen final
+                              </p>
+                              <p className="text-xs text-amber-600 mt-1">
+                                Para descargar el diploma y el certificado debes contar con la nota del <strong>Examen Final</strong>. El instructor la registrará una vez rendido.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : !allSurveysCompleted ? (
                       <div className="mt-4 pt-4 border-t border-gray-100">
                         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
                           <div className="flex items-start gap-3">
