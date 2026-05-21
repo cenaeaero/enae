@@ -67,6 +67,7 @@ export async function POST(request: Request) {
   const body = await request.json();
   const payload: Record<string, any> = {
     company: normalizeOrganization(body.company) || body.company,
+    company_id: body.company_id || null,
     course_id: body.course_id || null,
     session_id: body.session_id || null,
     contact_name: body.contact_name || null,
@@ -79,8 +80,13 @@ export async function POST(request: Request) {
     status: "quoted",
   };
 
-  if (!payload.company) {
+  if (!payload.company && !payload.company_id) {
     return NextResponse.json({ error: "company es requerido" }, { status: 400 });
+  }
+  // Si vino company_id pero no name, lo resolvemos
+  if (payload.company_id && !payload.company) {
+    const { data: c } = await supabaseAdmin.from("companies").select("name").eq("id", payload.company_id).maybeSingle();
+    if (c?.name) payload.company = c.name;
   }
 
   const { data, error } = await supabaseAdmin
@@ -113,6 +119,11 @@ export async function PATCH(request: Request) {
 
   if (updates.company) {
     updates.company = normalizeOrganization(updates.company) || updates.company;
+  }
+  // Si vino company_id, resolver name
+  if (updates.company_id) {
+    const { data: c } = await supabaseAdmin.from("companies").select("name").eq("id", updates.company_id).maybeSingle();
+    if (c?.name) updates.company = c.name;
   }
   // No dejamos al cliente forzar status si pasa por aquí — lo derivamos
   if ("status" in updates) delete updates.status;

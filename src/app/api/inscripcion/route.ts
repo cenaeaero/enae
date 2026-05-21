@@ -6,8 +6,15 @@ import crypto from "crypto";
 
 export async function POST(request: Request) {
   try {
-    const { students, courseId, sessionId, theoreticalStart, practicalEnd, deliveryMode } =
-      await request.json();
+    const {
+      students,
+      courseId,
+      sessionId,
+      theoreticalStart,
+      practicalEnd,
+      deliveryMode,
+      billing,
+    } = await request.json();
     const mode: "online" | "presencial" =
       deliveryMode === "presencial" ? "presencial" : "online";
 
@@ -102,6 +109,12 @@ export async function POST(request: Request) {
           }
         }
 
+        // Si vino una empresa del wizard, prevalece sobre la del CSV/fila
+        const effectiveCompany = billing?.company_name
+          ? normalizeOrganization(billing.company_name)
+          : company;
+        const effectiveCompanyId = billing?.company_id || null;
+
         // Upsert profile with all available fields
         const profilePayload: Record<string, any> = {
           user_id: userId,
@@ -109,7 +122,8 @@ export async function POST(request: Request) {
           last_name: lastName,
           email,
           rut: rut || null,
-          organization: company || null,
+          organization: effectiveCompany || null,
+          company_id: effectiveCompanyId,
           organization_type: student.organizationType || null,
           job_title: student.jobTitle || null,
           phone: student.phone || null,
@@ -129,10 +143,12 @@ export async function POST(request: Request) {
         const baseReg: Record<string, any> = {
           course_id: courseId,
           session_id: sessionId || null,
+          company_id: effectiveCompanyId,
           first_name: firstName,
           last_name: lastName,
           email,
-          organization: company || null,
+          organization: effectiveCompany || null,
+          company: effectiveCompany || null,
           organization_type: student.organizationType || null,
           job_title: student.jobTitle || null,
           phone: student.phone || null,
@@ -196,17 +212,16 @@ export async function POST(request: Request) {
     }
 
     // ============================================================
-    // Auto-crear/actualizar billing_case por empresa+sesión
-    // Agrupa los registrations recién creados por su `company` y
-    // los vincula a un caso de facturación en estado "quoted".
-    // Best-effort: si la migración no está corrida, ignora.
+    // Vincular alumnos al billing_case (caso B2B)
+    // Modos:
+    //  - billing.billing_case_id  → caso existente
+    //  - billing.new_quotation_*  → crear caso nuevo
+    //  - billing.loose=true       → caso especial con quotation_number=9999
+    //  - sin billing              → comportamiento legacy: agrupa por company
     // ============================================================
     try {
-      const byCompany: Record<string, string[]> = {};
+      const regIds: string[] = [];
       for (const student of students) {
-        const company = normalizeOrganization(student.company);
-        if (!company) continue;
-        // Buscar el registration recién creado para este alumno+curso
         const { data: reg } = await supabaseAdmin
           .from("registrations")
           .select("id")
@@ -215,50 +230,68 @@ export async function POST(request: Request) {
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
-        if (reg?.id) {
-          (byCompany[company] ||= []).push(reg.id);
-        }
+        if (reg?.id) regIds.push(reg.id);
       }
 
-      for (const [company, regIds] of Object.entries(byCompany)) {
-        // ¿Existe un caso abierto para esta empresa+sesión?
-        let existingId: string | null = null;
-        if (sessionId) {
+      if (regIds.length > 0 && billing) {
+        let caseId: string | null = null;
+
+        if (billing.billing_case_id) {
+          caseId = billing.billing_case_id;
+        } else if (billing.loose && billing.company_id) {
+          // Cotización 9999 para alumnos sueltos: una por empresa+sesión
           const { data: existing } = await supabaseAdmin
             .from("billing_cases")
             .select("id")
-            .eq("company", company)
-            .eq("session_id", sessionId)
-            .neq("status", "cancelled")
+            .eq("company_id", billing.company_id)
+            .eq("quotation_number", "9999")
+            .eq("session_id", sessionId || "")
             .maybeSingle();
-          existingId = existing?.id || null;
-        }
-
-        if (!existingId) {
-          const { data: newCase } = await supabaseAdmin
+          if (existing) {
+            caseId = existing.id;
+          } else {
+            const { data: nc } = await supabaseAdmin
+              .from("billing_cases")
+              .insert({
+                company: billing.company_name,
+                company_id: billing.company_id,
+                course_id: courseId,
+                session_id: sessionId || null,
+                quotation_number: "9999",
+                status: "quoted",
+                notes: "Alumnos sueltos",
+              })
+              .select("id").maybeSingle();
+            caseId = nc?.id || null;
+          }
+        } else if (billing.new_quotation_number && billing.company_id) {
+          const { data: nc } = await supabaseAdmin
             .from("billing_cases")
             .insert({
-              company,
+              company: billing.company_name,
+              company_id: billing.company_id,
               course_id: courseId,
               session_id: sessionId || null,
+              quotation_number: billing.new_quotation_number,
+              quotation_amount: billing.new_quotation_amount,
+              quotation_date: new Date().toISOString().split("T")[0],
               status: "quoted",
             })
-            .select("id")
-            .maybeSingle();
-          existingId = newCase?.id || null;
+            .select("id").maybeSingle();
+          caseId = nc?.id || null;
         }
 
-        if (existingId) {
+        if (caseId) {
           await supabaseAdmin
             .from("billing_case_registrations")
             .upsert(
-              regIds.map((rid) => ({ billing_case_id: existingId!, registration_id: rid })),
+              regIds.map((rid) => ({ billing_case_id: caseId!, registration_id: rid })),
               { onConflict: "billing_case_id,registration_id", ignoreDuplicates: true }
             );
         }
       }
     } catch (e) {
-      console.error("billing_cases auto-create failed:", e);
+      console.error("billing link failed:", e);
     }
 
     return NextResponse.json({ results });

@@ -16,6 +16,7 @@ type Profile = {
   job_title: string | null;
   organization: string | null;
   organization_type: string | null;
+  company_id: string | null;
   address: string | null;
   city: string | null;
   state: string | null;
@@ -417,10 +418,16 @@ export default function AdminPerfilesPage() {
                               label="Cargo"
                               value={profile.job_title}
                             />
-                            <DetailField
-                              label="Organización"
-                              value={profile.organization}
-                            />
+                            <div>
+                              <p className="text-xs font-medium text-gray-400 uppercase mb-1">Organización</p>
+                              {profile.company_id ? (
+                                <a href={`/admin/empresas?id=${profile.company_id}`} className="text-sm text-[#0072CE] hover:underline font-medium">
+                                  {profile.organization || "—"} →
+                                </a>
+                              ) : (
+                                <p className="text-sm text-gray-700">{profile.organization || "—"}</p>
+                              )}
+                            </div>
                             <DetailField
                               label="Tipo organización"
                               value={profile.organization_type}

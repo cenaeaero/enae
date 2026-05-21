@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import CompanyPicker, { type Company } from "@/components/CompanyPicker";
 
 type BillingCase = {
   id: string;
@@ -438,7 +439,24 @@ function CaseEditor({
 
           {/* Empresa + contacto */}
           <Section title="Empresa y contacto">
-            <Field label="Empresa *" value={form.company || ""} onChange={(v) => setField("company", v)} />
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-500 mb-1">Empresa *</label>
+              <CompanyPicker
+                value={form.company_id ? { id: form.company_id, name: form.company, rut: null, legal_name: null, address: null, city: null, region: null, country: null, phone: null, email: null, website: null, contact_name: null, contact_email: null, contact_phone: null, notes: null } as Company : null}
+                onChange={(c) => {
+                  if (c) {
+                    setField("company_id", c.id);
+                    setField("company", c.name);
+                    if (!form.contact_name && c.contact_name)   setField("contact_name", c.contact_name);
+                    if (!form.contact_email && c.contact_email) setField("contact_email", c.contact_email);
+                    if (!form.contact_phone && c.contact_phone) setField("contact_phone", c.contact_phone);
+                  } else {
+                    setField("company_id", null);
+                    setField("company", "");
+                  }
+                }}
+              />
+            </div>
             <Field label="Contacto" value={form.contact_name || ""} onChange={(v) => setField("contact_name", v)} />
             <Field label="Email contacto" value={form.contact_email || ""} onChange={(v) => setField("contact_email", v)} type="email" />
             <Field label="Teléfono" value={form.contact_phone || ""} onChange={(v) => setField("contact_phone", v)} />

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
+import CompanyPicker, { type Company } from "@/components/CompanyPicker";
 
 type Student = {
   firstName: string;
@@ -63,6 +64,33 @@ export default function AdminInscripcionPage() {
   >(null);
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Empresa + Cotización (B2B)
+  const [company, setCompany] = useState<Company | null>(null);
+  const [openCases, setOpenCases] = useState<{ id: string; quotation_number: string | null; quotation_amount: number | null; status: string }[]>([]);
+  const [quotationMode, setQuotationMode] = useState<"existing" | "new" | "loose">("existing");
+  const [selectedCaseId, setSelectedCaseId] = useState("");
+  const [newQuotationNumber, setNewQuotationNumber] = useState("");
+  const [newQuotationAmount, setNewQuotationAmount] = useState("");
+
+  // Recarga casos abiertos cuando cambia empresa, curso o sesión
+  useEffect(() => {
+    async function loadOpenCases() {
+      if (!company?.id) { setOpenCases([]); return; }
+      let q = supabase
+        .from("billing_cases")
+        .select("id, quotation_number, quotation_amount, status, course_id, session_id")
+        .eq("company_id", company.id)
+        .not("status", "in", '("paid","cancelled")');
+      const { data } = await q;
+      let filtered = (data || []) as any[];
+      if (selectedCourse) filtered = filtered.filter((c) => c.course_id === selectedCourse);
+      if (selectedSession) filtered = filtered.filter((c) => c.session_id === selectedSession);
+      setOpenCases(filtered);
+      if (filtered.length === 0) setQuotationMode("new");
+    }
+    loadOpenCases();
+  }, [company?.id, selectedCourse, selectedSession]);
 
   // Existing-student search
   const [searchQuery, setSearchQuery] = useState("");
@@ -329,6 +357,16 @@ export default function AdminInscripcionPage() {
 
     for (const courseId of courseIds) {
       const courseName = allCourses.find((c) => c.id === courseId)?.title || "";
+      // Datos del caso B2B (empresa + cotización)
+      const billing = {
+        company_id: company?.id || null,
+        company_name: company?.name || null,
+        billing_case_id: quotationMode === "existing" ? (selectedCaseId || null) : null,
+        new_quotation_number: quotationMode === "new" ? (newQuotationNumber || null) : null,
+        new_quotation_amount: quotationMode === "new" && newQuotationAmount ? Number(newQuotationAmount) : null,
+        loose: quotationMode === "loose",  // → cotización 9999
+      };
+
       const res = await fetch("/api/inscripcion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -339,6 +377,7 @@ export default function AdminInscripcionPage() {
           theoreticalStart: theoreticalStart || null,
           practicalEnd: practicalEnd || null,
           deliveryMode,
+          billing,
         }),
       });
       const data = await res.json();
@@ -365,6 +404,65 @@ export default function AdminInscripcionPage() {
       <h1 className="text-2xl font-bold text-[#003366] mb-6">
         Inscripción de Alumnos
       </h1>
+
+      {/* Empresa + Cotización (B2B) */}
+      <div className="bg-white rounded-lg border border-gray-200 p-5 mb-6">
+        <h2 className="text-sm font-semibold text-gray-800 mb-3">Empresa y Cotización</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-gray-500 uppercase mb-1">Empresa *</label>
+            <CompanyPicker value={company} onChange={setCompany} />
+            <p className="text-[10px] text-gray-400 mt-1">
+              Si la empresa no existe, créala desde el picker. Se vincula a todos los alumnos.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs text-gray-500 uppercase mb-1">Cotización</label>
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input type="radio" name="qmode" checked={quotationMode === "existing"} disabled={openCases.length === 0}
+                  onChange={() => setQuotationMode("existing")} />
+                <span className={openCases.length === 0 ? "text-gray-400" : ""}>
+                  Usar cotización existente {openCases.length === 0 && "(sin casos abiertos)"}
+                </span>
+              </label>
+              {quotationMode === "existing" && openCases.length > 0 && (
+                <select value={selectedCaseId} onChange={(e) => setSelectedCaseId(e.target.value)}
+                  className="w-full ml-6 border border-gray-200 rounded px-2 py-1 text-sm">
+                  <option value="">Seleccionar…</option>
+                  {openCases.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.quotation_number || "(sin N°)"} · {c.status}
+                      {c.quotation_amount ? ` · $${c.quotation_amount.toLocaleString("es-CL")}` : ""}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              <label className="flex items-center gap-2 text-sm">
+                <input type="radio" name="qmode" checked={quotationMode === "new"} onChange={() => setQuotationMode("new")} />
+                Nueva cotización
+              </label>
+              {quotationMode === "new" && (
+                <div className="ml-6 grid grid-cols-2 gap-2">
+                  <input type="text" placeholder="N° cotización" value={newQuotationNumber}
+                    onChange={(e) => setNewQuotationNumber(e.target.value)}
+                    className="border border-gray-200 rounded px-2 py-1 text-sm" />
+                  <input type="number" placeholder="Monto exento" value={newQuotationAmount}
+                    onChange={(e) => setNewQuotationAmount(e.target.value)}
+                    className="border border-gray-200 rounded px-2 py-1 text-sm" />
+                </div>
+              )}
+
+              <label className="flex items-center gap-2 text-sm">
+                <input type="radio" name="qmode" checked={quotationMode === "loose"} onChange={() => setQuotationMode("loose")} />
+                Alumno suelto (cotización <strong>9999</strong>)
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Program & Course selection */}
       <div className="bg-white rounded-lg border border-gray-200 p-5 mb-6">
