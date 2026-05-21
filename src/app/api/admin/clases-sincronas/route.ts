@@ -24,19 +24,27 @@ export async function POST(request: Request) {
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const body = await request.json();
-  if (!body.course_id || !body.title || !body.scheduled_at) {
-    return NextResponse.json({ error: "course_id, title y scheduled_at requeridos" }, { status: 400 });
+  if (!body.course_id || !body.title || !body.starts_at) {
+    return NextResponse.json({ error: "course_id, title y starts_at requeridos" }, { status: 400 });
   }
 
-  const payload = {
+  // Duración derivada (legacy: aún se guarda para compatibilidad)
+  let durationMin: number | null = null;
+  if (body.ends_at && body.starts_at) {
+    durationMin = Math.max(1, Math.round((new Date(body.ends_at).getTime() - new Date(body.starts_at).getTime()) / 60000));
+  }
+
+  const payload: Record<string, any> = {
     course_id: body.course_id,
     session_id: body.session_id || null,
     title: body.title,
     description: body.description || null,
     kind: body.kind || "class",
     link_url: body.link_url || null,
-    scheduled_at: body.scheduled_at,
-    duration_minutes: body.duration_minutes ?? 60,
+    starts_at: body.starts_at,
+    ends_at: body.ends_at || null,
+    scheduled_at: body.starts_at,        // legacy
+    duration_minutes: durationMin ?? 60, // legacy
     instructor_email: body.instructor_email || null,
     created_by: auth.email,
     notes: body.notes || null,
@@ -45,6 +53,19 @@ export async function POST(request: Request) {
   const { data, error } = await supabaseAdmin
     .from("synchronous_classes").insert(payload).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Pre-cargar registros de asistencia con los alumnos seleccionados (default: absent)
+  if (Array.isArray(body.registration_ids) && body.registration_ids.length > 0) {
+    const rows = body.registration_ids.map((rid: string) => ({
+      synchronous_class_id: data.id,
+      registration_id: rid,
+      status: "absent",
+    }));
+    await supabaseAdmin
+      .from("class_attendance")
+      .upsert(rows, { onConflict: "synchronous_class_id,registration_id" });
+  }
+
   return NextResponse.json({ class: data });
 }
 

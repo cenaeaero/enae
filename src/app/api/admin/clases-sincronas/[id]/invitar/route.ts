@@ -14,14 +14,16 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     .eq("id", id).maybeSingle();
   if (!cls) return NextResponse.json({ error: "Clase no encontrada" }, { status: 404 });
 
-  // Alumnos elegibles
-  let q = supabaseAdmin
-    .from("registrations")
-    .select("first_name, last_name, email")
-    .eq("course_id", cls.course_id)
-    .in("status", ["confirmed", "completed"]);
-  if (cls.session_id) q = q.eq("session_id", cls.session_id);
-  const { data: regs } = await q;
+  // Alumnos seleccionados para esta clase (via class_attendance)
+  const { data: att } = await supabaseAdmin
+    .from("class_attendance").select("registration_id").eq("synchronous_class_id", id);
+  const regIds = (att || []).map((a: any) => a.registration_id);
+  const { data: regs } = regIds.length === 0
+    ? { data: [] as any[] }
+    : await supabaseAdmin
+        .from("registrations")
+        .select("first_name, last_name, email")
+        .in("id", regIds);
 
   const results: { email: string; ok: boolean; error?: string }[] = [];
   for (const r of regs || []) {

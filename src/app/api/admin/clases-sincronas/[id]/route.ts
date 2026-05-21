@@ -14,22 +14,33 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     .eq("id", id).maybeSingle();
   if (!cls) return NextResponse.json({ error: "No encontrada" }, { status: 404 });
 
-  // Lista de inscripciones del curso/sesión
-  let q = supabaseAdmin
-    .from("registrations")
-    .select("id, first_name, last_name, email, status, rut, organization")
-    .eq("course_id", cls.course_id)
-    .in("status", ["confirmed", "completed"]);
-  if (cls.session_id) q = q.eq("session_id", cls.session_id);
-  const { data: regs } = await q;
-
-  // Asistencia existente
-  const regIds = (regs || []).map((r: any) => r.id);
+  // Alumnos asignados a ESTA clase (vía class_attendance)
   const { data: att } = await supabaseAdmin
     .from("class_attendance")
     .select("*")
-    .eq("synchronous_class_id", id)
-    .in("registration_id", regIds.length > 0 ? regIds : ["00000000-0000-0000-0000-000000000000"]);
+    .eq("synchronous_class_id", id);
 
-  return NextResponse.json({ class: cls, registrations: regs || [], attendance: att || [] });
+  const regIds = (att || []).map((a: any) => a.registration_id);
+  const { data: regs } = regIds.length === 0
+    ? { data: [] as any[] }
+    : await supabaseAdmin
+        .from("registrations")
+        .select("id, first_name, last_name, email, status, rut, organization, company_id")
+        .in("id", regIds);
+
+  // Lista de candidatos disponibles del curso/sesión (para agregar más)
+  let cq = supabaseAdmin
+    .from("registrations")
+    .select("id, first_name, last_name, email, status, rut, organization, company_id")
+    .eq("course_id", cls.course_id)
+    .in("status", ["confirmed", "completed"]);
+  if (cls.session_id) cq = cq.eq("session_id", cls.session_id);
+  const { data: candidates } = await cq;
+
+  return NextResponse.json({
+    class: cls,
+    registrations: regs || [],   // los inscritos en esta clase
+    candidates: candidates || [], // todos los elegibles del curso/sesión
+    attendance: att || [],
+  });
 }

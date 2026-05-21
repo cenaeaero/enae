@@ -97,8 +97,8 @@ export default function ClaseSincronaDetail({ params }: { params: Promise<{ id: 
             <h1 className="text-2xl font-bold text-[#003366]">{cls.title}</h1>
             <p className="text-sm text-gray-500 mt-1">{cls.courses?.title} {cls.courses?.code ? `(${cls.courses.code})` : ""}</p>
             <div className="flex flex-wrap gap-4 mt-3 text-sm text-gray-600">
-              <span>📅 {fmtDateTime(cls.scheduled_at)}</span>
-              <span>⏱ {cls.duration_minutes} min</span>
+              <span>📅 Inicio: {fmtDateTime(cls.starts_at || cls.scheduled_at)}</span>
+              {cls.ends_at && <span>🏁 Término: {fmtDateTime(cls.ends_at)}</span>}
               {cls.instructor_email && <span>🧑‍🏫 {cls.instructor_email}</span>}
               {cls.sessions?.dates && <span>Sesión: {cls.sessions.dates}</span>}
             </div>
