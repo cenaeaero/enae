@@ -195,6 +195,72 @@ export async function POST(request: Request) {
       }
     }
 
+    // ============================================================
+    // Auto-crear/actualizar billing_case por empresa+sesión
+    // Agrupa los registrations recién creados por su `company` y
+    // los vincula a un caso de facturación en estado "quoted".
+    // Best-effort: si la migración no está corrida, ignora.
+    // ============================================================
+    try {
+      const byCompany: Record<string, string[]> = {};
+      for (const student of students) {
+        const company = normalizeOrganization(student.company);
+        if (!company) continue;
+        // Buscar el registration recién creado para este alumno+curso
+        const { data: reg } = await supabaseAdmin
+          .from("registrations")
+          .select("id")
+          .eq("email", student.email)
+          .eq("course_id", courseId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (reg?.id) {
+          (byCompany[company] ||= []).push(reg.id);
+        }
+      }
+
+      for (const [company, regIds] of Object.entries(byCompany)) {
+        // ¿Existe un caso abierto para esta empresa+sesión?
+        let existingId: string | null = null;
+        if (sessionId) {
+          const { data: existing } = await supabaseAdmin
+            .from("billing_cases")
+            .select("id")
+            .eq("company", company)
+            .eq("session_id", sessionId)
+            .neq("status", "cancelled")
+            .maybeSingle();
+          existingId = existing?.id || null;
+        }
+
+        if (!existingId) {
+          const { data: newCase } = await supabaseAdmin
+            .from("billing_cases")
+            .insert({
+              company,
+              course_id: courseId,
+              session_id: sessionId || null,
+              status: "quoted",
+            })
+            .select("id")
+            .maybeSingle();
+          existingId = newCase?.id || null;
+        }
+
+        if (existingId) {
+          await supabaseAdmin
+            .from("billing_case_registrations")
+            .upsert(
+              regIds.map((rid) => ({ billing_case_id: existingId!, registration_id: rid })),
+              { onConflict: "billing_case_id,registration_id", ignoreDuplicates: true }
+            );
+        }
+      }
+    } catch (e) {
+      console.error("billing_cases auto-create failed:", e);
+    }
+
     return NextResponse.json({ results });
   } catch (error: any) {
     return NextResponse.json(
