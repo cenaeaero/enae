@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-service";
 import { sendStudentCredentials, sendReturningStudentWelcome } from "@/lib/email";
+import { normalizeOrganization } from "@/lib/organization";
 import crypto from "crypto";
 
 export async function POST(request: Request) {
@@ -21,7 +22,8 @@ export async function POST(request: Request) {
 
     for (const student of students) {
       try {
-        const { firstName, lastName, email, rut, company } = student;
+        const { firstName, lastName, email, rut, company: rawCompany } = student;
+        const company = normalizeOrganization(rawCompany);
         let isReturningStudent = false;
 
         // Check if already registered in this course (prevent duplicates)

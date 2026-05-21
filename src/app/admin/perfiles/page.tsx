@@ -148,6 +148,13 @@ export default function AdminPerfilesPage() {
       updates[f] = val === "" ? null : val;
     });
 
+    // Normaliza la organización: trim + UPPERCASE para evitar duplicados
+    // tipo "Elecnor" / "ELECNOR" en filtros de empresa.
+    if (updates.organization && typeof updates.organization === "string") {
+      const cleaned = updates.organization.trim().replace(/\s+/g, " ").toUpperCase();
+      updates.organization = cleaned === "" ? null : cleaned;
+    }
+
     const { error } = await supabase
       .from("profiles")
       .update(updates)

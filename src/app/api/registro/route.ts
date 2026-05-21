@@ -5,6 +5,7 @@ import {
   sendAdminRegistrationNotification,
 } from "@/lib/email";
 import { isFreeFee } from "@/lib/fees";
+import { normalizeOrganization } from "@/lib/organization";
 import crypto from "crypto";
 
 export async function POST(request: Request) {
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
       email,
       ageGroup,
       jobTitle,
-      organization,
+      organization: rawOrganization,
       organizationType,
       supervisorName,
       supervisorEmail,
@@ -39,6 +40,8 @@ export async function POST(request: Request) {
       howFound,
       comments,
     } = body;
+
+    const organization = normalizeOrganization(rawOrganization);
 
     // 0. Resolve course UUID first — needed to check duplicate registrations
     let resolvedCourseId = courseId;

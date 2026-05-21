@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-service";
 import { createSupabaseServer } from "@/lib/supabase-server";
 import { isFreeFee } from "@/lib/fees";
+import { normalizeOrganization } from "@/lib/organization";
 
 export async function POST(request: Request) {
   try {
@@ -93,7 +94,7 @@ export async function POST(request: Request) {
         email: profile.email,
         title: profile.title,
         job_title: profile.job_title,
-        organization: profile.organization,
+        organization: normalizeOrganization(profile.organization),
         organization_type: profile.organization_type,
         address: profile.address,
         city: profile.city,
