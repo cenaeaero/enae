@@ -20,6 +20,7 @@ const navSections: NavSection[] = [
       { href: "/admin/programas", label: "Programas", icon: "📦" },
       { href: "/admin/cursos", label: "Cursos", icon: "📚" },
       { href: "/admin/inscripcion", label: "Inscripción", icon: "✏️" },
+      { href: "/admin/clases-sincronas", label: "Clases sincrónicas", icon: "🎥" },
       { href: "/admin/calificaciones", label: "Calificaciones", icon: "🎯" },
     ],
   },

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import NewRoleProfileModal from "@/components/NewRoleProfileModal";
 
 type Course = { id: string; title: string; code: string | null };
 type Assignment = {
@@ -70,9 +71,20 @@ export default function AdminInstructoresPage() {
     await loadAll();
   }
 
+  const [showNew, setShowNew] = useState(false);
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">Instructores</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">Instructores</h1>
+        <button onClick={() => setShowNew(true)} className="bg-[#0072CE] hover:bg-[#005fa3] text-white text-sm font-semibold px-4 py-2 rounded">
+          + Nuevo instructor
+        </button>
+      </div>
+      {showNew && (
+        <NewRoleProfileModal role="instructor" title="Nuevo instructor"
+          onClose={() => setShowNew(false)}
+          onCreated={() => { setShowNew(false); loadAll(); }} />
+      )}
 
       <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
         <h2 className="font-semibold text-gray-700 mb-4">Asignar instructor a curso</h2>

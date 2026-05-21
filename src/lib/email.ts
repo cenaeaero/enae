@@ -668,3 +668,68 @@ export async function sendAdminFeeStatusNotification(args: {
     `,
   });
 }
+
+// =============================================================================
+// Invitación a clase sincrónica / examen / tarea
+// =============================================================================
+
+export async function sendSynchronousClassInvitation(args: {
+  to: string;
+  studentName: string;
+  courseTitle: string;
+  classTitle: string;
+  kind: string;
+  scheduledAt: string;
+  durationMin: number;
+  linkUrl: string | null;
+  description: string | null;
+}) {
+  const { to, studentName, courseTitle, classTitle, kind, scheduledAt, durationMin, linkUrl, description } = args;
+  const when = new Date(scheduledAt).toLocaleString("es-CL", { dateStyle: "full", timeStyle: "short" });
+  const kindLabel: Record<string, string> = {
+    class: "Clase sincrónica",
+    exam: "Examen en línea",
+    assignment: "Tarea",
+    workshop: "Taller",
+    meeting: "Reunión",
+  };
+  await transporter.sendMail({
+    from: `"ENAE Training" <${FROM}>`,
+    to,
+    subject: `${kindLabel[kind] || "Clase"}: ${classTitle} · ${when}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #003366; padding: 20px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 22px;">${kindLabel[kind] || "Clase"}</h1>
+        </div>
+        <div style="padding: 30px; background: #f9fafb;">
+          <p style="font-size: 16px; color: #111827;">Hola <strong>${studentName}</strong>,</p>
+          <p style="color: #374151;">Te invitamos a la siguiente actividad de tu curso <strong>${courseTitle}</strong>:</p>
+
+          <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #e5e7eb; margin: 20px 0;">
+            <p style="font-size: 18px; font-weight: 600; color: #003366; margin: 0 0 12px 0;">${classTitle}</p>
+            <p style="margin: 6px 0; color: #374151;"><strong>Fecha:</strong> ${when}</p>
+            <p style="margin: 6px 0; color: #374151;"><strong>Duración:</strong> ${durationMin} minutos</p>
+            ${description ? `<p style="margin: 12px 0; color: #4b5563; font-size: 14px; padding: 10px; background: #f3f4f6; border-radius: 4px;">${description}</p>` : ""}
+          </div>
+
+          ${linkUrl ? `
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${linkUrl}" style="display: inline-block; background: #0072CE; color: white; padding: 14px 30px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">
+                ${kind === "exam" ? "Ingresar al examen" : kind === "assignment" ? "Acceder a la tarea" : "Unirse a la clase"}
+              </a>
+              <p style="font-size: 12px; color: #6b7280; margin-top: 12px;">O copia este link: <a href="${linkUrl}">${linkUrl}</a></p>
+            </div>
+          ` : ""}
+
+          <p style="color: #6b7280; font-size: 13px; margin-top: 30px;">
+            También puedes ver tus clases programadas en el <a href="${SITE_URL}/tpems">Portal de Alumno</a>.
+          </p>
+        </div>
+        <div style="background: #001d3d; padding: 15px; text-align: center;">
+          <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegación Aérea | AOC 1521 DGAC</p>
+        </div>
+      </div>
+    `,
+  });
+}
