@@ -208,11 +208,18 @@ function CreateCompanyModal({
   );
 }
 
-function F({ label, value, onChange, type="text", cls="", placeholder }: any) {
+function F({ label, value, onChange, type = "text", cls = "", placeholder }: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+  cls?: string;
+  placeholder?: string;
+}) {
   return (
     <div className={cls}>
       <label className="block text-xs font-medium text-gray-500 mb-1">{label}</label>
-      <input type={type} value={value} onChange={(e)=>onChange(e.target.value)} placeholder={placeholder}
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
         className="w-full py-2 px-3 border border-gray-300 rounded text-sm"/>
     </div>
   );
