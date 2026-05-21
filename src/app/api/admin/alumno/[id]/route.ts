@@ -32,7 +32,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { data: regs } = await supabaseAdmin
     .from("registrations")
     .select(
-      "id, course_id, session_id, status, delivery_mode, organization, company, company_id, final_score, grade_status, is_alumni, theoretical_start, practical_end, created_at, completed_at, courses(title, code, area, area_slug, modality, duration), sessions(dates, location, modality, fee)"
+      "id, course_id, session_id, status, delivery_mode, organization, company, company_id, folio_enae, final_score, grade_status, is_alumni, theoretical_start, practical_end, instruction_city, created_at, completed_at, courses(title, code, area, area_slug, modality, duration), sessions(dates, location, modality, fee)"
     )
     .eq("email", profile.email)
     .order("created_at", { ascending: false });

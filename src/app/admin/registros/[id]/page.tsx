@@ -30,11 +30,13 @@ type Registration = {
   status: string;
   delivery_mode: string | null;
   organization: string | null;
+  folio_enae: string | null;
   final_score: number | null;
   grade_status: string | null;
   is_alumni: boolean;
   theoretical_start: string | null;
   practical_end: string | null;
+  instruction_city: string | null;
   created_at: string;
   completed_at: string | null;
   courses?: { title: string; code: string | null; area: string; modality: string; duration: string } | null;
@@ -182,67 +184,128 @@ export default function AlumnoDossierPage({ params }: { params: Promise<{ id: st
     load();
   }
 
-  async function exportPdf() {
+  // Cabecera común para ambos PDFs
+  function pdfHeader(doc: any, title: string, badgeColor: [number, number, number]) {
+    const p = dossier!.profile;
+    doc.setFillColor(...badgeColor);
+    doc.rect(0, 0, 216, 30, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16).text(title, 10, 14);
+    doc.setFontSize(9).text(`Generado: ${new Date().toLocaleDateString("es-CL")}`, 10, 22);
+    doc.setTextColor(0, 0, 0);
+
+    let y = 40;
+    doc.setFontSize(13).setFont("helvetica", "bold").text(`${p.last_name}, ${p.first_name}`, 10, y); y += 6;
+    doc.setFontSize(9).setFont("helvetica", "normal");
+    doc.text(`RUT/Pasaporte: ${p.rut || "—"}    Folio ENAE: ${p.folio_enae || "—"}    Email: ${p.email}`, 10, y); y += 5;
+    doc.text(`Teléfono: ${p.phone || "—"}    Cargo: ${p.job_title || "—"}`, 10, y); y += 5;
+    doc.text(`Empresa: ${p.companies?.name || p.organization || "—"}${p.companies?.legal_name ? `    Razón social: ${p.companies.legal_name}` : ""}`, 10, y); y += 5;
+    doc.text(`Dirección: ${[p.address, p.city, p.state, p.country].filter(Boolean).join(", ") || "—"}`, 10, y); y += 8;
+    return y;
+  }
+
+  function pdfFooter(doc: any, watermark: string) {
+    const pageCount = doc.internal.pages.length - 1;
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(7).setTextColor(150);
+      doc.text(`${watermark} · Pág ${i}/${pageCount}`, 10, 280);
+    }
+  }
+
+  // PDF DGAC: incluye TODO (notas internas, observaciones, instructores, anotaciones)
+  async function exportPdfDgac() {
     if (!dossier) return;
     setExporting(true);
     try {
       const { default: jsPDF } = await import("jspdf");
       const doc = new jsPDF({ unit: "mm", format: "letter" });
       const p = dossier.profile;
+      let y = pdfHeader(doc, "ENAE · Informe DGAC (Reservado)", [185, 28, 28]);
 
-      // Header
-      doc.setFillColor(0, 51, 102);
-      doc.rect(0, 0, 216, 30, "F");
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(16).text("ENAE · Ficha del Alumno", 10, 14);
-      doc.setFontSize(9).text(`Generado: ${new Date().toLocaleDateString("es-CL")}`, 10, 22);
-
-      // Body
-      doc.setTextColor(0, 0, 0);
-      let y = 40;
-      doc.setFontSize(13).setFont("helvetica", "bold").text(`${p.last_name}, ${p.first_name}`, 10, y);
-      y += 6;
-      doc.setFontSize(9).setFont("helvetica", "normal");
-      doc.text(`Folio ENAE: ${p.folio_enae || "—"}    RUT: ${p.rut || "—"}    Email: ${p.email}`, 10, y); y += 5;
-      doc.text(`Teléfono: ${p.phone || "—"}    Cargo: ${p.job_title || "—"}`, 10, y); y += 5;
-      doc.text(`Empresa: ${p.companies?.name || p.organization || "—"}    Razón social: ${p.companies?.legal_name || "—"}`, 10, y); y += 5;
-      doc.text(`Dirección: ${p.address || "—"}, ${p.city || ""} ${p.state || ""} ${p.country || ""}`, 10, y); y += 8;
-
-      // Cursos
       doc.setFont("helvetica", "bold").setFontSize(11).text("Cursos realizados", 10, y); y += 6;
       doc.setFont("helvetica", "normal").setFontSize(8);
       for (const r of dossier.registrations) {
-        if (y > 250) { doc.addPage(); y = 20; }
+        if (y > 240) { doc.addPage(); y = 20; }
         const dipl = dossier.diplomas.find((d) => d.registration_id === r.id);
         const bc = dossier.billingCases.find((b) => b.registration_id === r.id);
+        const grades = dossier.gradesByReg[r.id] || [];
+        const regNotes = dossier.notes.filter((n) => n.registration_id === r.id);
         doc.setFont("helvetica", "bold").text(`• ${r.courses?.title || "Curso"} ${r.courses?.code ? `(${r.courses.code})` : ""}`, 10, y); y += 4;
         doc.setFont("helvetica", "normal");
-        doc.text(`  Estado: ${statusLabels[r.status] || r.status}   Modalidad: ${r.delivery_mode || "—"}   Sesión: ${r.sessions?.dates || "—"}`, 10, y); y += 4;
+        doc.text(`  Folio Certificado: ${r.folio_enae || "—"}   Estado: ${statusLabels[r.status] || r.status}   Modalidad: ${r.delivery_mode || "—"}`, 10, y); y += 4;
+        doc.text(`  Sesión: ${r.sessions?.dates || "—"}   Ciudad: ${r.instruction_city || r.sessions?.location || "—"}`, 10, y); y += 4;
         doc.text(`  Nota final: ${r.final_score != null ? r.final_score + "%" : "—"}   Diploma: ${dipl ? dipl.verification_code : "no emitido"}`, 10, y); y += 4;
-        if (bc) {
-          doc.text(`  Cotización: ${bc.quotation_number || "—"}   Factura: ${bc.invoice_number || "—"} ${bc.invoice_amount ? "($" + bc.invoice_amount.toLocaleString("es-CL") + ")" : ""}`, 10, y); y += 4;
+        if (grades.length > 0) {
+          doc.setFont("helvetica", "italic").text("  Calificaciones:", 10, y); y += 4;
+          doc.setFont("helvetica", "normal");
+          for (const g of grades) {
+            doc.text(`    · ${g.grade_items?.name || "—"}: ${g.score ?? "—"}${g.score != null ? "%" : ""}${g.grade_items?.is_practical ? " (práctica)" : ""}`, 10, y); y += 3.5;
+          }
         }
-        y += 2;
+        if (bc) {
+          doc.text(`  Cotización: ${bc.quotation_number || "—"}   Factura: ${bc.invoice_number || "—"}`, 10, y); y += 4;
+        }
+        if (regNotes.length > 0) {
+          doc.setFont("helvetica", "italic").text("  Observaciones del curso:", 10, y); y += 4;
+          doc.setFont("helvetica", "normal");
+          for (const n of regNotes) {
+            const lines = doc.splitTextToSize(`    · [${fmtDate(n.created_at)} ${n.author_email}] ${n.body}`, 190);
+            if (y + lines.length * 3.5 > 270) { doc.addPage(); y = 20; }
+            doc.text(lines, 10, y); y += lines.length * 3.5;
+          }
+        }
+        y += 3;
       }
 
-      // Notas
-      if (dossier.notes.length > 0) {
-        if (y > 230) { doc.addPage(); y = 20; }
-        doc.setFont("helvetica", "bold").setFontSize(11).text("Anotaciones", 10, y); y += 6;
+      // Anotaciones generales del alumno
+      const genNotes = dossier.notes.filter((n) => !n.registration_id);
+      if (genNotes.length > 0) {
+        if (y > 240) { doc.addPage(); y = 20; }
+        doc.setFont("helvetica", "bold").setFontSize(11).text("Anotaciones generales del alumno", 10, y); y += 6;
         doc.setFont("helvetica", "normal").setFontSize(8);
-        for (const n of dossier.notes) {
+        for (const n of genNotes) {
           if (y > 260) { doc.addPage(); y = 20; }
-          doc.text(`[${fmtDate(n.created_at)}] ${n.author_email}:`, 10, y); y += 4;
+          doc.setFont("helvetica", "italic").text(`[${fmtDate(n.created_at)}] ${n.author_email}:`, 10, y); y += 4;
+          doc.setFont("helvetica", "normal");
           const lines = doc.splitTextToSize(n.body, 190);
           doc.text(lines, 12, y); y += lines.length * 4 + 2;
         }
       }
 
-      // Footer en última página
-      doc.setFontSize(7).setTextColor(150);
-      doc.text("Documento generado automáticamente · ENAE Training", 10, 280);
+      pdfFooter(doc, "INFORME DGAC RESERVADO · ENAE Training");
+      doc.save(`Informe_DGAC_${p.last_name}_${p.first_name}_${p.rut || "sr"}.pdf`);
+    } finally {
+      setExporting(false);
+    }
+  }
 
-      doc.save(`Ficha_${p.last_name}_${p.first_name}_${p.folio_enae || "sf"}.pdf`);
+  // PDF Empresa: solo info académica limpia, sin notas internas ni montos
+  async function exportPdfEmpresa() {
+    if (!dossier) return;
+    setExporting(true);
+    try {
+      const { default: jsPDF } = await import("jspdf");
+      const doc = new jsPDF({ unit: "mm", format: "letter" });
+      const p = dossier.profile;
+      let y = pdfHeader(doc, "ENAE · Informe Académico", [0, 51, 102]);
+
+      doc.setFont("helvetica", "bold").setFontSize(11).text("Cursos realizados", 10, y); y += 6;
+      doc.setFont("helvetica", "normal").setFontSize(8);
+
+      for (const r of dossier.registrations) {
+        if (y > 240) { doc.addPage(); y = 20; }
+        const dipl = dossier.diplomas.find((d) => d.registration_id === r.id);
+        doc.setFont("helvetica", "bold").text(`• ${r.courses?.title || "Curso"} ${r.courses?.code ? `(${r.courses.code})` : ""}`, 10, y); y += 4;
+        doc.setFont("helvetica", "normal");
+        doc.text(`  Folio Certificado: ${r.folio_enae || "—"}   Modalidad: ${r.delivery_mode || "—"}   Sesión: ${r.sessions?.dates || "—"}`, 10, y); y += 4;
+        doc.text(`  Estado: ${statusLabels[r.status] || r.status}   Nota final: ${r.final_score != null ? r.final_score + "%" : "—"}`, 10, y); y += 4;
+        if (dipl) doc.text(`  Diploma emitido: ${dipl.verification_code} (${fmtDate(dipl.issued_date)})`, 10, y), y += 4;
+        y += 3;
+      }
+
+      pdfFooter(doc, "Informe académico · ENAE Training");
+      doc.save(`Informe_Academico_${p.last_name}_${p.first_name}.pdf`);
     } finally {
       setExporting(false);
     }
@@ -267,8 +330,8 @@ export default function AlumnoDossierPage({ params }: { params: Promise<{ id: st
             <Link href="/admin/registros" className="text-xs text-[#0072CE] hover:underline">← Listado de alumnos</Link>
             <h1 className="text-2xl font-bold text-[#003366] mt-1">{p.last_name}, {p.first_name}</h1>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 text-sm">
-              <Info label="Folio ENAE" value={p.folio_enae || "—"} mono />
-              <Info label="RUT" value={p.rut || "—"} mono />
+              <Info label="RUT / Pasaporte" value={p.rut || "—"} mono />
+              <Info label="Folio Alumno" value={p.folio_enae || "—"} mono />
               <Info label="Email" value={p.email} />
               <Info label="Teléfono" value={p.phone || "—"} />
               <Info label="Cargo" value={p.job_title || "—"} />
@@ -281,11 +344,20 @@ export default function AlumnoDossierPage({ params }: { params: Promise<{ id: st
           </div>
           <div className="flex flex-col gap-2 shrink-0">
             <button
-              onClick={exportPdf}
+              onClick={exportPdfDgac}
+              disabled={exporting}
+              className="inline-flex items-center gap-1.5 bg-red-700 hover:bg-red-800 disabled:bg-red-300 text-white text-sm font-semibold px-4 py-2 rounded-lg"
+              title="Reservado: incluye observaciones, anotaciones internas, instructores, calificaciones detalladas"
+            >
+              {exporting ? "Generando…" : "📄 PDF DGAC"}
+            </button>
+            <button
+              onClick={exportPdfEmpresa}
               disabled={exporting}
               className="inline-flex items-center gap-1.5 bg-[#0072CE] hover:bg-[#005fa3] disabled:bg-blue-300 text-white text-sm font-semibold px-4 py-2 rounded-lg"
+              title="Informe académico limpio: cursos, notas finales, diplomas. Sin notas internas."
             >
-              {exporting ? "Generando…" : "📄 Exportar PDF"}
+              {exporting ? "Generando…" : "📊 PDF Empresa"}
             </button>
             <Link href={`/admin/perfiles`} className="inline-block text-center bg-white border border-gray-300 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-50">
               Editar perfil
@@ -328,8 +400,14 @@ export default function AlumnoDossierPage({ params }: { params: Promise<{ id: st
                         <p className="text-xs text-gray-500 font-mono">{r.courses?.code || "—"}</p>
                       </Link>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-gray-600">
+                        {r.folio_enae && (
+                          <span className="font-mono bg-blue-50 text-blue-800 border border-blue-200 px-1.5 py-0.5 rounded">
+                            Folio cert: {r.folio_enae}
+                          </span>
+                        )}
                         <span>Sesión: {r.sessions?.dates || "—"}</span>
                         <span>Modalidad: {r.delivery_mode || r.courses?.modality || "—"}</span>
+                        {r.instruction_city && <span>Ciudad: {r.instruction_city}</span>}
                         <span>Inscrito: {fmtDate(r.created_at)}</span>
                         {r.completed_at && <span>Completado: {fmtDate(r.completed_at)}</span>}
                       </div>
