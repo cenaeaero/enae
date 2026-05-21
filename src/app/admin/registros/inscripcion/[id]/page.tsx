@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { chileCities } from "@/data/chile-cities";
+import InstructorAssignmentPanel from "@/components/InstructorAssignmentPanel";
 
 type ProfileData = {
   first_name: string;
@@ -613,7 +614,7 @@ export default function RegistroDetailPage() {
             {courseCode && <span className="text-gray-400">({courseCode})</span>}
           </div>
           <Link
-            href={`/admin/registros/${id}/soporte`}
+            href={`/admin/registros/inscripcion/${id}/soporte`}
             className="inline-flex items-center gap-2 bg-[#F57C00] hover:bg-[#E65100] text-white text-sm font-medium px-4 py-2 rounded-lg transition"
             title="Ver el curso del alumno en modo soporte"
           >
@@ -684,6 +685,11 @@ export default function RegistroDetailPage() {
             <EditField label="Folio ENAE" value={editForm.folio_enae} onChange={(v) => setEditForm({ ...editForm, folio_enae: v })} />
           </div>
         )}
+      </div>
+
+      {/* Asignación de instructores */}
+      <div className="mb-6">
+        <InstructorAssignmentPanel registrationId={id as string} />
       </div>
 
       {/* Grades & Progress */}

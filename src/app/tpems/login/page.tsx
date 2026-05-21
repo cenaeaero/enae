@@ -113,7 +113,20 @@ export default function TpemsLoginPage() {
 
       await new Promise((r) => setTimeout(r, 500));
       const nextParam = new URLSearchParams(window.location.search).get("next");
-      const safeNext = nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/tpems";
+      let safeNext = nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : null;
+
+      // Si no hay next explícito, redirige según el rol del usuario
+      if (!safeNext) {
+        try {
+          const { data: prof } = await supabase
+            .from("profiles").select("role").eq("email", email).maybeSingle();
+          if (prof?.role === "instructor") safeNext = "/instructor";
+          else if (prof?.role === "admin") safeNext = "/admin";
+          else safeNext = "/tpems";
+        } catch {
+          safeNext = "/tpems";
+        }
+      }
       window.location.href = safeNext;
     } catch (err: any) {
       setError("Error de conexion. Intenta nuevamente.");
