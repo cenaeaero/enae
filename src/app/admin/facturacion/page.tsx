@@ -356,12 +356,43 @@ function CaseEditor({
 }) {
   const isNew = !billingCase.id;
   const [form, setForm] = useState<any>({ ...billingCase });
+  const [pickedCompany, setPickedCompany] = useState<Company | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [uploadingKind, setUploadingKind] = useState<string | null>(null);
 
   function setField(k: string, v: any) {
     setForm((prev: any) => ({ ...prev, [k]: v }));
+  }
+
+  // Al abrir un caso existente con company_id, traer datos completos de la empresa
+  useEffect(() => {
+    if (!billingCase.id || !form.company_id) return;
+    let cancelled = false;
+    (async () => {
+      const res = await fetch(`/api/admin/empresas?q=${encodeURIComponent(form.company || "")}`);
+      const data = await res.json();
+      if (cancelled) return;
+      const c = (data.companies || []).find((x: Company) => x.id === form.company_id);
+      if (c) setPickedCompany(c);
+    })();
+    return () => { cancelled = true; };
+  }, [billingCase.id]);
+
+  // Cuando se elige (o cambia) la empresa: sobrescribe contacto con el de la empresa
+  function applyCompany(c: Company | null) {
+    setPickedCompany(c);
+    if (c) {
+      setField("company_id", c.id);
+      setField("company", c.name);
+      // Sobrescribe SIEMPRE con los datos de la empresa elegida (si tiene)
+      setField("contact_name",  c.contact_name  || "");
+      setField("contact_email", c.contact_email || "");
+      setField("contact_phone", c.contact_phone || "");
+    } else {
+      setField("company_id", null);
+      setField("company", "");
+    }
   }
 
   async function save() {
@@ -441,21 +472,19 @@ function CaseEditor({
           <Section title="Empresa y contacto">
             <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-gray-500 mb-1">Empresa *</label>
-              <CompanyPicker
-                value={form.company_id ? { id: form.company_id, name: form.company, rut: null, legal_name: null, address: null, city: null, region: null, country: null, phone: null, email: null, website: null, contact_name: null, contact_email: null, contact_phone: null, notes: null } as Company : null}
-                onChange={(c) => {
-                  if (c) {
-                    setField("company_id", c.id);
-                    setField("company", c.name);
-                    if (!form.contact_name && c.contact_name)   setField("contact_name", c.contact_name);
-                    if (!form.contact_email && c.contact_email) setField("contact_email", c.contact_email);
-                    if (!form.contact_phone && c.contact_phone) setField("contact_phone", c.contact_phone);
-                  } else {
-                    setField("company_id", null);
-                    setField("company", "");
-                  }
-                }}
-              />
+              <CompanyPicker value={pickedCompany} onChange={applyCompany} />
+              {pickedCompany && (
+                <div className="mt-2 text-[11px] text-gray-500 space-y-0.5">
+                  {pickedCompany.rut && <p>RUT: <span className="font-mono">{pickedCompany.rut}</span></p>}
+                  {pickedCompany.address && <p>📍 {pickedCompany.address}{pickedCompany.city ? `, ${pickedCompany.city}` : ""}</p>}
+                  {(pickedCompany.phone || pickedCompany.email) && (
+                    <p>{pickedCompany.phone ? `☎ ${pickedCompany.phone}` : ""}{pickedCompany.phone && pickedCompany.email ? " · " : ""}{pickedCompany.email || ""}</p>
+                  )}
+                  {!pickedCompany.contact_name && !pickedCompany.contact_email && !pickedCompany.contact_phone && (
+                    <p className="text-amber-600">⚠ Esta empresa no tiene contacto registrado. <a href={`/admin/empresas`} target="_blank" className="underline">Completarlo</a></p>
+                  )}
+                </div>
+              )}
             </div>
             <Field label="Contacto" value={form.contact_name || ""} onChange={(v) => setField("contact_name", v)} />
             <Field label="Email contacto" value={form.contact_email || ""} onChange={(v) => setField("contact_email", v)} type="email" />
