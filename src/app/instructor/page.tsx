@@ -2,85 +2,64 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
-
-type Course = { id: string; title: string; code: string | null; area: string | null };
 
 export default function InstructorDashboard() {
-  const router = useRouter();
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [stats, setStats] = useState({ assigned: 0, inProgress: 0, completed: 0, feesPending: 0, feesPaid: 0 });
   const [loading, setLoading] = useState(true);
-  const [email, setEmail] = useState<string | null>(null);
-  const [error, setError] = useState("");
 
   useEffect(() => {
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user?.email) {
-        router.replace("/instructor/login");
-        return;
-      }
-      setEmail(user.email);
-
-      const res = await fetch("/api/instructor/cursos");
-      if (res.status === 403) {
-        setError("Tu cuenta no tiene cursos asignados como instructor. Contacta al administrador.");
-        setLoading(false);
-        return;
-      }
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        setError(d.error || "Error cargando cursos");
-        setLoading(false);
-        return;
-      }
-      const data = await res.json();
-      setCourses(data.courses || []);
+      const [asgRes, feesRes] = await Promise.all([
+        fetch("/api/instructor/asignaciones").then((r) => r.json()),
+        fetch("/api/instructor/fees").then((r) => r.json()),
+      ]);
+      const asgs = asgRes.assignments || [];
+      const fees = feesRes.fees || [];
+      setStats({
+        assigned: asgs.filter((a: any) => a.status === "assigned").length,
+        inProgress: asgs.filter((a: any) => a.status === "in_progress").length,
+        completed: asgs.filter((a: any) => a.status === "completed").length,
+        feesPending: fees.filter((f: any) => f.status === "proposed" || f.status === "approved").length,
+        feesPaid: fees.filter((f: any) => f.status === "paid").length,
+      });
       setLoading(false);
     })();
-  }, [router]);
-
-  if (loading) {
-    return <div className="text-gray-400">Cargando...</div>;
-  }
-
-  if (error) {
-    return (
-      <div>
-        <h1 className="text-2xl font-bold text-gray-800 mb-4">Mis Cursos</h1>
-        <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded-lg text-sm">{error}</div>
-      </div>
-    );
-  }
+  }, []);
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Mis Cursos</h1>
-        <p className="text-gray-500 text-sm mt-1">Hola {email}. Selecciona un curso para ingresar notas de evaluación práctica.</p>
-      </div>
-
-      {courses.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-lg p-8 text-center text-gray-400 text-sm">
-          No tienes cursos asignados.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {courses.map((c) => (
-            <Link
-              key={c.id}
-              href={`/instructor/cursos/${c.id}/calificaciones`}
-              className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md hover:border-[#0072CE] transition"
-            >
-              <div className="text-xs text-[#0072CE] font-semibold uppercase mb-1">{c.area || "Curso"}</div>
-              <h2 className="font-bold text-gray-800 mb-1">{c.title}</h2>
-              {c.code && <p className="text-xs text-gray-500">{c.code}</p>}
-              <div className="mt-3 text-xs text-gray-400">Ingresar calificaciones →</div>
-            </Link>
-          ))}
-        </div>
+    <div className="max-w-5xl">
+      <h1 className="text-2xl font-bold text-[#003366] mb-6">Dashboard</h1>
+      {loading ? <p className="text-gray-400">Cargando…</p> : (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+            <Card label="Asignados"     value={stats.assigned}    color="bg-amber-50 text-amber-700" />
+            <Card label="En proceso"    value={stats.inProgress}  color="bg-blue-50 text-blue-700" />
+            <Card label="Completados"   value={stats.completed}   color="bg-green-50 text-green-700" />
+            <Card label="Honorarios pendientes" value={stats.feesPending} color="bg-purple-50 text-purple-700" />
+            <Card label="Pagados"       value={stats.feesPaid}    color="bg-gray-50 text-gray-700" />
+          </div>
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <h2 className="text-sm font-semibold text-gray-700 mb-3">Accesos rápidos</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <Link href="/instructor/asignaciones" className="block bg-[#0072CE] hover:bg-[#005fa3] text-white px-4 py-3 rounded text-sm font-medium">→ Ver mis alumnos</Link>
+              <Link href="/instructor/honorarios" className="block bg-[#003366] hover:bg-[#001d3d] text-white px-4 py-3 rounded text-sm font-medium">→ Mis honorarios</Link>
+              <Link href="/instructor/perfil" className="block bg-gray-700 hover:bg-gray-800 text-white px-4 py-3 rounded text-sm font-medium">→ Datos bancarios</Link>
+            </div>
+            <p className="text-xs text-gray-400 mt-4">
+              Descarga la <a href="/templates/EVALUACION-OPERADOR-RPAS-ENAE-CHL-N1.pdf" target="_blank" className="text-[#0072CE] underline">plantilla de evaluación</a> para tus clases prácticas.
+            </p>
+          </div>
+        </>
       )}
+    </div>
+  );
+}
+
+function Card({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div className={`rounded-lg p-4 ${color}`}>
+      <p className="text-xs uppercase tracking-wider">{label}</p>
+      <p className="text-3xl font-bold mt-1">{value}</p>
     </div>
   );
 }

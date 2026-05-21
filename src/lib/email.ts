@@ -594,3 +594,77 @@ export async function sendGradeNotificationToStudent(
     `,
   });
 }
+
+// =============================================================================
+// Notificaciones del Portal del Instructor
+// =============================================================================
+
+export async function sendAdminInstructorGradeNotification(args: {
+  instructorEmail: string;
+  studentName: string;
+  courseTitle: string;
+  gradeTheoretical: number | null;
+  gradePractical: number | null;
+  markCompleted: boolean;
+}) {
+  const { instructorEmail, studentName, courseTitle, gradeTheoretical, gradePractical, markCompleted } = args;
+  await transporter.sendMail({
+    from: `"ENAE Sistema" <${FROM}>`,
+    to: ADMIN_EMAIL,
+    subject: `Instructor ingresó calificación · ${studentName}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px;">
+        <h2 style="color:#003366;">Nueva calificación ingresada por instructor</h2>
+        <p><strong>Instructor:</strong> ${instructorEmail}</p>
+        <p><strong>Alumno:</strong> ${studentName}</p>
+        <p><strong>Curso:</strong> ${courseTitle}</p>
+        <ul>
+          ${gradeTheoretical != null ? `<li>Nota teórica: <strong>${gradeTheoretical}%</strong></li>` : ""}
+          ${gradePractical != null ? `<li>Nota práctica: <strong>${gradePractical}%</strong></li>` : ""}
+          ${markCompleted ? `<li><strong>Marcado como completado</strong></li>` : ""}
+        </ul>
+        <p><a href="${SITE_URL}/admin/registros" style="display:inline-block;background:#0072CE;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;">Ver en el panel</a></p>
+      </div>
+    `,
+  });
+}
+
+export async function sendInstructorFeeProposedNotification(args: {
+  instructorEmail: string;
+  amount: number;
+}) {
+  await transporter.sendMail({
+    from: `"ENAE Sistema" <${FROM}>`,
+    to: args.instructorEmail,
+    subject: `ENAE: Honorario propuesto $${args.amount.toLocaleString("es-CL")} CLP`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px;">
+        <h2 style="color:#003366;">Honorario propuesto</h2>
+        <p>El admin de ENAE ha propuesto un honorario de <strong>$${args.amount.toLocaleString("es-CL")} CLP</strong> para una de tus clases.</p>
+        <p>Ingresa al portal para revisarlo y aprobarlo o rechazarlo.</p>
+        <p><a href="${SITE_URL}/instructor/honorarios" style="display:inline-block;background:#0072CE;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;">Ir a Honorarios</a></p>
+      </div>
+    `,
+  });
+}
+
+export async function sendAdminFeeStatusNotification(args: {
+  instructorEmail: string;
+  amount: number;
+  action: "approve" | "reject";
+}) {
+  const accion = args.action === "approve" ? "aprobó" : "rechazó";
+  await transporter.sendMail({
+    from: `"ENAE Sistema" <${FROM}>`,
+    to: ADMIN_EMAIL,
+    subject: `Instructor ${accion} honorario · ${args.instructorEmail}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px;">
+        <h2 style="color:#003366;">Instructor ${accion} su honorario</h2>
+        <p><strong>Instructor:</strong> ${args.instructorEmail}</p>
+        <p><strong>Monto:</strong> $${args.amount.toLocaleString("es-CL")} CLP</p>
+        <p><a href="${SITE_URL}/admin/honorarios" style="display:inline-block;background:#0072CE;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;">Ir a Honorarios</a></p>
+      </div>
+    `,
+  });
+}

@@ -53,6 +53,7 @@ const navSections: NavSection[] = [
     items: [
       { href: "/admin/pagos", label: "Pagos", icon: "💳" },
       { href: "/admin/facturacion", label: "Facturación B2B", icon: "🧾" },
+      { href: "/admin/honorarios", label: "Honorarios", icon: "💼" },
     ],
   },
 ];
