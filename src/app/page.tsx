@@ -90,6 +90,47 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Accesos rápidos a portales */}
+      <section className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <Link
+              href="/tpems/login"
+              className="group flex items-center gap-3 bg-gradient-to-br from-[#003366] to-[#004B87] text-white rounded-xl p-4 hover:shadow-lg transition"
+            >
+              <span className="text-3xl">🎓</span>
+              <div>
+                <p className="font-semibold">Portal Alumno</p>
+                <p className="text-xs text-blue-200">Accede a tus cursos, notas y diplomas</p>
+              </div>
+              <span className="ml-auto text-2xl opacity-50 group-hover:opacity-100 transition">→</span>
+            </Link>
+            <Link
+              href="/instructor"
+              className="group flex items-center gap-3 bg-gradient-to-br from-[#0072CE] to-[#005fa3] text-white rounded-xl p-4 hover:shadow-lg transition"
+            >
+              <span className="text-3xl">🧑‍🏫</span>
+              <div>
+                <p className="font-semibold">Portal Instructor</p>
+                <p className="text-xs text-blue-100">Califica a tus alumnos y gestiona honorarios</p>
+              </div>
+              <span className="ml-auto text-2xl opacity-50 group-hover:opacity-100 transition">→</span>
+            </Link>
+            <Link
+              href="/supervisor"
+              className="group flex items-center gap-3 bg-gradient-to-br from-[#1a3a52] to-[#2a4a62] text-white rounded-xl p-4 hover:shadow-lg transition"
+            >
+              <span className="text-3xl">🏢</span>
+              <div>
+                <p className="font-semibold">Portal Supervisor</p>
+                <p className="text-xs text-blue-100">Avance de tus alumnos por empresa</p>
+              </div>
+              <span className="ml-auto text-2xl opacity-50 group-hover:opacity-100 transition">→</span>
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* Area filters */}
       <section className="bg-[#F0F2F5] border-b border-gray-200 sticky top-16 z-40">
         <div className="max-w-7xl mx-auto px-4 py-3">

@@ -121,6 +121,7 @@ export default function TpemsLoginPage() {
           const { data: prof } = await supabase
             .from("profiles").select("role").eq("email", email).maybeSingle();
           if (prof?.role === "instructor") safeNext = "/instructor";
+          else if (prof?.role === "supervisor") safeNext = "/supervisor";
           else if (prof?.role === "admin") safeNext = "/admin";
           else safeNext = "/tpems";
         } catch {

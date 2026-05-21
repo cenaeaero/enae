@@ -31,8 +31,11 @@ export default function Header() {
             <Link href="/tpems/login" className="hover:text-white transition">
               Portal Alumno
             </Link>
-            <Link href="/tpems" className="hover:text-white transition">
-              Plataforma LMS
+            <Link href="/instructor" className="hover:text-white transition">
+              Portal Instructor
+            </Link>
+            <Link href="/supervisor" className="hover:text-white transition">
+              Portal Supervisor
             </Link>
           </div>
         </div>

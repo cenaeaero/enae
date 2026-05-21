@@ -13,9 +13,11 @@ export default function LayoutShell({
   const isTpems = pathname.startsWith("/tpems");
   const isAdminLogin = pathname === "/admin/login";
   const isAdmin = pathname.startsWith("/admin");
+  const isInstructor = pathname.startsWith("/instructor");
+  const isSupervisor = pathname.startsWith("/supervisor");
 
-  // TPEMS and admin login have their own layouts
-  if (isTpems || isAdminLogin) {
+  // Portales con su propio chrome (sin Header/Footer público)
+  if (isTpems || isAdminLogin || isInstructor || isSupervisor) {
     return <>{children}</>;
   }
 

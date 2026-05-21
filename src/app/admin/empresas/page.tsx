@@ -170,6 +170,7 @@ function CompanyForm({ initial, onClose, onSaved }: { initial: Company | null; o
             <label className="block text-xs font-medium text-gray-500 mb-1">Notas</label>
             <textarea rows={2} value={form.notes||""} onChange={(e)=>set("notes",e.target.value)} className="w-full py-2 px-3 border border-gray-300 rounded text-sm"/>
           </div>
+          {!isNew && initial && <SupervisorsBlock companyId={initial.id} />}
         </div>
         <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 flex justify-end gap-2">
           <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded">Cancelar</button>
@@ -177,6 +178,84 @@ function CompanyForm({ initial, onClose, onSaved }: { initial: Company | null; o
             {saving ? "Guardando…" : isNew ? "Crear" : "Guardar"}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SupervisorsBlock({ companyId }: { companyId: string }) {
+  const [list, setList] = useState<any[]>([]);
+  const [addingSlot, setAddingSlot] = useState<number | null>(null);
+  const [email, setEmail] = useState("");
+  const [err, setErr] = useState("");
+
+  async function load() {
+    const res = await fetch(`/api/admin/company-supervisors?company_id=${companyId}`).then((r) => r.json());
+    setList(res.supervisors || []);
+  }
+  useEffect(() => { load(); }, [companyId]);
+
+  async function assign(slot: number) {
+    setErr("");
+    if (!email.trim()) { setErr("Email requerido"); return; }
+    const profRes = await fetch(`/api/admin/perfiles-buscar?email=${encodeURIComponent(email.trim())}`).then((r) => r.json()).catch(() => null);
+    if (!profRes?.profile?.id) { setErr("No existe un perfil con ese email. Crea el perfil primero."); return; }
+    const res = await fetch("/api/admin/company-supervisors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ company_id: companyId, profile_id: profRes.profile.id, slot }),
+    });
+    const data = await res.json();
+    if (!res.ok) { setErr(data.error || "Error"); return; }
+    setEmail(""); setAddingSlot(null); load();
+  }
+
+  async function remove(id: string) {
+    if (!confirm("¿Quitar supervisor?")) return;
+    await fetch(`/api/admin/company-supervisors?id=${id}`, { method: "DELETE" });
+    load();
+  }
+
+  const bySlot: Record<number, any> = {};
+  for (const s of list) bySlot[s.slot] = s;
+
+  return (
+    <div className="border-t border-gray-100 pt-3">
+      <p className="text-xs font-medium text-gray-500 mb-2">Supervisores (máx. 3)</p>
+      {err && <p className="text-xs text-red-600 mb-2">{err}</p>}
+      <div className="space-y-2">
+        {[1, 2, 3].map((slot) => {
+          const s = bySlot[slot];
+          if (s) {
+            return (
+              <div key={slot} className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded px-3 py-2">
+                <div className="text-sm">
+                  <span className="text-xs text-gray-400">Slot {slot}:</span>{" "}
+                  <span className="font-semibold text-[#003366]">{s.profiles?.first_name} {s.profiles?.last_name}</span>{" "}
+                  <span className="text-xs text-gray-500">({s.profiles?.email})</span>
+                </div>
+                <button onClick={() => remove(s.id)} className="text-xs text-red-600 hover:underline">Quitar</button>
+              </div>
+            );
+          }
+          if (addingSlot === slot) {
+            return (
+              <div key={slot} className="flex gap-2 items-center">
+                <input type="email" placeholder="email@empresa.cl"
+                  value={email} onChange={(e) => setEmail(e.target.value)}
+                  className="flex-1 border border-gray-300 rounded px-2 py-1.5 text-sm"/>
+                <button onClick={() => assign(slot)} className="text-xs bg-[#0072CE] text-white px-3 py-1.5 rounded">Asignar</button>
+                <button onClick={() => { setAddingSlot(null); setEmail(""); }} className="text-xs text-gray-500">×</button>
+              </div>
+            );
+          }
+          return (
+            <button key={slot} onClick={() => setAddingSlot(slot)}
+              className="block w-full text-xs text-left border border-dashed border-gray-300 rounded px-3 py-2 text-gray-500 hover:bg-gray-50">
+              + Asignar supervisor slot {slot}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
