@@ -72,6 +72,13 @@ export default function AdminInscripcionPage() {
   const [selectedCaseId, setSelectedCaseId] = useState("");
   const [newQuotationNumber, setNewQuotationNumber] = useState("");
   const [newQuotationAmount, setNewQuotationAmount] = useState("");
+  // Datos opcionales adicionales del caso (si ya hay O/C, factura, pago al inscribir)
+  const [extraOcNumber, setExtraOcNumber] = useState("");
+  const [extraInvoiceNumber, setExtraInvoiceNumber] = useState("");
+  const [extraInvoiceDate, setExtraInvoiceDate] = useState("");
+  const [extraInvoiceAmount, setExtraInvoiceAmount] = useState("");
+  const [extraPaymentReceived, setExtraPaymentReceived] = useState("");
+  const [extraPaymentAmount, setExtraPaymentAmount] = useState("");
 
   // Recarga casos abiertos cuando cambia empresa, curso o sesión
   useEffect(() => {
@@ -357,14 +364,21 @@ export default function AdminInscripcionPage() {
 
     for (const courseId of courseIds) {
       const courseName = allCourses.find((c) => c.id === courseId)?.title || "";
-      // Datos del caso B2B (empresa + cotización)
+      // Datos del caso B2B (empresa + cotización + opcionales O/C / factura / pago)
       const billing = {
         company_id: company?.id || null,
         company_name: company?.name || null,
         billing_case_id: quotationMode === "existing" ? (selectedCaseId || null) : null,
         new_quotation_number: quotationMode === "new" ? (newQuotationNumber || null) : null,
         new_quotation_amount: quotationMode === "new" && newQuotationAmount ? Number(newQuotationAmount) : null,
-        loose: quotationMode === "loose",  // → cotización 9999
+        loose: quotationMode === "loose",
+        // Datos opcionales que adelantamos al inscribir
+        oc_number: extraOcNumber || null,
+        invoice_number: extraInvoiceNumber || null,
+        invoice_date: extraInvoiceDate || null,
+        invoice_amount: extraInvoiceAmount ? Number(extraInvoiceAmount) : null,
+        payment_received_at: extraPaymentReceived || null,
+        payment_amount: extraPaymentAmount ? Number(extraPaymentAmount) : null,
       };
 
       const res = await fetch("/api/inscripcion", {
@@ -462,6 +476,45 @@ export default function AdminInscripcionPage() {
             </div>
           </div>
         </div>
+
+        {/* Datos adicionales opcionales (si ya hay O/C / factura / pago al inscribir) */}
+        <details className="mt-4 pt-4 border-t border-gray-100">
+          <summary className="text-xs font-semibold text-gray-600 cursor-pointer hover:text-[#0072CE]">
+            + Datos adicionales del caso (O/C, factura, pago) — opcional
+          </summary>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
+            <div>
+              <label className="block text-[10px] text-gray-500 uppercase mb-1">N° O/C</label>
+              <input type="text" value={extraOcNumber} onChange={(e) => setExtraOcNumber(e.target.value)}
+                className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm"/>
+            </div>
+            <div>
+              <label className="block text-[10px] text-gray-500 uppercase mb-1">N° Factura</label>
+              <input type="text" value={extraInvoiceNumber} onChange={(e) => setExtraInvoiceNumber(e.target.value)}
+                className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm"/>
+            </div>
+            <div>
+              <label className="block text-[10px] text-gray-500 uppercase mb-1">Fecha factura</label>
+              <input type="date" value={extraInvoiceDate} onChange={(e) => setExtraInvoiceDate(e.target.value)}
+                className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm"/>
+            </div>
+            <div>
+              <label className="block text-[10px] text-gray-500 uppercase mb-1">Monto factura (exento)</label>
+              <input type="number" value={extraInvoiceAmount} onChange={(e) => setExtraInvoiceAmount(e.target.value)}
+                className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm"/>
+            </div>
+            <div>
+              <label className="block text-[10px] text-gray-500 uppercase mb-1">Pago recibido</label>
+              <input type="date" value={extraPaymentReceived} onChange={(e) => setExtraPaymentReceived(e.target.value)}
+                className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm"/>
+            </div>
+            <div>
+              <label className="block text-[10px] text-gray-500 uppercase mb-1">Monto pagado</label>
+              <input type="number" value={extraPaymentAmount} onChange={(e) => setExtraPaymentAmount(e.target.value)}
+                className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm"/>
+            </div>
+          </div>
+        </details>
       </div>
 
       {/* Program & Course selection */}

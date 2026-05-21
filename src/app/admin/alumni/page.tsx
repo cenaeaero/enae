@@ -234,7 +234,7 @@ export default function AdminAlumniPage() {
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1 justify-end">
                       <Link
-                        href={`/admin/registros/${r.id}`}
+                        href={`/admin/registros/inscripcion/${r.id}`}
                         className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
                       >
                         Ver detalle

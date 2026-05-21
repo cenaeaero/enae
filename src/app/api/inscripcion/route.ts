@@ -236,6 +236,15 @@ export async function POST(request: Request) {
       if (regIds.length > 0 && billing) {
         let caseId: string | null = null;
 
+        // Campos opcionales extras (O/C, factura, pago)
+        const extras: Record<string, any> = {};
+        if (billing.oc_number) { extras.oc_number = billing.oc_number; extras.oc_received_at = new Date().toISOString(); }
+        if (billing.invoice_number) extras.invoice_number = billing.invoice_number;
+        if (billing.invoice_date)   extras.invoice_date = billing.invoice_date;
+        if (billing.invoice_amount != null) extras.invoice_amount = billing.invoice_amount;
+        if (billing.payment_received_at) extras.payment_received_at = new Date(billing.payment_received_at).toISOString();
+        if (billing.payment_amount != null) extras.payment_amount = billing.payment_amount;
+
         if (billing.billing_case_id) {
           caseId = billing.billing_case_id;
         } else if (billing.loose && billing.company_id) {
@@ -282,6 +291,10 @@ export async function POST(request: Request) {
         }
 
         if (caseId) {
+          // Aplica extras (O/C, factura, pago) si los hay
+          if (Object.keys(extras).length > 0) {
+            await supabaseAdmin.from("billing_cases").update(extras).eq("id", caseId);
+          }
           await supabaseAdmin
             .from("billing_case_registrations")
             .upsert(

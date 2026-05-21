@@ -419,7 +419,7 @@ export default function AdminApendiceCPage() {
                   <tr key={r.registration_id} className="border-t border-gray-100 hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-800">
                       <Link
-                        href={`/admin/registros/${r.registration_id}`}
+                        href={`/admin/registros/inscripcion/${r.registration_id}`}
                         className="text-[#0072CE] hover:text-[#003366] hover:underline"
                       >
                         {r.first_name} {r.last_name}

@@ -183,7 +183,7 @@ export default function AdminLayout({
                     pending.map((p) => (
                       <Link
                         key={p.id}
-                        href={`/admin/registros/${p.id}`}
+                        href={`/admin/registros/inscripcion/${p.id}`}
                         onClick={() => setNotifOpen(false)}
                         className="block px-4 py-3 border-b border-gray-50 hover:bg-gray-50"
                       >

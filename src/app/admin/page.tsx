@@ -421,7 +421,7 @@ export default function AdminDashboard() {
                 {activeStudents.map((s) => (
                   <tr key={s.id} className="border-t border-gray-50 hover:bg-gray-50">
                     <td className="px-4 py-2.5 text-sm">
-                      <Link href={`/admin/registros/${s.id}`} className="text-[#0072CE] hover:underline font-medium">
+                      <Link href={`/admin/registros/inscripcion/${s.id}`} className="text-[#0072CE] hover:underline font-medium">
                         {s.first_name} {s.last_name}
                       </Link>
                     </td>
