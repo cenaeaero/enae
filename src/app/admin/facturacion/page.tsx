@@ -542,42 +542,7 @@ function CaseEditor({
           </div>
 
           {/* Alumnos */}
-          {!isNew && form.billing_case_registrations && form.billing_case_registrations.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-[#003366] mb-2">Alumnos en este caso ({form.billing_case_registrations.length})</h3>
-              <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <table className="w-full text-xs">
-                  <thead className="bg-gray-50 text-gray-500 uppercase">
-                    <tr>
-                      <th className="px-3 py-2 text-left">Alumno</th>
-                      <th className="px-3 py-2 text-left">Email</th>
-                      <th className="px-3 py-2 text-left">Estado</th>
-                      <th className="px-3 py-2 text-right">Nota Final</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {form.billing_case_registrations.map((bcr: any) => {
-                      const r = bcr.registrations;
-                      if (!r) return null;
-                      const completed = r.status === "completed" && (r.grade_status === "approved");
-                      return (
-                        <tr key={bcr.registration_id}>
-                          <td className="px-3 py-2">{r.first_name} {r.last_name}</td>
-                          <td className="px-3 py-2 text-gray-500">{r.email}</td>
-                          <td className="px-3 py-2">
-                            <span className={`px-2 py-0.5 rounded text-[10px] ${completed ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
-                              {completed ? "Capacitado" : r.status}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2 text-right">{r.final_score != null ? `${r.final_score}%` : "—"}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+          {!isNew && <AlumnosCasoBlock caseId={form.id} initialLinked={form.billing_case_registrations || []} onChange={onSaved} />}
         </div>
 
         <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 flex justify-between items-center gap-2">
@@ -686,6 +651,173 @@ function FileField({
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// Bloque "Alumnos del caso" con vinculación dinámica
+// =============================================================================
+
+function AlumnosCasoBlock({
+  caseId, initialLinked, onChange,
+}: { caseId: string; initialLinked: any[]; onChange: () => void }) {
+  const [linked, setLinked] = useState<any[]>(initialLinked);
+  const [candidates, setCandidates] = useState<any[]>([]);
+  const [globalSearch, setGlobalSearch] = useState("");
+  const [globalResults, setGlobalResults] = useState<any[]>([]);
+  const [mode, setMode] = useState<"course" | "global">("course");
+  const [showAdd, setShowAdd] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+
+  async function reloadLinked() {
+    // El padre puede recargar todo via onChange, pero queremos un refresh local
+    const res = await fetch(`/api/admin/facturacion?view=cases`).then((r) => r.json());
+    const me = (res.cases || []).find((c: any) => c.id === caseId);
+    if (me) setLinked(me.billing_case_registrations || []);
+    onChange?.();
+  }
+
+  async function loadCandidates() {
+    const res = await fetch(`/api/admin/facturacion/${caseId}/alumnos`).then((r) => r.json());
+    setCandidates(res.candidates || []);
+  }
+
+  useEffect(() => { if (showAdd && mode === "course") loadCandidates(); }, [showAdd, mode, caseId]);
+
+  useEffect(() => {
+    if (mode !== "global" || globalSearch.trim().length < 2) { setGlobalResults([]); return; }
+    const t = setTimeout(async () => {
+      const res = await fetch(`/api/admin/registrations-search?q=${encodeURIComponent(globalSearch.trim())}`).then((r) => r.json());
+      const alreadyIds = new Set(linked.map((l: any) => l.registration_id));
+      setGlobalResults((res.registrations || []).filter((r: any) => !alreadyIds.has(r.id)));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [globalSearch, mode, linked]);
+
+  async function addSelected() {
+    if (selected.size === 0) return;
+    setBusy(true);
+    await fetch(`/api/admin/facturacion/${caseId}/alumnos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ registration_ids: Array.from(selected) }),
+    });
+    setBusy(false); setSelected(new Set()); setShowAdd(false);
+    setGlobalSearch(""); setGlobalResults([]);
+    reloadLinked();
+  }
+
+  async function unlink(regId: string) {
+    if (!confirm("¿Quitar este alumno del caso? (No borra su inscripción)")) return;
+    await fetch(`/api/admin/facturacion/${caseId}/alumnos?registration_id=${regId}`, { method: "DELETE" });
+    reloadLinked();
+  }
+
+  const sourceList = mode === "course" ? candidates : globalResults;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-sm font-semibold text-[#003366]">Alumnos en este caso ({linked.length})</h3>
+        <button onClick={() => setShowAdd((v) => !v)} className="text-xs text-[#0072CE] hover:underline">
+          {showAdd ? "Cerrar" : "+ Agregar alumnos"}
+        </button>
+      </div>
+
+      {showAdd && (
+        <div className="border border-blue-200 bg-blue-50/30 rounded p-3 mb-3">
+          <div className="flex gap-1 mb-2 text-xs">
+            <button onClick={() => setMode("course")}
+              className={`px-2 py-1 rounded ${mode === "course" ? "bg-[#0072CE] text-white" : "bg-white border border-gray-300"}`}>
+              Del curso del caso
+            </button>
+            <button onClick={() => setMode("global")}
+              className={`px-2 py-1 rounded ${mode === "global" ? "bg-[#0072CE] text-white" : "bg-white border border-gray-300"}`}>
+              Buscar entre todos
+            </button>
+          </div>
+
+          {mode === "global" && (
+            <input type="text" placeholder="Buscar por nombre, email o empresa…"
+              value={globalSearch} onChange={(e) => setGlobalSearch(e.target.value)}
+              className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm mb-2"/>
+          )}
+
+          {sourceList.length === 0 ? (
+            <p className="text-xs text-gray-400 py-2">
+              {mode === "course" ? "Sin alumnos disponibles del curso (todos ya están vinculados)" : globalSearch.length < 2 ? "Escribe al menos 2 caracteres" : "Sin coincidencias"}
+            </p>
+          ) : (
+            <>
+              <div className="max-h-48 overflow-y-auto bg-white border border-gray-200 rounded">
+                {sourceList.map((c: any) => (
+                  <label key={c.id} className={`flex items-center gap-2 px-2 py-1.5 border-b border-gray-50 last:border-0 hover:bg-blue-50 cursor-pointer ${selected.has(c.id) ? "bg-blue-50" : ""}`}>
+                    <input type="checkbox" checked={selected.has(c.id)}
+                      onChange={() => setSelected((p) => {
+                        const n = new Set(p);
+                        n.has(c.id) ? n.delete(c.id) : n.add(c.id);
+                        return n;
+                      })}/>
+                    <div className="text-xs flex-1 min-w-0">
+                      <p className="font-medium text-[#003366]">{c.last_name}, {c.first_name}</p>
+                      <p className="text-gray-500">{c.email} · {c.organization || "—"}{c.courses ? ` · ${c.courses.title}` : ""}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              <div className="flex justify-end gap-2 mt-2">
+                <button onClick={() => setSelected(new Set())} className="text-xs text-gray-500 hover:underline">Limpiar</button>
+                <button onClick={addSelected} disabled={busy || selected.size === 0}
+                  className="text-xs bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white px-3 py-1 rounded">
+                  Agregar {selected.size > 0 ? `(${selected.size})` : ""}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {linked.length > 0 ? (
+        <div className="border border-gray-200 rounded-lg overflow-hidden">
+          <table className="w-full text-xs">
+            <thead className="bg-gray-50 text-gray-500 uppercase">
+              <tr>
+                <th className="px-3 py-2 text-left">Alumno</th>
+                <th className="px-3 py-2 text-left">Email</th>
+                <th className="px-3 py-2 text-left">Estado</th>
+                <th className="px-3 py-2 text-right">Nota Final</th>
+                <th className="px-3 py-2 text-right"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {linked.map((bcr: any) => {
+                const r = bcr.registrations;
+                if (!r) return null;
+                const completed = r.status === "completed" && (r.grade_status === "approved");
+                return (
+                  <tr key={bcr.registration_id}>
+                    <td className="px-3 py-2">{r.first_name} {r.last_name}</td>
+                    <td className="px-3 py-2 text-gray-500">{r.email}</td>
+                    <td className="px-3 py-2">
+                      <span className={`px-2 py-0.5 rounded text-[10px] ${completed ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
+                        {completed ? "Capacitado" : r.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-right">{r.final_score != null ? `${r.final_score}%` : "—"}</td>
+                    <td className="px-3 py-2 text-right">
+                      <button onClick={() => unlink(bcr.registration_id)} className="text-xs text-red-500 hover:underline">×</button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="text-xs text-gray-400 italic py-2">Sin alumnos vinculados. Usa "+ Agregar alumnos" arriba.</p>
+      )}
     </div>
   );
 }
