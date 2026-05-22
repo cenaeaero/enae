@@ -18,22 +18,41 @@ export default function ClaseSincronaDetail({ params }: { params: Promise<{ id: 
   const { id } = use(params);
   const [cls, setCls] = useState<any>(null);
   const [regs, setRegs] = useState<any[]>([]);
+  const [candidates, setCandidates] = useState<any[]>([]);
   const [attendance, setAttendance] = useState<Record<string, { status: string; notes?: string }>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [msg, setMsg] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
+  const [addSelected, setAddSelected] = useState<Set<string>>(new Set());
 
   async function load() {
     const res = await fetch(`/api/admin/clases-sincronas/${id}`).then((r) => r.json());
     setCls(res.class);
     setRegs(res.registrations || []);
+    setCandidates(res.candidates || []);
     const att: Record<string, { status: string; notes?: string }> = {};
     for (const a of res.attendance || []) {
       att[a.registration_id] = { status: a.status, notes: a.notes || "" };
     }
     setAttendance(att);
     setLoading(false);
+  }
+
+  async function addStudents() {
+    if (addSelected.size === 0) return;
+    const res = await fetch(`/api/admin/clases-sincronas/${id}/alumnos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ registration_ids: Array.from(addSelected) }),
+    });
+    if (res.ok) {
+      setMsg(`✓ ${addSelected.size} alumno(s) agregado(s)`);
+      setAddSelected(new Set());
+      setShowAdd(false);
+      load();
+    }
   }
   useEffect(() => { load(); }, [id]);
 
@@ -64,6 +83,12 @@ export default function ClaseSincronaDetail({ params }: { params: Promise<{ id: 
     setSaving(false);
     setMsg(res.ok ? "✓ Asistencia guardada" : "Error al guardar");
     if (res.ok) load();
+  }
+
+  async function removeFromClass(regId: string, name: string) {
+    if (!confirm(`¿Quitar a ${name} de esta clase? No afecta su inscripción al curso.`)) return;
+    await fetch(`/api/admin/clases-sincronas/${id}/alumnos?registration_id=${regId}`, { method: "DELETE" });
+    load();
   }
 
   async function sendInvitations() {
@@ -133,6 +158,57 @@ export default function ClaseSincronaDetail({ params }: { params: Promise<{ id: 
         <Stat label="Ausentes" value={ausentes} color="text-red-700" />
       </div>
 
+      {/* Agregar alumnos a la clase */}
+      {(() => {
+        const alreadyIn = new Set(regs.map((r) => r.id));
+        const eligible = candidates.filter((c) => !alreadyIn.has(c.id));
+        return (
+          <div className="bg-white border border-gray-200 rounded-lg mt-4 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium text-gray-700">
+                Agregar alumnos a esta clase
+                <span className="text-xs text-gray-400 ml-2">
+                  ({eligible.length} disponible{eligible.length !== 1 ? "s" : ""} del curso, no inscrito{eligible.length !== 1 ? "s" : ""} a esta clase)
+                </span>
+              </p>
+              {eligible.length > 0 && (
+                <button onClick={() => setShowAdd((v) => !v)}
+                  className="text-xs bg-[#0072CE] hover:bg-[#005fa3] text-white font-semibold px-3 py-1.5 rounded">
+                  {showAdd ? "Cerrar" : "+ Agregar alumnos"}
+                </button>
+              )}
+            </div>
+            {showAdd && eligible.length > 0 && (
+              <div className="mt-3 border border-gray-200 rounded max-h-64 overflow-y-auto">
+                {eligible.map((c) => (
+                  <label key={c.id}
+                    className={`flex items-center gap-2 px-3 py-1.5 border-b border-gray-50 last:border-0 hover:bg-blue-50 cursor-pointer ${addSelected.has(c.id) ? "bg-blue-50" : ""}`}>
+                    <input type="checkbox" checked={addSelected.has(c.id)}
+                      onChange={() => setAddSelected((p) => {
+                        const n = new Set(p);
+                        n.has(c.id) ? n.delete(c.id) : n.add(c.id);
+                        return n;
+                      })}/>
+                    <div className="flex-1 min-w-0 text-xs">
+                      <p className="font-medium text-[#003366]">{c.last_name}, {c.first_name}</p>
+                      <p className="text-gray-500">{c.email} · {c.organization || "—"}</p>
+                    </div>
+                  </label>
+                ))}
+                <div className="px-3 py-2 bg-gray-50 flex justify-end gap-2">
+                  <button onClick={() => setAddSelected(new Set())}
+                    className="text-xs text-gray-500 hover:underline">Limpiar</button>
+                  <button onClick={addStudents} disabled={addSelected.size === 0}
+                    className="text-xs bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white font-semibold px-3 py-1.5 rounded">
+                    Agregar {addSelected.size > 0 ? `(${addSelected.size})` : ""}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       <div className="bg-white border border-gray-200 rounded-lg mt-4 overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-gray-100">
           <h2 className="font-semibold text-gray-800">Libro de asistencia</h2>
@@ -151,6 +227,7 @@ export default function ClaseSincronaDetail({ params }: { params: Promise<{ id: 
               <th className="text-left px-4 py-2">Empresa</th>
               <th className="text-left px-4 py-2">Estado</th>
               <th className="text-left px-4 py-2">Notas</th>
+              <th className="text-right px-4 py-2"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -178,11 +255,15 @@ export default function ClaseSincronaDetail({ params }: { params: Promise<{ id: 
                       placeholder="—"
                       className="w-full border border-gray-200 rounded px-2 py-1 text-xs"/>
                   </td>
+                  <td className="px-4 py-2 text-right">
+                    <button onClick={() => removeFromClass(r.id, `${r.first_name} ${r.last_name}`)}
+                      className="text-xs text-red-500 hover:text-red-700" title="Quitar de esta clase">×</button>
+                  </td>
                 </tr>
               );
             })}
             {regs.length === 0 && (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400">Sin alumnos inscritos en este curso/sesión.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">Sin alumnos inscritos en este curso/sesión.</td></tr>
             )}
           </tbody>
         </table>
