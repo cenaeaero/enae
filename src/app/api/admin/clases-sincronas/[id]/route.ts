@@ -14,19 +14,16 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     .eq("id", id).maybeSingle();
   if (!cls) return NextResponse.json({ error: "No encontrada" }, { status: 404 });
 
-  // Alumnos asignados a ESTA clase (vía class_attendance)
-  const { data: att } = await supabaseAdmin
+  // Alumnos asignados a ESTA clase (vía class_attendance con join embedded)
+  const { data: att, error: attErr } = await supabaseAdmin
     .from("class_attendance")
-    .select("*")
+    .select("*, registrations(id, first_name, last_name, email, status, rut, organization, company_id)")
     .eq("synchronous_class_id", id);
+  if (attErr) console.error("class_attendance fetch error:", attErr);
 
-  const regIds = (att || []).map((a: any) => a.registration_id);
-  const { data: regs } = regIds.length === 0
-    ? { data: [] as any[] }
-    : await supabaseAdmin
-        .from("registrations")
-        .select("id, first_name, last_name, email, status, rut, organization, company_id")
-        .in("id", regIds);
+  const regs = (att || [])
+    .map((a: any) => a.registrations)
+    .filter((r: any) => !!r);
 
   // Lista de candidatos disponibles del curso/sesión (para agregar más)
   let cq = supabaseAdmin
@@ -35,7 +32,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     .eq("course_id", cls.course_id)
     .in("status", ["confirmed", "completed"]);
   if (cls.session_id) cq = cq.eq("session_id", cls.session_id);
-  const { data: candidates } = await cq;
+  const { data: candidates, error: candErr } = await cq;
+  if (candErr) console.error("candidates fetch error:", candErr);
 
   return NextResponse.json({
     class: cls,
