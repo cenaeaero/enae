@@ -580,15 +580,38 @@ function CaseEditor({
           )}
         </div>
 
-        <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded">Cancelar</button>
-          <button
-            onClick={save}
-            disabled={saving}
-            className="px-5 py-2 bg-[#0072CE] hover:bg-[#005fa3] disabled:bg-blue-300 text-white text-sm font-semibold rounded"
-          >
-            {saving ? "Guardando…" : isNew ? "Crear caso" : "Guardar cambios"}
-          </button>
+        <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 flex justify-between items-center gap-2">
+          <div>
+            {!isNew && (
+              <button
+                onClick={async () => {
+                  if (!confirm(`¿Eliminar el caso de ${form.company}?\n\nEsta acción no se puede deshacer. Se desvinculan los alumnos pero NO se borran sus inscripciones.`)) return;
+                  setSaving(true);
+                  const res = await fetch(`/api/admin/facturacion?id=${form.id}`, { method: "DELETE" });
+                  setSaving(false);
+                  if (res.ok) onSaved();
+                  else {
+                    const d = await res.json();
+                    setError(d.error || "Error al eliminar");
+                  }
+                }}
+                disabled={saving}
+                className="px-4 py-2 text-sm text-red-600 hover:bg-red-50 border border-red-300 rounded font-medium"
+              >
+                🗑 Eliminar caso
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded">Cancelar</button>
+            <button
+              onClick={save}
+              disabled={saving}
+              className="px-5 py-2 bg-[#0072CE] hover:bg-[#005fa3] disabled:bg-blue-300 text-white text-sm font-semibold rounded"
+            >
+              {saving ? "Guardando…" : isNew ? "Crear caso" : "Guardar cambios"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
