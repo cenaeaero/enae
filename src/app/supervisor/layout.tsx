@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase";
 const nav = [
   { href: "/supervisor", label: "Dashboard", icon: "📊" },
   { href: "/supervisor/alumnos", label: "Mis Alumnos", icon: "🎓" },
+  { href: "/supervisor/finanzas", label: "Finanzas", icon: "💰" },
 ];
 
 export default function SupervisorLayout({ children }: { children: React.ReactNode }) {
