@@ -4,6 +4,60 @@ import { requireAdmin } from "@/lib/auth-instructor";
 import { sendStudentCredentials } from "@/lib/email";
 import crypto from "crypto";
 
+// GET: lista todos los perfiles (server-side, bypass RLS)
+export async function GET() {
+  const auth = await requireAdmin();
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ profiles: data || [] });
+}
+
+// PATCH: actualiza un perfil (server-side, bypass RLS)
+export async function PATCH(request: Request) {
+  const auth = await requireAdmin();
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+  const body = await request.json();
+  const { id, ...updates } = body;
+  if (!id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
+
+  // Si cambia email, actualiza también auth.users
+  if (updates.email) {
+    const { data: prof } = await supabaseAdmin.from("profiles").select("user_id, email").eq("id", id).maybeSingle();
+    if (prof?.user_id && prof.email !== updates.email) {
+      const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(prof.user_id, { email: updates.email });
+      if (authErr) return NextResponse.json({ error: "No se pudo cambiar email en auth: " + authErr.message }, { status: 500 });
+    }
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("profiles").update(updates).eq("id", id).select().single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ profile: data });
+}
+
+// DELETE: borra perfil y su auth user
+export async function DELETE(request: Request) {
+  const auth = await requireAdmin();
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+  const id = new URL(request.url).searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
+
+  const { data: prof } = await supabaseAdmin.from("profiles").select("user_id").eq("id", id).maybeSingle();
+  await supabaseAdmin.from("profiles").delete().eq("id", id);
+  if (prof?.user_id) {
+    try { await supabaseAdmin.auth.admin.deleteUser(prof.user_id); } catch {}
+  }
+  return NextResponse.json({ ok: true });
+}
+
 // Crea un perfil con un rol específico (student | instructor | supervisor | admin)
 // Si el email no existe en auth, crea la cuenta y envía credenciales.
 export async function POST(request: Request) {

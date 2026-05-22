@@ -67,26 +67,38 @@ export default function AdminPerfilesPage() {
     loadProfiles();
   }, []);
 
-  async function loadProfiles() {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (!error && data) {
-      setProfiles(data as Profile[]);
+  // Auto-abrir edición si vino ?id=X en la URL
+  useEffect(() => {
+    if (profiles.length === 0) return;
+    const sp = new URLSearchParams(window.location.search);
+    const wantedId = sp.get("id");
+    if (wantedId) {
+      const p = profiles.find((p) => p.id === wantedId);
+      if (p) {
+        setEditingId(p.id);
+        setEditForm(p);
+        // Limpia el query param para que un refresh no abra otra vez
+        window.history.replaceState({}, "", "/admin/perfiles");
+      }
     }
+  }, [profiles]);
+
+  async function loadProfiles() {
+    setLoading(true);
+    const res = await fetch("/api/admin/perfiles");
+    const data = await res.json();
+    setProfiles((data.profiles || []) as Profile[]);
     setLoading(false);
   }
 
   async function updateRole(id: string, newRole: string) {
     setUpdatingId(id);
-    const { error } = await supabase
-      .from("profiles")
-      .update({ role: newRole })
-      .eq("id", id);
-
-    if (!error) {
+    const res = await fetch("/api/admin/perfiles", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, role: newRole }),
+    });
+    if (res.ok) {
       setProfiles((prev) =>
         prev.map((p) => (p.id === id ? { ...p, role: newRole } : p))
       );
@@ -156,12 +168,13 @@ export default function AdminPerfilesPage() {
       updates.organization = cleaned === "" ? null : cleaned;
     }
 
-    const { error } = await supabase
-      .from("profiles")
-      .update(updates)
-      .eq("id", editingId);
-
-    if (!error) {
+    const res = await fetch("/api/admin/perfiles", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: editingId, ...updates }),
+    });
+    const data = await res.json();
+    if (res.ok) {
       setProfiles((prev) =>
         prev.map((p) =>
           p.id === editingId ? { ...p, ...updates } : p
@@ -169,15 +182,16 @@ export default function AdminPerfilesPage() {
       );
       setEditingId(null);
       setEditForm({});
+    } else {
+      alert(data.error || "Error al guardar");
     }
     setSaving(false);
   }
 
   async function deleteProfile(id: string) {
     setDeleting(true);
-    const { error } = await supabase.from("profiles").delete().eq("id", id);
-
-    if (!error) {
+    const res = await fetch(`/api/admin/perfiles?id=${id}`, { method: "DELETE" });
+    if (res.ok) {
       setProfiles((prev) => prev.filter((p) => p.id !== id));
       setExpandedId(null);
       setDeleteConfirm(null);

@@ -359,7 +359,7 @@ export default function AlumnoDossierPage({ params }: { params: Promise<{ id: st
             >
               {exporting ? "Generando…" : "📊 PDF Empresa"}
             </button>
-            <Link href={`/admin/perfiles`} className="inline-block text-center bg-white border border-gray-300 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-50">
+            <Link href={`/admin/perfiles?id=${p.id}`} className="inline-block text-center bg-white border border-gray-300 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-50">
               Editar perfil
             </Link>
           </div>
