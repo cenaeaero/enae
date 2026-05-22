@@ -29,11 +29,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "company_id, profile_id, slot(1..3) requeridos" }, { status: 400 });
   }
 
-  // Promueve el rol del profile a "supervisor" si no es admin
-  const { data: prof } = await supabaseAdmin.from("profiles").select("role").eq("id", profile_id).maybeSingle();
-  if (prof && prof.role !== "admin" && prof.role !== "supervisor") {
-    await supabaseAdmin.from("profiles").update({ role: "supervisor" }).eq("id", profile_id);
-  }
+  // No cambiamos el role del profile. Una persona puede ser student + supervisor a la vez.
+  // El acceso al portal /supervisor se determina por la existencia de filas en company_supervisors.
 
   // Borra el slot previo si estaba ocupado (replace)
   await supabaseAdmin.from("company_supervisors").delete().eq("company_id", company_id).eq("slot", slot);

@@ -78,6 +78,9 @@ export default function TpemsDashboard() {
     }
   }
 
+  const [isSupervisor, setIsSupervisor] = useState(false);
+  const [isInstructor, setIsInstructor] = useState(false);
+
   useEffect(() => {
     async function loadRegistrations() {
       const {
@@ -86,6 +89,17 @@ export default function TpemsDashboard() {
       if (!user?.email) {
         setLoading(false);
         return;
+      }
+
+      // Detectar si también es supervisor / instructor para mostrar accesos rápidos
+      const { data: prof } = await supabase
+        .from("profiles").select("id, role").eq("email", user.email).maybeSingle();
+      if (prof) {
+        if (prof.role === "instructor" || prof.role === "admin") setIsInstructor(true);
+        const { count: supCount } = await supabase
+          .from("company_supervisors").select("id", { count: "exact", head: true })
+          .eq("profile_id", prof.id);
+        if (supCount && supCount > 0) setIsSupervisor(true);
       }
 
       const { data, error } = await supabase
@@ -134,6 +148,22 @@ export default function TpemsDashboard() {
         Your Courses{" "}
         <span className="text-base text-gray-400">as Participant</span>
       </h1>
+
+      {(isSupervisor || isInstructor) && (
+        <div className="mb-6 flex flex-wrap gap-2 bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <p className="text-sm text-blue-800 font-medium mr-2">También tienes acceso a:</p>
+          {isSupervisor && (
+            <Link href="/supervisor" className="text-sm bg-[#1a3a52] hover:bg-[#0072CE] text-white px-3 py-1 rounded">
+              🏢 Portal Supervisor
+            </Link>
+          )}
+          {isInstructor && (
+            <Link href="/instructor" className="text-sm bg-[#0072CE] hover:bg-[#005fa3] text-white px-3 py-1 rounded">
+              🧑‍🏫 Portal Instructor
+            </Link>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <div className="text-center py-16 text-gray-400">Cargando...</div>

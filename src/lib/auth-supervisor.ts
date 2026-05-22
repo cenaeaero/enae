@@ -18,14 +18,13 @@ export async function requireSupervisor() {
       companyIds: (all || []).map((c: any) => c.id) as string[],
     };
   }
-  if (profile.role !== "supervisor") {
-    return { ok: false as const, status: 403, error: "No autorizado", companyIds: [] };
-  }
+  // Acceso al portal supervisor: tener al menos una empresa asignada en company_supervisors.
+  // El campo profiles.role puede ser "student", "instructor" u otro — no importa para esta decisión.
   const { data: links } = await supabaseAdmin
     .from("company_supervisors").select("company_id").eq("profile_id", profile.id);
   const companyIds = (links || []).map((l: any) => l.company_id);
   if (companyIds.length === 0) {
-    return { ok: false as const, status: 403, error: "Sin empresa asignada", companyIds: [] };
+    return { ok: false as const, status: 403, error: "Sin empresa asignada como supervisor", companyIds: [] };
   }
   return {
     ok: true as const, email: user.email, profileId: profile.id, isAdmin: false,

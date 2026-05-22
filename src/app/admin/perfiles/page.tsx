@@ -586,11 +586,30 @@ function EditForm({
     onChange({ ...form, avatar_url: null });
   }
 
+  async function handleResetPassword() {
+    if (!(form as any).id) return;
+    if (!confirm(`¿Resetear la contraseña de ${form.first_name} ${form.last_name}?\nSe generará una clave temporal y se enviará por email.`)) return;
+    const res = await fetch("/api/admin/perfiles/reset-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profile_id: (form as any).id, send_email: true }),
+    });
+    const data = await res.json();
+    if (res.ok) alert(`✓ Clave temporal generada: ${data.password}\n\nSe envió email a ${form.email}.\nGuárdala por si no llega.`);
+    else alert(data.error || "Error");
+  }
+
   return (
     <div>
-      <h3 className="text-sm font-semibold text-gray-800 mb-3">
-        Editar Perfil
-      </h3>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-gray-800">Editar Perfil</h3>
+        {(form as any).id && (
+          <button onClick={handleResetPassword}
+            className="text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 px-3 py-1 rounded">
+            🔑 Resetear contraseña
+          </button>
+        )}
+      </div>
 
       {/* Foto de perfil */}
       <div className="flex items-center gap-4 mb-4 pb-4 border-b border-gray-100">

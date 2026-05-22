@@ -115,19 +115,9 @@ export default function TpemsLoginPage() {
       const nextParam = new URLSearchParams(window.location.search).get("next");
       let safeNext = nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : null;
 
-      // Si no hay next explícito, redirige según el rol del usuario
-      if (!safeNext) {
-        try {
-          const { data: prof } = await supabase
-            .from("profiles").select("role").eq("email", email).maybeSingle();
-          if (prof?.role === "instructor") safeNext = "/instructor";
-          else if (prof?.role === "supervisor") safeNext = "/supervisor";
-          else if (prof?.role === "admin") safeNext = "/admin";
-          else safeNext = "/tpems";
-        } catch {
-          safeNext = "/tpems";
-        }
-      }
+      // Si no hay next explícito, llevamos al selector de portal.
+      // Si el usuario tiene un solo perfil disponible, /portal redirige automáticamente.
+      if (!safeNext) safeNext = "/portal";
       window.location.href = safeNext;
     } catch (err: any) {
       setError("Error de conexion. Intenta nuevamente.");

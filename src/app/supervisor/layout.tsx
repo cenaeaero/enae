@@ -20,10 +20,14 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user?.email) { router.push("/tpems/login?next=/supervisor"); return; }
-      const { data: profile } = await supabase.from("profiles").select("role").eq("email", user.email).maybeSingle();
-      if (!profile || (profile.role !== "supervisor" && profile.role !== "admin")) {
-        router.push("/tpems");
-        return;
+      const { data: profile } = await supabase.from("profiles").select("id, role").eq("email", user.email).maybeSingle();
+      if (!profile) { router.push("/tpems"); return; }
+      // Admin entra siempre. Otros entran si tienen empresa asignada como supervisor.
+      if (profile.role !== "admin") {
+        const { count } = await supabase
+          .from("company_supervisors").select("id", { count: "exact", head: true })
+          .eq("profile_id", profile.id);
+        if (!count) { router.push("/tpems"); return; }
       }
       setEmail(user.email);
       setAuthChecked(true);
