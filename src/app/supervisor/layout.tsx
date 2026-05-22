@@ -62,6 +62,7 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
           })}
         </nav>
         <div className="p-3 border-t border-blue-900 space-y-1">
+          <Link href="/portal" className="block px-3 py-1 text-xs text-blue-300 hover:text-white">⇄ Cambiar portal</Link>
           <Link href="/" className="block px-3 py-1 text-xs text-blue-300 hover:text-white">← Volver al sitio</Link>
           <button onClick={logout} className="block px-3 py-1 text-xs text-red-300 hover:text-red-100">Cerrar sesión</button>
         </div>
