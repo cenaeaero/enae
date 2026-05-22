@@ -72,7 +72,7 @@ export default function AdminInstructoresPage() {
     setCourses((c as Course[]) || []);
 
     // Filtrar perfiles que sean instructores
-    const insts = (profsRes.profiles || []).filter((p: any) => p.role === "instructor" || p.role === "admin");
+    const insts = (profsRes.profiles || []).filter((p: any) => p.role === "instructor");
     setInstructors(insts.map((p: any) => ({
       id: p.id, first_name: p.first_name || "", last_name: p.last_name || "",
       email: p.email, rut: p.rut, phone: p.phone,
