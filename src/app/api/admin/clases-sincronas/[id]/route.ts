@@ -30,7 +30,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     // Probamos primero .in()
     const r1 = await supabaseAdmin
       .from("registrations")
-      .select("id, first_name, last_name, email, status, rut, organization, company_id")
+      .select("id, first_name, last_name, email, status, organization, company_id")
       .in("id", regIds);
     if (r1.error) console.error(".in() error:", r1.error);
     if (r1.data && r1.data.length > 0) {
@@ -42,7 +42,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         regIds.map((rid) =>
           supabaseAdmin
             .from("registrations")
-            .select("id, first_name, last_name, email, status, rut, organization, company_id")
+            .select("id, first_name, last_name, email, status, organization, company_id")
             .eq("id", rid)
             .maybeSingle()
         )
@@ -54,7 +54,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   // 3) Candidatos del curso/sesión
   let cq = supabaseAdmin
     .from("registrations")
-    .select("id, first_name, last_name, email, status, rut, organization, company_id")
+    .select("id, first_name, last_name, email, status, organization, company_id")
     .eq("course_id", cls.course_id)
     .in("status", ["confirmed", "completed"]);
   if (cls.session_id) cq = cq.eq("session_id", cls.session_id);
