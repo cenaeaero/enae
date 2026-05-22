@@ -43,7 +43,9 @@ export default function HonorariosPage() {
   const [msg, setMsg] = useState("");
 
   async function load() {
-    const res = await fetch("/api/instructor/fees").then((r) => r.json());
+    const q = new URLSearchParams(window.location.search).get("as_instructor");
+    const suffix = q ? `?as_instructor=${q}` : "";
+    const res = await fetch(`/api/instructor/fees${suffix}`).then((r) => r.json());
     setFees(res.fees || []);
     setLoading(false);
   }

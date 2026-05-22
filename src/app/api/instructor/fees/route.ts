@@ -9,6 +9,7 @@ export async function GET(request: Request) {
 
   const u = new URL(request.url);
   const status = u.searchParams.get("status");
+  const asInstructor = u.searchParams.get("as_instructor");
 
   let q = supabaseAdmin
     .from("instructor_fees")
@@ -17,7 +18,8 @@ export async function GET(request: Request) {
     )
     .order("created_at", { ascending: false });
 
-  if (!auth.isAdmin) q = q.eq("instructor_email", auth.email);
+  if (auth.isAdmin && asInstructor) q = q.eq("instructor_email", asInstructor);
+  else if (!auth.isAdmin) q = q.eq("instructor_email", auth.email);
   if (status) q = q.eq("status", status);
 
   const { data, error } = await q;

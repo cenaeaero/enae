@@ -7,11 +7,15 @@ export default function InstructorDashboard() {
   const [stats, setStats] = useState({ assigned: 0, inProgress: 0, completed: 0, feesPending: 0, feesPaid: 0 });
   const [loading, setLoading] = useState(true);
 
+  const [asInstructor, setAsInstructor] = useState<string | null>(null);
   useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("as_instructor");
+    setAsInstructor(q);
+    const suffix = q ? `?as_instructor=${q}` : "";
     (async () => {
       const [asgRes, feesRes] = await Promise.all([
-        fetch("/api/instructor/asignaciones").then((r) => r.json()),
-        fetch("/api/instructor/fees").then((r) => r.json()),
+        fetch(`/api/instructor/asignaciones${suffix}`).then((r) => r.json()),
+        fetch(`/api/instructor/fees${suffix}`).then((r) => r.json()),
       ]);
       const asgs = asgRes.assignments || [];
       const fees = feesRes.fees || [];
@@ -28,7 +32,13 @@ export default function InstructorDashboard() {
 
   return (
     <div className="max-w-5xl">
-      <h1 className="text-2xl font-bold text-[#003366] mb-6">Dashboard</h1>
+      <h1 className="text-2xl font-bold text-[#003366] mb-2">Dashboard</h1>
+      {asInstructor && (
+        <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded text-xs">
+          🔍 Modo previsualización admin · viendo como <strong>{asInstructor}</strong>.{" "}
+          <a href="/admin/instructores" className="underline">Volver al admin</a>
+        </div>
+      )}
       {loading ? <p className="text-gray-400">Cargando…</p> : (
         <>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">

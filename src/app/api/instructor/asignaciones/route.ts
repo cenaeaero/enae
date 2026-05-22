@@ -2,10 +2,13 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-service";
 import { requireInstructor } from "@/lib/auth-instructor";
 
-// Lista las asignaciones del instructor logueado (o todas si es admin)
-export async function GET() {
+// Lista las asignaciones del instructor logueado.
+// Si admin → todas, o filtra por ?as_instructor=email para previsualizar.
+export async function GET(request: Request) {
   const auth = await requireInstructor();
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+  const asInstructor = new URL(request.url).searchParams.get("as_instructor");
 
   let q = supabaseAdmin
     .from("instructor_assignments")
@@ -14,7 +17,8 @@ export async function GET() {
     )
     .order("created_at", { ascending: false });
 
-  if (!auth.isAdmin) q = q.eq("instructor_email", auth.email);
+  if (auth.isAdmin && asInstructor) q = q.eq("instructor_email", asInstructor);
+  else if (!auth.isAdmin) q = q.eq("instructor_email", auth.email);
 
   const { data, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

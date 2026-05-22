@@ -234,7 +234,11 @@ function SupervisorsBlock({ companyId }: { companyId: string }) {
                   <span className="font-semibold text-[#003366]">{s.profiles?.first_name} {s.profiles?.last_name}</span>{" "}
                   <span className="text-xs text-gray-500">({s.profiles?.email})</span>
                 </div>
-                <button onClick={() => remove(s.id)} className="text-xs text-red-600 hover:underline">Quitar</button>
+                <div className="flex gap-3 items-center shrink-0">
+                  <a href={`/supervisor?as_company=${companyId}`} target="_blank" rel="noopener noreferrer"
+                    className="text-xs text-[#0072CE] hover:underline">Ver como supervisor</a>
+                  <button onClick={() => remove(s.id)} className="text-xs text-red-600 hover:underline">Quitar</button>
+                </div>
               </div>
             );
           }

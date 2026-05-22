@@ -5,20 +5,25 @@ import { requireSupervisor } from "@/lib/auth-supervisor";
 // Devuelve resumen del supervisor:
 //   - empresas a su cargo
 //   - alumnos (un registration por curso) con su % de avance y nota
-export async function GET() {
+export async function GET(request: Request) {
   const auth = await requireSupervisor();
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
+  // Admins pueden previsualizar la vista de una empresa específica con ?as_company=X
+  const asCompany = new URL(request.url).searchParams.get("as_company");
+  const effectiveCompanyIds =
+    asCompany && auth.isAdmin ? [asCompany] : auth.companyIds;
+
   const { data: companies } = await supabaseAdmin
     .from("companies").select("id, name, rut, legal_name")
-    .in("id", auth.companyIds);
+    .in("id", effectiveCompanyIds);
 
   const { data: regs } = await supabaseAdmin
     .from("registrations")
     .select(
       "id, course_id, status, delivery_mode, organization, company_id, folio_enae, final_score, grade_status, created_at, completed_at, courses(title, code, area, modality, duration), sessions(dates, location), first_name, last_name, email"
     )
-    .in("company_id", auth.companyIds)
+    .in("company_id", effectiveCompanyIds)
     .order("created_at", { ascending: false });
 
   // Última fecha de acceso por registration

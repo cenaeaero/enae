@@ -8,9 +8,14 @@ export default function SupervisorDashboard() {
   const [regs, setRegs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [asCompany, setAsCompany] = useState<string | null>(null);
+
   useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("as_company");
+    setAsCompany(q);
+    const suffix = q ? `?as_company=${q}` : "";
     (async () => {
-      const data = await fetch("/api/supervisor/dashboard").then((r) => r.json());
+      const data = await fetch(`/api/supervisor/dashboard${suffix}`).then((r) => r.json());
       setCompanies(data.companies || []);
       setRegs(data.registrations || []);
       setLoading(false);
@@ -27,7 +32,14 @@ export default function SupervisorDashboard() {
   return (
     <div className="max-w-5xl">
       <h1 className="text-2xl font-bold text-[#003366] mb-2">Panel del Supervisor</h1>
-      <p className="text-sm text-gray-500 mb-6">Empresas a tu cargo y resumen de avance de tus alumnos.</p>
+      <p className="text-sm text-gray-500 mb-2">Empresas a tu cargo y resumen de avance de tus alumnos.</p>
+      {asCompany && (
+        <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded text-xs">
+          🔍 Modo previsualización admin · viendo solo empresa filtrada.
+          {" "}
+          <a href="/admin" className="underline">Volver al admin</a>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
         {companies.map((c) => (
@@ -47,7 +59,7 @@ export default function SupervisorDashboard() {
             <Card label="Completados" value={stats.completados} color="text-green-700" />
             <Card label="Pendientes" value={stats.pendientes} color="text-amber-700" />
           </div>
-          <Link href="/supervisor/alumnos"
+          <Link href={`/supervisor/alumnos${asCompany ? `?as_company=${asCompany}` : ""}`}
             className="inline-block bg-[#0072CE] hover:bg-[#005fa3] text-white text-sm font-semibold px-5 py-2.5 rounded">
             Ver mis alumnos →
           </Link>

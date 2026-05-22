@@ -48,8 +48,10 @@ export default function SupervisorAlumnosPage() {
   const [exporting, setExporting] = useState<string | null>(null);
 
   useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("as_company");
+    const suffix = q ? `?as_company=${q}` : "";
     (async () => {
-      const data = await fetch("/api/supervisor/dashboard").then((r) => r.json());
+      const data = await fetch(`/api/supervisor/dashboard${suffix}`).then((r) => r.json());
       setRegs(data.registrations || []);
       setLoading(false);
     })();

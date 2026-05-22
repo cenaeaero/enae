@@ -249,7 +249,9 @@ export default function AdminInstructoresPage() {
                       <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">Pendientes</span>
                     )}
                   </td>
-                  <td className="px-5 py-2 text-right">
+                  <td className="px-5 py-2 text-right space-x-3">
+                    <a href={`/instructor?as_instructor=${encodeURIComponent(i.email)}`} target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-[#0072CE] hover:underline">Ver como</a>
                     <a href={`/admin/perfiles?id=${i.id}`} className="text-xs text-[#0072CE] hover:underline">Editar</a>
                   </td>
                 </tr>

@@ -47,8 +47,10 @@ export default function AsignacionesPage() {
   const [fStatus, setFStatus] = useState("all");
 
   useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("as_instructor");
+    const suffix = q ? `?as_instructor=${q}` : "";
     (async () => {
-      const res = await fetch("/api/instructor/asignaciones").then((r) => r.json());
+      const res = await fetch(`/api/instructor/asignaciones${suffix}`).then((r) => r.json());
       setRows(res.assignments || []);
       setLoading(false);
     })();
