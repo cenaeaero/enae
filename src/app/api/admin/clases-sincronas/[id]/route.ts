@@ -14,18 +14,44 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     .eq("id", id).maybeSingle();
   if (!cls) return NextResponse.json({ error: "No encontrada" }, { status: 404 });
 
-  // Alumnos asignados a ESTA clase (vía class_attendance con join embedded)
+  // 1) attendance
   const { data: att, error: attErr } = await supabaseAdmin
     .from("class_attendance")
-    .select("*, registrations(id, first_name, last_name, email, status, rut, organization, company_id)")
+    .select("*")
     .eq("synchronous_class_id", id);
-  if (attErr) console.error("class_attendance fetch error:", attErr);
+  if (attErr) console.error("class_attendance error:", attErr);
 
-  const regs = (att || [])
-    .map((a: any) => a.registrations)
-    .filter((r: any) => !!r);
+  const attArr = att || [];
+  const regIds = attArr.map((a: any) => a.registration_id).filter(Boolean);
 
-  // Lista de candidatos disponibles del curso/sesión (para agregar más)
+  // 2) registrations vinculadas — query separada con maybeSingle por cada id evitando bug del .in()
+  let regs: any[] = [];
+  if (regIds.length > 0) {
+    // Probamos primero .in()
+    const r1 = await supabaseAdmin
+      .from("registrations")
+      .select("id, first_name, last_name, email, status, rut, organization, company_id")
+      .in("id", regIds);
+    if (r1.error) console.error(".in() error:", r1.error);
+    if (r1.data && r1.data.length > 0) {
+      regs = r1.data;
+    } else {
+      // Fallback: hacer queries individuales (lento pero seguro)
+      console.warn(".in() returned empty, falling back to individual queries");
+      const results = await Promise.all(
+        regIds.map((rid) =>
+          supabaseAdmin
+            .from("registrations")
+            .select("id, first_name, last_name, email, status, rut, organization, company_id")
+            .eq("id", rid)
+            .maybeSingle()
+        )
+      );
+      regs = results.map((r) => r.data).filter(Boolean) as any[];
+    }
+  }
+
+  // 3) Candidatos del curso/sesión
   let cq = supabaseAdmin
     .from("registrations")
     .select("id, first_name, last_name, email, status, rut, organization, company_id")
@@ -33,7 +59,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     .in("status", ["confirmed", "completed"]);
   if (cls.session_id) cq = cq.eq("session_id", cls.session_id);
   const { data: candidates, error: candErr } = await cq;
-  if (candErr) console.error("candidates fetch error:", candErr);
+  if (candErr) console.error("candidates error:", candErr);
 
   return NextResponse.json({
     class: cls,
