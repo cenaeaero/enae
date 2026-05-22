@@ -25,6 +25,8 @@ type Profile = {
   supervisor_name: string | null;
   supervisor_email: string | null;
   supervisor_phone: string | null;
+  birth_date: string | null;
+  avatar_url: string | null;
   role: string;
   created_at: string;
 };
@@ -109,6 +111,8 @@ export default function AdminPerfilesPage() {
   function startEditing(profile: Profile) {
     setEditingId(profile.id);
     setEditForm({
+      id: profile.id,
+      avatar_url: profile.avatar_url || null,
       title: profile.title || "",
       first_name: profile.first_name,
       last_name: profile.last_name,
@@ -127,6 +131,7 @@ export default function AdminPerfilesPage() {
       supervisor_name: profile.supervisor_name || "",
       supervisor_email: profile.supervisor_email || "",
       supervisor_phone: profile.supervisor_phone || "",
+      birth_date: profile.birth_date || "",
     });
   }
 
@@ -154,6 +159,7 @@ export default function AdminPerfilesPage() {
       "supervisor_name",
       "supervisor_email",
       "supervisor_phone",
+      "birth_date",
     ];
 
     fields.forEach((f) => {
@@ -536,14 +542,14 @@ function EditForm({
   onCancel: () => void;
   saving: boolean;
 }) {
-  function field(key: keyof Profile, label: string) {
+  function field(key: keyof Profile, label: string, type: string = "text") {
     return (
       <div>
         <label className="block text-xs text-gray-500 uppercase mb-1">
           {label}
         </label>
         <input
-          type="text"
+          type={type}
           value={(form[key] as string) || ""}
           onChange={(e) => onChange({ ...form, [key]: e.target.value })}
           className="w-full border border-gray-200 rounded px-2.5 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#0072CE] focus:border-[#0072CE]"
@@ -552,17 +558,77 @@ function EditForm({
     );
   }
 
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 1_048_576) { alert("Máximo 1 MB"); return; }
+    if (!["image/jpeg", "image/jpg"].includes(file.type)) { alert("Solo JPG/JPEG"); return; }
+    setUploadingAvatar(true);
+    const fd = new FormData();
+    fd.append("profile_id", (form as any).id || "");
+    fd.append("file", file);
+    const res = await fetch("/api/admin/perfiles/avatar", { method: "POST", body: fd });
+    const data = await res.json();
+    setUploadingAvatar(false);
+    if (res.ok) onChange({ ...form, avatar_url: data.avatar_url });
+    else alert(data.error || "Error al subir");
+  }
+  async function handleAvatarDelete() {
+    if (!confirm("¿Eliminar la foto?")) return;
+    await fetch(`/api/admin/perfiles/avatar?profile_id=${(form as any).id}`, { method: "DELETE" });
+    onChange({ ...form, avatar_url: null });
+  }
+
   return (
     <div>
       <h3 className="text-sm font-semibold text-gray-800 mb-3">
         Editar Perfil
       </h3>
+
+      {/* Foto de perfil */}
+      <div className="flex items-center gap-4 mb-4 pb-4 border-b border-gray-100">
+        <div className="w-20 h-20 rounded-full bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
+          {form.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={form.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-2xl text-gray-300">👤</span>
+          )}
+        </div>
+        <div className="flex-1">
+          <p className="text-xs font-medium text-gray-700 mb-1">Fotografía (JPG, máx. 1 MB)</p>
+          <div className="flex gap-2 items-center">
+            <input type="file" accept="image/jpeg,image/jpg" onChange={handleAvatarUpload}
+              disabled={uploadingAvatar || !(form as any).id}
+              className="text-xs"/>
+            {uploadingAvatar && <span className="text-xs text-gray-400">Subiendo…</span>}
+            {form.avatar_url && !uploadingAvatar && (
+              <>
+                <a
+                  href={form.avatar_url}
+                  download={`foto_${(form as any).first_name || ""}_${(form as any).last_name || ""}.jpg`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-[#0072CE] hover:underline"
+                >
+                  Descargar foto
+                </a>
+                <button onClick={handleAvatarDelete} className="text-xs text-red-500 hover:underline">Eliminar foto</button>
+              </>
+            )}
+          </div>
+          {!(form as any).id && <p className="text-[10px] text-amber-600 mt-1">Guarda el perfil primero para poder subir una foto.</p>}
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {field("title", "Título")}
         {field("first_name", "Nombre")}
         {field("last_name", "Apellido")}
         {field("email", "Email")}
         {field("rut", "RUT / DNI")}
+        {field("birth_date", "Fecha nacimiento", "date")}
         {field("phone", "Teléfono")}
         {field("secondary_phone", "Tel. secundario")}
         {field("job_title", "Cargo")}
