@@ -27,6 +27,8 @@ type Profile = {
   supervisor_phone: string | null;
   birth_date: string | null;
   avatar_url: string | null;
+  corporate_email: string | null;
+  personal_email: string | null;
   role: string;
   created_at: string;
 };
@@ -132,6 +134,8 @@ export default function AdminPerfilesPage() {
       supervisor_email: profile.supervisor_email || "",
       supervisor_phone: profile.supervisor_phone || "",
       birth_date: profile.birth_date || "",
+      corporate_email: profile.corporate_email || "",
+      personal_email: profile.personal_email || "",
     });
   }
 
@@ -160,6 +164,8 @@ export default function AdminPerfilesPage() {
       "supervisor_email",
       "supervisor_phone",
       "birth_date",
+      "corporate_email",
+      "personal_email",
     ];
 
     fields.forEach((f) => {
@@ -626,7 +632,9 @@ function EditForm({
         {field("title", "Título")}
         {field("first_name", "Nombre")}
         {field("last_name", "Apellido")}
-        {field("email", "Email")}
+        {field("email", "Email (login)", "email")}
+        {field("corporate_email", "Email empresa", "email")}
+        {field("personal_email", "Email personal", "email")}
         {field("rut", "RUT / DNI")}
         {field("birth_date", "Fecha nacimiento", "date")}
         {field("phone", "Teléfono")}
