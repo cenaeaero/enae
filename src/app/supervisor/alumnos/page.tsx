@@ -169,10 +169,17 @@ export default function SupervisorAlumnosPage() {
                     {r.final_score != null ? `${r.final_score}%` : "—"}
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-500">{fmtDate(r.last_access)}</td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-right space-x-2">
+                    <a href={`/api/supervisor/alumno/by-email?email=${encodeURIComponent(r.email)}`}
+                      onClick={async (e) => {
+                        e.preventDefault();
+                        const data = await fetch(`/api/supervisor/alumno/by-email?email=${encodeURIComponent(r.email)}`).then((r) => r.json());
+                        if (data.profile?.id) window.location.href = `/supervisor/alumno/${data.profile.id}`;
+                      }}
+                      className="text-xs text-[#0072CE] hover:underline cursor-pointer">Ver ficha</a>
                     <button onClick={() => exportPdfFor(r.email, r.first_name, r.last_name)} disabled={exporting === r.email}
                       className="text-xs text-[#0072CE] hover:underline">
-                      {exporting === r.email ? "Generando…" : "📄 Informe PDF"}
+                      {exporting === r.email ? "Generando…" : "PDF rápido"}
                     </button>
                   </td>
                 </tr>
