@@ -61,6 +61,7 @@ export default function AdminInstructoresPage() {
   const [studentAssignments, setStudentAssignments] = useState<StudentAssignment[]>([]);
   const [savingPractical, setSavingPractical] = useState(false);
   const [practicalMsg, setPracticalMsg] = useState("");
+  const [studentSearch, setStudentSearch] = useState("");
 
   async function loadAll() {
     setLoading(true);
@@ -337,36 +338,50 @@ export default function AdminInstructoresPage() {
           </div>
         </div>
 
-        {pickedCourse && (
-          <div className="border border-gray-200 rounded">
-            <div className="flex items-center justify-between px-3 py-2 bg-gray-50 text-xs border-b border-gray-200">
-              <span>Alumnos del curso ({studentsOfCourse.length}) — selecciona los que toman clase con este instructor</span>
-              <div className="flex gap-2">
-                <button onClick={() => setPickedStudents(new Set(studentsOfCourse.map((s: any) => s.id)))}
-                  className="text-[#0072CE] hover:underline">Seleccionar todos</button>
-                <button onClick={() => setPickedStudents(new Set())} className="text-gray-500 hover:underline">Limpiar</button>
+        {pickedCourse && (() => {
+          const term = studentSearch.toLowerCase();
+          const visible = !term ? studentsOfCourse : studentsOfCourse.filter((s: any) =>
+            (s.first_name || "").toLowerCase().includes(term) ||
+            (s.last_name || "").toLowerCase().includes(term) ||
+            (s.email || "").toLowerCase().includes(term) ||
+            (s.organization || "").toLowerCase().includes(term)
+          );
+          return (
+            <div className="border border-gray-200 rounded">
+              <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-gray-50 text-xs border-b border-gray-200">
+                <span>Alumnos del curso ({visible.length} de {studentsOfCourse.length})</span>
+                <div className="flex gap-2 items-center">
+                  <input type="text" placeholder="Buscar nombre / email / empresa…"
+                    value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)}
+                    className="border border-gray-300 rounded px-2 py-1 text-xs w-64"/>
+                  <button onClick={() => setPickedStudents(new Set(visible.map((s: any) => s.id)))}
+                    className="text-[#0072CE] hover:underline">Seleccionar visibles</button>
+                  <button onClick={() => setPickedStudents(new Set())} className="text-gray-500 hover:underline">Limpiar</button>
+                </div>
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {studentsOfCourse.length === 0 ? (
+                  <p className="p-3 text-xs text-gray-400">Sin alumnos en este curso.</p>
+                ) : visible.length === 0 ? (
+                  <p className="p-3 text-xs text-gray-400">Sin coincidencias para "{studentSearch}".</p>
+                ) : visible.map((s: any) => (
+                  <label key={s.id} className={`flex items-center gap-2 px-3 py-1.5 border-b border-gray-50 last:border-0 hover:bg-blue-50 cursor-pointer ${pickedStudents.has(s.id) ? "bg-blue-50" : ""}`}>
+                    <input type="checkbox" checked={pickedStudents.has(s.id)}
+                      onChange={() => setPickedStudents((p) => {
+                        const n = new Set(p);
+                        n.has(s.id) ? n.delete(s.id) : n.add(s.id);
+                        return n;
+                      })}/>
+                    <div className="text-xs flex-1 min-w-0">
+                      <p className="font-medium text-[#003366]">{s.last_name}, {s.first_name}</p>
+                      <p className="text-gray-500">{s.email} · {s.organization || "—"}</p>
+                    </div>
+                  </label>
+                ))}
               </div>
             </div>
-            <div className="max-h-64 overflow-y-auto">
-              {studentsOfCourse.length === 0 ? (
-                <p className="p-3 text-xs text-gray-400">Sin alumnos en este curso.</p>
-              ) : studentsOfCourse.map((s: any) => (
-                <label key={s.id} className={`flex items-center gap-2 px-3 py-1.5 border-b border-gray-50 last:border-0 hover:bg-blue-50 cursor-pointer ${pickedStudents.has(s.id) ? "bg-blue-50" : ""}`}>
-                  <input type="checkbox" checked={pickedStudents.has(s.id)}
-                    onChange={() => setPickedStudents((p) => {
-                      const n = new Set(p);
-                      n.has(s.id) ? n.delete(s.id) : n.add(s.id);
-                      return n;
-                    })}/>
-                  <div className="text-xs flex-1 min-w-0">
-                    <p className="font-medium text-[#003366]">{s.last_name}, {s.first_name}</p>
-                    <p className="text-gray-500">{s.email} · {s.organization || "—"}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {practicalMsg && (
           <p className={`mt-3 text-sm ${practicalMsg.startsWith("✓") ? "text-green-700" : "text-red-600"}`}>{practicalMsg}</p>
