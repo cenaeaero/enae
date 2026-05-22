@@ -110,14 +110,18 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if already responded
-    const { data: existing } = await supabaseAdmin
+    // Check if already responded — module_name puede ser NULL (curso/instructor) o un string (módulo).
+    let dupQuery = supabaseAdmin
       .from("survey_responses")
       .select("id")
       .eq("registration_id", registrationId)
-      .eq("questionnaire_type", questionnaireType)
-      .eq("module_name", moduleName || "")
-      .maybeSingle();
+      .eq("questionnaire_type", questionnaireType);
+    if (questionnaireType === "module" && moduleName) {
+      dupQuery = dupQuery.eq("module_name", moduleName);
+    } else {
+      dupQuery = dupQuery.is("module_name", null);
+    }
+    const { data: existing } = await dupQuery.maybeSingle();
 
     if (existing) {
       return NextResponse.json(
