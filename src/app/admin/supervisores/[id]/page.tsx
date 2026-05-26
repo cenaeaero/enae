@@ -180,7 +180,7 @@ export default function AdminSupervisorDetailPage({
   if (!profile) return null;
 
   return (
-    <div className="max-w-6xl space-y-6">
+    <div className="w-full space-y-6">
       <div>
         <Link href="/admin/supervisores" className="text-xs text-[#0072CE] hover:underline">
           ← Supervisores
