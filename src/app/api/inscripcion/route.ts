@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-service";
 import { sendStudentCredentials, sendReturningStudentWelcome } from "@/lib/email";
 import { normalizeOrganization } from "@/lib/organization";
+import { isFreeFee } from "@/lib/fees";
 import crypto from "crypto";
 
 export async function POST(request: Request) {
@@ -98,12 +99,24 @@ export async function POST(request: Request) {
               .eq("id", courseId)
               .single();
 
+            let sessionFee: string | null = null;
+            if (sessionId) {
+              const { data: sessionData } = await supabaseAdmin
+                .from("sessions")
+                .select("fee")
+                .eq("id", sessionId)
+                .single();
+              sessionFee = sessionData?.fee ?? null;
+            }
+            const isFree = isFreeFee(sessionFee);
+
             try {
               await sendStudentCredentials(
                 email,
                 password,
                 `${firstName} ${lastName}`,
-                courseData?.title || "Curso ENAE"
+                courseData?.title || "Curso ENAE",
+                isFree
               );
             } catch {}
           }

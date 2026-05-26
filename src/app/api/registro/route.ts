@@ -266,7 +266,7 @@ export async function POST(request: Request) {
 
     // 7. Send emails (don't fail the request if email fails)
     try {
-      await sendStudentCredentials(email, password, studentName, courseName);
+      await sendStudentCredentials(email, password, studentName, courseName, isFree);
     } catch (e) {
       console.error("Failed to send student email:", e);
     }

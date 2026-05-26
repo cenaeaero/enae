@@ -18,8 +18,13 @@ export async function sendStudentCredentials(
   email: string,
   password: string,
   studentName: string,
-  courseName: string
+  courseName: string,
+  isFree: boolean = false
 ) {
+  const ctaText = isFree
+    ? "Tu inscripcion esta confirmada. Ingresa al portal para comenzar el curso:"
+    : "Para completar tu inscripcion, ingresa al portal y realiza el pago del curso:";
+  const ctaLabel = isFree ? "Acceder al Curso" : "Acceder al Portal";
   await transporter.sendMail({
     from: `"ENAE Training" <${FROM}>`,
     to: email,
@@ -38,8 +43,8 @@ export async function sendStudentCredentials(
             <p style="margin: 5px 0;"><strong>Email:</strong> ${email}</p>
             <p style="margin: 5px 0;"><strong>Contrasena:</strong> ${password}</p>
           </div>
-          <p>Para completar tu inscripcion, ingresa al portal y realiza el pago del curso:</p>
-          <a href="${SITE_URL}/tpems/login" style="display: inline-block; background: #0072CE; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">Acceder al Portal</a>
+          <p>${ctaText}</p>
+          <a href="${SITE_URL}/tpems/login" style="display: inline-block; background: #0072CE; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">${ctaLabel}</a>
           <p style="margin-top: 20px; color: #6b7280; font-size: 14px;">Si tienes dudas, contactanos en <a href="mailto:${ADMIN_EMAIL}">${ADMIN_EMAIL}</a></p>
         </div>
         <div style="background: #001d3d; padding: 15px; text-align: center;">
