@@ -101,6 +101,7 @@ export default function AdminInscripcionPage() {
 
   // Existing-student search
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchCompany, setSearchCompany] = useState(""); // texto libre para filtrar por empresa
   const [searching, setSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<Student[]>([]);
   const [selectedSearch, setSelectedSearch] = useState<Set<string>>(new Set());
@@ -177,9 +178,11 @@ export default function AdminInscripcionPage() {
       });
   }, [selectedCourse]);
 
-  async function runSearch(q: string) {
+  async function runSearch(q: string, companyTerm: string) {
     const trimmed = q.trim();
-    if (trimmed.length < 2) {
+    const compTrimmed = companyTerm.trim();
+    // Necesita al menos uno de los dos con 2+ caracteres
+    if (trimmed.length < 2 && compTrimmed.length < 2) {
       setSearchResults([]);
       return;
     }
@@ -188,19 +191,26 @@ export default function AdminInscripcionPage() {
     searchAbortRef.current = ctrl;
     setSearching(true);
     try {
-      const escaped = trimmed.replace(/[%,]/g, " ");
-      const pattern = `%${escaped}%`;
-      const { data } = await supabase
+      let query = supabase
         .from("profiles")
         .select(
           "first_name, last_name, email, rut, organization, organization_type, job_title, phone, secondary_phone, address, city, state, postal_code, country, supervisor_name, supervisor_email"
         )
-        .eq("role", "student")
-        .or(
-          `first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern},rut.ilike.${pattern}`
-        )
-        .order("last_name")
-        .limit(50);
+        .eq("role", "student");
+
+      if (trimmed.length >= 2) {
+        const escaped = trimmed.replace(/[%,]/g, " ");
+        const pattern = `%${escaped}%`;
+        query = query.or(
+          `first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern},rut.ilike.${pattern}`,
+        );
+      }
+      if (compTrimmed.length >= 2) {
+        const escapedCo = compTrimmed.replace(/[%,]/g, " ");
+        query = query.ilike("organization", `%${escapedCo}%`);
+      }
+
+      const { data } = await query.order("last_name").limit(100);
       if (ctrl.signal.aborted) return;
       const mapped: Student[] = (data || []).map((p: any) => ({
         firstName: p.first_name || "",
@@ -227,9 +237,9 @@ export default function AdminInscripcionPage() {
   }
 
   useEffect(() => {
-    const t = setTimeout(() => runSearch(searchQuery), 250);
+    const t = setTimeout(() => runSearch(searchQuery, searchCompany), 250);
     return () => clearTimeout(t);
-  }, [searchQuery]);
+  }, [searchQuery, searchCompany]);
 
   function toggleSearchSelect(email: string) {
     setSelectedSearch((prev) => {
@@ -594,28 +604,60 @@ export default function AdminInscripcionPage() {
       {/* Search existing students */}
       <div className="bg-white rounded-lg border border-gray-200 p-5 mb-6">
         <h2 className="text-sm font-semibold text-gray-800 mb-3">Buscar alumnos existentes</h2>
-        <p className="text-xs text-gray-500 mb-3">Busca por nombre, apellido, email o RUT. Marca los que quieras inscribir y agrégalos a la lista.</p>
-        <div className="flex gap-2 mb-3">
+        <p className="text-xs text-gray-500 mb-3">
+          Busca por nombre, apellido, email o RUT, y/o filtra por empresa. Marca los que quieras inscribir y agrégalos a la lista.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-2 mb-3">
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Mínimo 2 caracteres..."
-            className="flex-1 border border-gray-200 rounded px-3 py-2 text-sm"
+            placeholder="Nombre, email o RUT (mín. 2)…"
+            className="border border-gray-200 rounded px-3 py-2 text-sm"
           />
+          <div className="flex gap-1">
+            <input
+              type="text"
+              value={searchCompany}
+              onChange={(e) => setSearchCompany(e.target.value)}
+              placeholder="Empresa (mín. 2)…"
+              className="flex-1 border border-gray-200 rounded px-3 py-2 text-sm"
+            />
+            {company?.name && (
+              <button
+                type="button"
+                onClick={() => setSearchCompany(company.name)}
+                title={`Cargar alumnos de ${company.name}`}
+                className="text-xs whitespace-nowrap bg-blue-50 hover:bg-blue-100 text-[#0072CE] border border-blue-200 px-2 rounded"
+              >
+                ↑ {company.name.length > 14 ? company.name.substring(0, 14) + "…" : company.name}
+              </button>
+            )}
+          </div>
           <button
             type="button"
             onClick={addSelectedToList}
             disabled={selectedSearch.size === 0}
             className="bg-[#0072CE] hover:bg-[#005fa3] disabled:bg-gray-300 text-white px-4 py-2 rounded text-sm font-medium transition"
           >
-            Agregar seleccionados ({selectedSearch.size})
+            Agregar ({selectedSearch.size})
           </button>
         </div>
-        {searching && <p className="text-xs text-gray-400">Buscando...</p>}
-        {!searching && searchQuery.trim().length >= 2 && searchResults.length === 0 && (
-          <p className="text-xs text-gray-400">Sin resultados.</p>
+        {(searchQuery || searchCompany) && (
+          <button
+            type="button"
+            onClick={() => { setSearchQuery(""); setSearchCompany(""); setSelectedSearch(new Set()); }}
+            className="text-xs text-gray-500 hover:underline mb-2"
+          >
+            Limpiar filtros
+          </button>
         )}
+        {searching && <p className="text-xs text-gray-400">Buscando...</p>}
+        {!searching &&
+          (searchQuery.trim().length >= 2 || searchCompany.trim().length >= 2) &&
+          searchResults.length === 0 && (
+            <p className="text-xs text-gray-400">Sin resultados.</p>
+          )}
         {searchResults.length > 0 && (
           <div className="max-h-64 overflow-y-auto border border-gray-100 rounded">
             <table className="w-full text-sm">
