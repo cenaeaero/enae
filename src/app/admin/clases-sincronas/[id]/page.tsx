@@ -36,6 +36,7 @@ export default function ClaseSincronaDetail({ params }: { params: Promise<{ id: 
   const [showAdd, setShowAdd] = useState(false);
   const [addSelected, setAddSelected] = useState<Set<string>>(new Set());
   const [addSearch, setAddSearch] = useState("");
+  const [addCompany, setAddCompany] = useState("all");
   const [editingTime, setEditingTime] = useState(false);
   const [editStarts, setEditStarts] = useState("");
   const [editEnds, setEditEnds] = useState("");
@@ -246,16 +247,24 @@ export default function ClaseSincronaDetail({ params }: { params: Promise<{ id: 
       {(() => {
         const alreadyIn = new Set(regs.map((r) => r.id));
         const eligible = candidates.filter((c) => !alreadyIn.has(c.id));
+        // Empresas únicas presentes en los candidatos elegibles
+        const companies = Array.from(
+          new Set(eligible.map((c) => (c.organization || "").trim()).filter(Boolean)),
+        ).sort((a, b) => a.localeCompare(b));
         const term = addSearch.trim().toLowerCase();
-        const visibleEligible = term
-          ? eligible.filter(
-              (c) =>
-                (c.first_name || "").toLowerCase().includes(term) ||
-                (c.last_name || "").toLowerCase().includes(term) ||
-                (c.email || "").toLowerCase().includes(term) ||
-                (c.organization || "").toLowerCase().includes(term),
-            )
-          : eligible;
+        const visibleEligible = eligible.filter((c) => {
+          if (addCompany !== "all") {
+            const org = (c.organization || "").trim();
+            if (addCompany === "__none__" ? org !== "" : org !== addCompany) return false;
+          }
+          if (!term) return true;
+          return (
+            (c.first_name || "").toLowerCase().includes(term) ||
+            (c.last_name || "").toLowerCase().includes(term) ||
+            (c.email || "").toLowerCase().includes(term) ||
+            (c.organization || "").toLowerCase().includes(term)
+          );
+        });
         return (
           <div className="bg-white border border-gray-200 rounded-lg mt-4 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -288,13 +297,26 @@ export default function ClaseSincronaDetail({ params }: { params: Promise<{ id: 
             )}
             {showAdd && eligible.length > 0 && (
               <div className="mt-3">
-                <input
-                  type="text"
-                  value={addSearch}
-                  onChange={(e) => setAddSearch(e.target.value)}
-                  placeholder="Buscar por nombre, email o empresa…"
-                  className="w-full mb-2 py-2 px-3 border border-gray-300 rounded text-sm"
-                />
+                <div className="flex flex-wrap gap-2 mb-2">
+                  <input
+                    type="text"
+                    value={addSearch}
+                    onChange={(e) => setAddSearch(e.target.value)}
+                    placeholder="Buscar por nombre, email o empresa…"
+                    className="flex-1 min-w-[220px] py-2 px-3 border border-gray-300 rounded text-sm"
+                  />
+                  <select
+                    value={addCompany}
+                    onChange={(e) => setAddCompany(e.target.value)}
+                    className="py-2 px-3 border border-gray-300 rounded text-sm min-w-[200px]"
+                  >
+                    <option value="all">Todas las empresas</option>
+                    {companies.map((co) => (
+                      <option key={co} value={co}>{co}</option>
+                    ))}
+                    <option value="__none__">— Sin empresa —</option>
+                  </select>
+                </div>
                 <div className="border border-gray-200 rounded max-h-64 overflow-y-auto">
                   {visibleEligible.length === 0 ? (
                     <p className="px-3 py-4 text-center text-xs text-gray-400">Sin coincidencias.</p>
