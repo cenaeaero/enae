@@ -14,6 +14,15 @@ function fmtDateTime(d: string) {
   return new Date(d).toLocaleString("es-CL", { dateStyle: "full", timeStyle: "short" });
 }
 
+// Convierte ISO (UTC) → "YYYY-MM-DDTHH:mm" en TZ local del navegador para <input type="datetime-local">
+function toLocalInput(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 export default function ClaseSincronaDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [cls, setCls] = useState<any>(null);
@@ -26,6 +35,39 @@ export default function ClaseSincronaDetail({ params }: { params: Promise<{ id: 
   const [msg, setMsg] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [addSelected, setAddSelected] = useState<Set<string>>(new Set());
+  const [editingTime, setEditingTime] = useState(false);
+  const [editStarts, setEditStarts] = useState("");
+  const [editEnds, setEditEnds] = useState("");
+
+  function openEditTime() {
+    setEditStarts(toLocalInput(cls?.starts_at || cls?.scheduled_at));
+    setEditEnds(toLocalInput(cls?.ends_at));
+    setEditingTime(true);
+  }
+
+  async function saveTime() {
+    if (!editStarts) { setMsg("Fecha de inicio requerida"); return; }
+    if (editEnds && new Date(editEnds).getTime() <= new Date(editStarts).getTime()) {
+      setMsg("La hora de término debe ser posterior a la de inicio"); return;
+    }
+    setSaving(true); setMsg("");
+    const res = await fetch("/api/admin/clases-sincronas", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id,
+        starts_at: new Date(editStarts).toISOString(),
+        ends_at: editEnds ? new Date(editEnds).toISOString() : null,
+        scheduled_at: new Date(editStarts).toISOString(),
+      }),
+    });
+    const data = await res.json();
+    setSaving(false);
+    if (!res.ok) { setMsg(data.error || "Error al guardar"); return; }
+    setMsg("✓ Fecha/hora actualizada");
+    setEditingTime(false);
+    load();
+  }
 
   async function load() {
     const res = await fetch(`/api/admin/clases-sincronas/${id}`).then((r) => r.json());
@@ -121,12 +163,53 @@ export default function ClaseSincronaDetail({ params }: { params: Promise<{ id: 
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-bold text-[#003366]">{cls.title}</h1>
             <p className="text-sm text-gray-500 mt-1">{cls.courses?.title} {cls.courses?.code ? `(${cls.courses.code})` : ""}</p>
-            <div className="flex flex-wrap gap-4 mt-3 text-sm text-gray-600">
+            <div className="flex flex-wrap gap-4 mt-3 text-sm text-gray-600 items-center">
               <span>📅 Inicio: {fmtDateTime(cls.starts_at || cls.scheduled_at)}</span>
               {cls.ends_at && <span>🏁 Término: {fmtDateTime(cls.ends_at)}</span>}
               {cls.instructor_email && <span>🧑‍🏫 {cls.instructor_email}</span>}
               {cls.sessions?.dates && <span>Sesión: {cls.sessions.dates}</span>}
+              <button
+                onClick={openEditTime}
+                className="text-xs text-[#0072CE] hover:underline"
+              >
+                ✎ Editar fecha/hora
+              </button>
             </div>
+            {editingTime && (
+              <div className="mt-3 bg-blue-50 border border-blue-200 rounded p-3 flex flex-wrap gap-3 items-end">
+                <div>
+                  <label className="block text-[10px] uppercase text-gray-500 mb-1">Inicio</label>
+                  <input
+                    type="datetime-local"
+                    value={editStarts}
+                    onChange={(e) => setEditStarts(e.target.value)}
+                    className="border border-gray-300 rounded px-2 py-1.5 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase text-gray-500 mb-1">Término</label>
+                  <input
+                    type="datetime-local"
+                    value={editEnds}
+                    onChange={(e) => setEditEnds(e.target.value)}
+                    className="border border-gray-300 rounded px-2 py-1.5 text-sm"
+                  />
+                </div>
+                <button
+                  onClick={saveTime}
+                  disabled={saving}
+                  className="text-xs bg-[#0072CE] hover:bg-[#005fa3] disabled:bg-blue-300 text-white font-semibold px-3 py-1.5 rounded"
+                >
+                  {saving ? "Guardando…" : "Guardar"}
+                </button>
+                <button
+                  onClick={() => { setEditingTime(false); setMsg(""); }}
+                  className="text-xs text-gray-500 hover:underline"
+                >
+                  Cancelar
+                </button>
+              </div>
+            )}
             {cls.link_url && (
               <p className="mt-3">
                 <a href={cls.link_url} target="_blank" rel="noopener noreferrer" className="text-[#0072CE] hover:underline text-sm">

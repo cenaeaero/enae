@@ -64,10 +64,15 @@ export default function ClasesSincronasPage() {
 
   const filtered = useMemo(() => {
     const now = Date.now();
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const today0 = startOfToday.getTime();
     return classes.filter((c) => {
-      const t = new Date(c.starts_at || c.scheduled_at).getTime();
-      if (filter === "upcoming") return t > now - 3600000;
-      if (filter === "past") return t <= now - 3600000;
+      const startMs = new Date(c.starts_at || c.scheduled_at).getTime();
+      const endMs = c.ends_at ? new Date(c.ends_at).getTime() : startMs + 3600000;
+      // "Próximas": clase de hoy o futura, o cuyo término aún no pasa
+      if (filter === "upcoming") return startMs >= today0 || endMs > now;
+      if (filter === "past") return endMs <= now && startMs < today0;
       return true;
     });
   }, [classes, filter]);
@@ -199,10 +204,17 @@ function ClassForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => v
       setError("La hora de término debe ser posterior a la de inicio"); return;
     }
     setSaving(true); setError("");
+    // datetime-local viene sin TZ — interpretamos en TZ local del navegador y enviamos ISO con offset
+    const payload = {
+      ...form,
+      starts_at: form.starts_at ? new Date(form.starts_at).toISOString() : null,
+      ends_at: form.ends_at ? new Date(form.ends_at).toISOString() : null,
+      registration_ids: Array.from(selectedIds),
+    };
     const res = await fetch("/api/admin/clases-sincronas", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, registration_ids: Array.from(selectedIds) }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
     setSaving(false);
