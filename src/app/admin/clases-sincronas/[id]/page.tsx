@@ -35,6 +35,7 @@ export default function ClaseSincronaDetail({ params }: { params: Promise<{ id: 
   const [msg, setMsg] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [addSelected, setAddSelected] = useState<Set<string>>(new Set());
+  const [addSearch, setAddSearch] = useState("");
   const [editingTime, setEditingTime] = useState(false);
   const [editStarts, setEditStarts] = useState("");
   const [editEnds, setEditEnds] = useState("");
@@ -245,6 +246,16 @@ export default function ClaseSincronaDetail({ params }: { params: Promise<{ id: 
       {(() => {
         const alreadyIn = new Set(regs.map((r) => r.id));
         const eligible = candidates.filter((c) => !alreadyIn.has(c.id));
+        const term = addSearch.trim().toLowerCase();
+        const visibleEligible = term
+          ? eligible.filter(
+              (c) =>
+                (c.first_name || "").toLowerCase().includes(term) ||
+                (c.last_name || "").toLowerCase().includes(term) ||
+                (c.email || "").toLowerCase().includes(term) ||
+                (c.organization || "").toLowerCase().includes(term),
+            )
+          : eligible;
         return (
           <div className="bg-white border border-gray-200 rounded-lg mt-4 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -254,37 +265,109 @@ export default function ClaseSincronaDetail({ params }: { params: Promise<{ id: 
                   ({eligible.length} disponible{eligible.length !== 1 ? "s" : ""} del curso, no inscrito{eligible.length !== 1 ? "s" : ""} a esta clase)
                 </span>
               </p>
-              {eligible.length > 0 && (
-                <button onClick={() => setShowAdd((v) => !v)}
-                  className="text-xs bg-[#0072CE] hover:bg-[#005fa3] text-white font-semibold px-3 py-1.5 rounded">
-                  {showAdd ? "Cerrar" : "+ Agregar alumnos"}
-                </button>
-              )}
+              <button
+                onClick={() => setShowAdd((v) => !v)}
+                disabled={eligible.length === 0}
+                className="text-xs bg-[#0072CE] hover:bg-[#005fa3] disabled:bg-gray-300 text-white font-semibold px-3 py-1.5 rounded"
+              >
+                {showAdd ? "Cerrar" : "+ Agregar alumnos"}
+              </button>
             </div>
+            {eligible.length === 0 && candidates.length === 0 && (
+              <p className="text-xs text-gray-500 mt-2">
+                No hay alumnos inscritos en este curso aún.{" "}
+                <Link href="/admin/inscripcion" className="text-[#0072CE] hover:underline">
+                  Inscribir alumnos →
+                </Link>
+              </p>
+            )}
+            {eligible.length === 0 && candidates.length > 0 && (
+              <p className="text-xs text-gray-500 mt-2">
+                Todos los alumnos del curso ya están en esta clase.
+              </p>
+            )}
             {showAdd && eligible.length > 0 && (
-              <div className="mt-3 border border-gray-200 rounded max-h-64 overflow-y-auto">
-                {eligible.map((c) => (
-                  <label key={c.id}
-                    className={`flex items-center gap-2 px-3 py-1.5 border-b border-gray-50 last:border-0 hover:bg-blue-50 cursor-pointer ${addSelected.has(c.id) ? "bg-blue-50" : ""}`}>
-                    <input type="checkbox" checked={addSelected.has(c.id)}
-                      onChange={() => setAddSelected((p) => {
-                        const n = new Set(p);
-                        n.has(c.id) ? n.delete(c.id) : n.add(c.id);
-                        return n;
-                      })}/>
-                    <div className="flex-1 min-w-0 text-xs">
-                      <p className="font-medium text-[#003366]">{c.last_name}, {c.first_name}</p>
-                      <p className="text-gray-500">{c.email} · {c.organization || "—"}</p>
+              <div className="mt-3">
+                <input
+                  type="text"
+                  value={addSearch}
+                  onChange={(e) => setAddSearch(e.target.value)}
+                  placeholder="Buscar por nombre, email o empresa…"
+                  className="w-full mb-2 py-2 px-3 border border-gray-300 rounded text-sm"
+                />
+                <div className="border border-gray-200 rounded max-h-64 overflow-y-auto">
+                  {visibleEligible.length === 0 ? (
+                    <p className="px-3 py-4 text-center text-xs text-gray-400">Sin coincidencias.</p>
+                  ) : (
+                    visibleEligible.map((c) => {
+                      const sessionMatches = !cls.session_id || c.session_id === cls.session_id;
+                      const statusLabel =
+                        c.status === "pending"
+                          ? "Pendiente pago"
+                          : c.status === "completed"
+                          ? "Completado"
+                          : "En curso";
+                      return (
+                        <label
+                          key={c.id}
+                          className={`flex items-center gap-2 px-3 py-1.5 border-b border-gray-50 last:border-0 hover:bg-blue-50 cursor-pointer ${addSelected.has(c.id) ? "bg-blue-50" : ""}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={addSelected.has(c.id)}
+                            onChange={() =>
+                              setAddSelected((p) => {
+                                const n = new Set(p);
+                                n.has(c.id) ? n.delete(c.id) : n.add(c.id);
+                                return n;
+                              })
+                            }
+                          />
+                          <div className="flex-1 min-w-0 text-xs">
+                            <p className="font-medium text-[#003366]">
+                              {c.last_name}, {c.first_name}
+                              {!sessionMatches && (
+                                <span className="ml-2 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                                  Otra sesión
+                                </span>
+                              )}
+                              <span className="ml-2 text-[10px] text-gray-400">{statusLabel}</span>
+                            </p>
+                            <p className="text-gray-500">
+                              {c.email} · {c.organization || "—"}
+                            </p>
+                          </div>
+                        </label>
+                      );
+                    })
+                  )}
+                  <div className="px-3 py-2 bg-gray-50 flex justify-between gap-2">
+                    <button
+                      onClick={() => {
+                        const n = new Set(addSelected);
+                        for (const c of visibleEligible) n.add(c.id);
+                        setAddSelected(n);
+                      }}
+                      className="text-xs text-[#0072CE] hover:underline"
+                    >
+                      Seleccionar visibles
+                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setAddSelected(new Set())}
+                        className="text-xs text-gray-500 hover:underline"
+                      >
+                        Limpiar
+                      </button>
+                      <button
+                        onClick={addStudents}
+                        disabled={addSelected.size === 0}
+                        className="text-xs bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white font-semibold px-3 py-1.5 rounded"
+                      >
+                        Agregar {addSelected.size > 0 ? `(${addSelected.size})` : ""}
+                      </button>
                     </div>
-                  </label>
-                ))}
-                <div className="px-3 py-2 bg-gray-50 flex justify-end gap-2">
-                  <button onClick={() => setAddSelected(new Set())}
-                    className="text-xs text-gray-500 hover:underline">Limpiar</button>
-                  <button onClick={addStudents} disabled={addSelected.size === 0}
-                    className="text-xs bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white font-semibold px-3 py-1.5 rounded">
-                    Agregar {addSelected.size > 0 ? `(${addSelected.size})` : ""}
-                  </button>
+                  </div>
                 </div>
               </div>
             )}

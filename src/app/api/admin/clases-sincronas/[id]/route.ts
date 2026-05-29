@@ -51,13 +51,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     }
   }
 
-  // 3) Candidatos del curso/sesión
-  let cq = supabaseAdmin
+  // 3) Candidatos del curso (todas las sesiones, incluyendo pendientes)
+  // No filtramos por session_id ni excluimos pending: el admin decide a quién agregar.
+  const cq = supabaseAdmin
     .from("registrations")
-    .select("id, first_name, last_name, email, status, organization, company_id")
+    .select("id, first_name, last_name, email, status, organization, company_id, session_id")
     .eq("course_id", cls.course_id)
-    .in("status", ["confirmed", "completed"]);
-  if (cls.session_id) cq = cq.eq("session_id", cls.session_id);
+    .in("status", ["pending", "confirmed", "completed"]);
   const { data: candidates, error: candErr } = await cq;
   if (candErr) console.error("candidates error:", candErr);
 
