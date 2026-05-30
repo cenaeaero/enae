@@ -191,12 +191,14 @@ export default function AdminInscripcionPage() {
     searchAbortRef.current = ctrl;
     setSearching(true);
     try {
+      // No filtramos por role: hay perfiles antiguos sin role definido o con
+      // valores distintos a "student" (supervisor, NULL, etc.). Mostramos todos
+      // y el admin decide a quién inscribir.
       let query = supabase
         .from("profiles")
         .select(
           "first_name, last_name, email, rut, organization, organization_type, job_title, phone, secondary_phone, address, city, state, postal_code, country, supervisor_name, supervisor_email"
-        )
-        .eq("role", "student");
+        );
 
       if (trimmed.length >= 2) {
         const escaped = trimmed.replace(/[%,]/g, " ");
