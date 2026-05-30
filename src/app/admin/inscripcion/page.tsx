@@ -191,29 +191,17 @@ export default function AdminInscripcionPage() {
     searchAbortRef.current = ctrl;
     setSearching(true);
     try {
-      // No filtramos por role: hay perfiles antiguos sin role definido o con
-      // valores distintos a "student" (supervisor, NULL, etc.). Mostramos todos
-      // y el admin decide a quién inscribir.
-      let query = supabase
-        .from("profiles")
-        .select(
-          "first_name, last_name, email, rut, organization, organization_type, job_title, phone, secondary_phone, address, city, state, postal_code, country, supervisor_name, supervisor_email"
-        );
-
-      if (trimmed.length >= 2) {
-        const escaped = trimmed.replace(/[%,]/g, " ");
-        const pattern = `%${escaped}%`;
-        query = query.or(
-          `first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern},rut.ilike.${pattern}`,
-        );
-      }
-      if (compTrimmed.length >= 2) {
-        const escapedCo = compTrimmed.replace(/[%,]/g, " ");
-        query = query.ilike("organization", `%${escapedCo}%`);
-      }
-
-      const { data } = await query.order("last_name").limit(100);
+      // Usa el endpoint admin (service_role) en vez del cliente anon — así no
+      // depende del RLS ni del admin que esté logueado.
+      const params = new URLSearchParams();
+      if (trimmed.length >= 2) params.set("q", trimmed);
+      if (compTrimmed.length >= 2) params.set("company", compTrimmed);
+      const res = await fetch(`/api/admin/perfiles-buscar?${params.toString()}`, {
+        signal: ctrl.signal,
+      }).catch(() => null);
       if (ctrl.signal.aborted) return;
+      const json = res ? await res.json() : null;
+      const data = json?.profiles || [];
       const mapped: Student[] = (data || []).map((p: any) => ({
         firstName: p.first_name || "",
         lastName: p.last_name || "",
