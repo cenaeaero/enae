@@ -156,6 +156,14 @@ export default function ClaseSincronaDetail({ params }: { params: Promise<{ id: 
   const atrasados = Object.values(attendance).filter((a) => a.status === "late").length;
   const ausentes = Object.values(attendance).filter((a) => a.status === "absent").length;
 
+  const sortedRegs = [...regs].sort((a, b) =>
+    `${a.last_name ?? ""} ${a.first_name ?? ""}`.localeCompare(
+      `${b.last_name ?? ""} ${b.first_name ?? ""}`,
+      "es",
+      { sensitivity: "base" },
+    ),
+  );
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       <Link href="/admin/clases-sincronas" className="text-xs text-[#0072CE] hover:underline">← Volver a Clases</Link>
@@ -419,7 +427,7 @@ export default function ClaseSincronaDetail({ params }: { params: Promise<{ id: 
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {regs.map((r) => {
+            {sortedRegs.map((r) => {
               const a = attendance[r.id] || { status: "absent" };
               return (
                 <tr key={r.id}>
