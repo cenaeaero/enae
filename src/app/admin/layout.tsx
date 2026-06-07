@@ -44,6 +44,7 @@ const navSections: NavSection[] = [
     section: "Personas",
     items: [
       { href: "/admin/perfiles", label: "Perfiles", icon: "👥" },
+      { href: "/admin/duplicados", label: "Duplicados", icon: "🧹" },
       { href: "/admin/empresas", label: "Empresas", icon: "🏢" },
       { href: "/admin/supervisores", label: "Supervisores", icon: "🧑‍💼" },
       { href: "/admin/instructores", label: "Instructores", icon: "🧑‍🏫" },
