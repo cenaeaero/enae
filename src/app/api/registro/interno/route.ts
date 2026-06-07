@@ -84,28 +84,41 @@ export async function POST(request: Request) {
     const isFree = isFreeFee(resolvedSessionFee);
 
     // Create registration using existing profile data
-    const { data: registration, error: regError } = await supabaseAdmin
+    const regPayload: Record<string, any> = {
+      course_id: courseId,
+      session_id: resolvedSessionId,
+      first_name: profile.first_name,
+      last_name: profile.last_name,
+      email: profile.email,
+      rut: profile.rut || null,
+      title: profile.title,
+      job_title: profile.job_title,
+      organization: normalizeOrganization(profile.organization),
+      organization_type: profile.organization_type,
+      address: profile.address,
+      city: profile.city,
+      state: profile.state,
+      postal_code: profile.postal_code,
+      country: profile.country || "Chile",
+      phone: profile.phone,
+      status: isFree ? "confirmed" : "pending",
+    };
+
+    let { data: registration, error: regError } = await supabaseAdmin
       .from("registrations")
-      .insert({
-        course_id: courseId,
-        session_id: resolvedSessionId,
-        first_name: profile.first_name,
-        last_name: profile.last_name,
-        email: profile.email,
-        title: profile.title,
-        job_title: profile.job_title,
-        organization: normalizeOrganization(profile.organization),
-        organization_type: profile.organization_type,
-        address: profile.address,
-        city: profile.city,
-        state: profile.state,
-        postal_code: profile.postal_code,
-        country: profile.country || "Chile",
-        phone: profile.phone,
-        status: isFree ? "confirmed" : "pending",
-      })
+      .insert(regPayload)
       .select()
       .single();
+
+    // Fallback si la columna rut aún no existe
+    if (regError && /rut|schema cache/i.test(regError.message)) {
+      const { rut: _r, ...withoutRut } = regPayload;
+      ({ data: registration, error: regError } = await supabaseAdmin
+        .from("registrations")
+        .insert(withoutRut)
+        .select()
+        .single());
+    }
 
     if (regError) {
       return NextResponse.json(

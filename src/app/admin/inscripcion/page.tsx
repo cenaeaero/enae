@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import CompanyPicker, { type Company } from "@/components/CompanyPicker";
+import { validateId } from "@/lib/rut";
 
 type Student = {
   firstName: string;
@@ -346,6 +347,21 @@ export default function AdminInscripcionPage() {
   async function handleSubmit() {
     const valid = students.filter((s) => s.firstName && s.lastName && s.email);
     if (valid.length === 0) return;
+
+    // RUT obligatorio y válido para cada alumno
+    const rutErrors = valid
+      .map((s) => ({ s, check: validateId(s.rut) }))
+      .filter((x) => !x.check.valid);
+    if (rutErrors.length > 0) {
+      setResults(
+        rutErrors.map((x) => ({
+          email: x.s.email,
+          success: false,
+          error: x.check.error || "RUT inválido",
+        })),
+      );
+      return;
+    }
 
     // Determine which courses to enroll in
     let courseIds: string[] = [];

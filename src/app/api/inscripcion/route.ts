@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase-service";
 import { sendStudentCredentials, sendReturningStudentWelcome } from "@/lib/email";
 import { normalizeOrganization } from "@/lib/organization";
 import { isFreeFee } from "@/lib/fees";
+import { validateId, formatRut, rutVariants } from "@/lib/rut";
 import crypto from "crypto";
 
 export async function POST(request: Request) {
@@ -34,6 +35,14 @@ export async function POST(request: Request) {
         const company = normalizeOrganization(rawCompany);
         let isReturningStudent = false;
 
+        // Validar RUT / identificador (obligatorio)
+        const idCheck = validateId(rut);
+        if (!idCheck.valid) {
+          results.push({ email, success: false, error: idCheck.error });
+          continue;
+        }
+        const rutStored = formatRut(rut);
+
         // Check if already registered in this course (prevent duplicates)
         const { data: existingReg } = await supabaseAdmin
           .from("registrations")
@@ -45,6 +54,24 @@ export async function POST(request: Request) {
 
         if (existingReg) {
           results.push({ email, success: false, error: "Ya está inscrito en este curso" });
+          continue;
+        }
+
+        // Duplicado por RUT en el mismo curso (mismo RUT, otro email)
+        const { data: rutDupes } = await supabaseAdmin
+          .from("registrations")
+          .select("email")
+          .eq("course_id", courseId)
+          .in("rut", rutVariants(rut));
+        const rutDupe = (rutDupes || []).find(
+          (r: any) => (r.email || "").toLowerCase() !== (email || "").toLowerCase(),
+        );
+        if (rutDupe) {
+          results.push({
+            email,
+            success: false,
+            error: `Ese RUT ya está inscrito en este curso con otro correo (${rutDupe.email})`,
+          });
           continue;
         }
 
@@ -134,7 +161,7 @@ export async function POST(request: Request) {
           first_name: firstName,
           last_name: lastName,
           email,
-          rut: rut || null,
+          rut: rutStored,
           organization: effectiveCompany || null,
           company_id: effectiveCompanyId,
           organization_type: student.organizationType || null,
@@ -160,6 +187,7 @@ export async function POST(request: Request) {
           first_name: firstName,
           last_name: lastName,
           email,
+          rut: rutStored,
           organization: effectiveCompany || null,
           company: effectiveCompany || null,
           organization_type: student.organizationType || null,
@@ -187,7 +215,7 @@ export async function POST(request: Request) {
         // If columns don't exist, retry without them
         if (regResult.error && regResult.error.message.includes("schema cache")) {
           console.log("Optional columns not found, retrying with minimal payload...");
-          const { delivery_mode: _dm, ...fallback } = baseReg;
+          const { delivery_mode: _dm, rut: _rut, ...fallback } = baseReg;
           regResult = await supabaseAdmin.from("registrations").insert(fallback);
         }
 

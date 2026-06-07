@@ -6,6 +6,7 @@ import {
 } from "@/lib/email";
 import { isFreeFee } from "@/lib/fees";
 import { normalizeOrganization } from "@/lib/organization";
+import { validateId, formatRut, rutVariants } from "@/lib/rut";
 import crypto from "crypto";
 
 export async function POST(request: Request) {
@@ -20,6 +21,8 @@ export async function POST(request: Request) {
       firstName,
       lastName,
       email,
+      nationalId,
+      rut: rutRaw,
       ageGroup,
       jobTitle,
       organization: rawOrganization,
@@ -42,6 +45,32 @@ export async function POST(request: Request) {
     } = body;
 
     const organization = normalizeOrganization(rawOrganization);
+
+    // 0a. Validar identificador (RUT / DNI / Pasaporte) — obligatorio
+    const idCheck = validateId(nationalId ?? rutRaw);
+    if (!idCheck.valid) {
+      return NextResponse.json({ error: idCheck.error }, { status: 400 });
+    }
+    const rutStored = formatRut(nationalId ?? rutRaw);
+
+    // 0b. Unicidad de RUT: no permitir el mismo RUT con un email distinto
+    const { data: rutConflicts } = await supabaseAdmin
+      .from("profiles")
+      .select("email")
+      .in("rut", rutVariants(nationalId ?? rutRaw));
+    const conflict = (rutConflicts || []).find(
+      (p: any) => (p.email || "").toLowerCase() !== (email || "").toLowerCase(),
+    );
+    if (conflict) {
+      return NextResponse.json(
+        {
+          error:
+            "Ese RUT / identificador ya está registrado con otro correo. Ingresa al portal de alumnos con la cuenta existente.",
+          existingStudent: true,
+        },
+        { status: 409 },
+      );
+    }
 
     // 0. Resolve course UUID first — needed to check duplicate registrations
     let resolvedCourseId = courseId;
@@ -151,6 +180,7 @@ export async function POST(request: Request) {
       first_name: firstName,
       last_name: lastName,
       email,
+      rut: rutStored,
       job_title: jobTitle,
       organization,
       organization_type: organizationType,
@@ -214,38 +244,51 @@ export async function POST(request: Request) {
     const isFree = isFreeFee(resolvedSessionFee);
 
     // 5. Create registration
-    const { data: registration, error: regError } = await supabaseAdmin
+    const regPayload: Record<string, any> = {
+      course_id: resolvedCourseId,
+      session_id: resolvedSessionId,
+      first_name: firstName,
+      last_name: lastName,
+      email,
+      rut: rutStored,
+      title,
+      age_group: ageGroup,
+      job_title: jobTitle,
+      organization,
+      organization_type: organizationType,
+      supervisor_name: supervisorName,
+      supervisor_email: supervisorEmail,
+      address,
+      city,
+      state,
+      postal_code: postalCode,
+      country: country || "Chile",
+      phone,
+      billing_name: billingName,
+      billing_address: billingAddress,
+      billing_city: billingCity,
+      billing_country: billingCountry,
+      how_found: howFound,
+      comments,
+      status: isFree ? "confirmed" : "pending",
+      source: "self",
+    };
+
+    let { data: registration, error: regError } = await supabaseAdmin
       .from("registrations")
-      .insert({
-        course_id: resolvedCourseId,
-        session_id: resolvedSessionId,
-        first_name: firstName,
-        last_name: lastName,
-        email,
-        title,
-        age_group: ageGroup,
-        job_title: jobTitle,
-        organization,
-        organization_type: organizationType,
-        supervisor_name: supervisorName,
-        supervisor_email: supervisorEmail,
-        address,
-        city,
-        state,
-        postal_code: postalCode,
-        country: country || "Chile",
-        phone,
-        billing_name: billingName,
-        billing_address: billingAddress,
-        billing_city: billingCity,
-        billing_country: billingCountry,
-        how_found: howFound,
-        comments,
-        status: isFree ? "confirmed" : "pending",
-        source: "self",
-      })
+      .insert(regPayload)
       .select()
       .single();
+
+    // Fallback si la columna rut aún no existe (migración no corrida todavía)
+    if (regError && /rut|schema cache/i.test(regError.message)) {
+      const { rut: _r, ...withoutRut } = regPayload;
+      ({ data: registration, error: regError } = await supabaseAdmin
+        .from("registrations")
+        .insert(withoutRut)
+        .select()
+        .single());
+    }
 
     if (regError) {
       return NextResponse.json(

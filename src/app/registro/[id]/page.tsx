@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { courses as staticCourses } from "@/data/courses";
 import Link from "next/link";
 import { formatFee, isFreeFee } from "@/lib/fees";
+import { validateId } from "@/lib/rut";
 
 type SessionInfo = {
   sessionId: string;
@@ -177,6 +178,14 @@ export default function RegistroPage() {
       return el ? el.value : "";
     };
 
+    // Validar RUT / DNI / Pasaporte antes de enviar
+    const idCheck = validateId(get("nationalId"));
+    if (!idCheck.valid) {
+      setSubmitError(idCheck.error || "RUT / DNI / Pasaporte inválido");
+      setSubmitting(false);
+      return;
+    }
+
     const body = {
       courseId: session!.courseId,
       courseTitle: session!.courseTitle,
@@ -186,6 +195,7 @@ export default function RegistroPage() {
       firstName: get("firstName"),
       lastName: get("lastName"),
       email: get("email"),
+      nationalId: get("nationalId"),
       ageGroup: get("ageGroup"),
       jobTitle: get("jobTitle"),
       organization: get("organization"),
