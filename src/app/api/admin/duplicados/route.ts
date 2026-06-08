@@ -108,7 +108,8 @@ export async function GET() {
     if (payApproved.has(r.id)) blockers.push("pago aprobado");
     if (r.folio_enae) blockers.push("folio ENAE");
     if (r.final_score != null) blockers.push("nota final");
-    if (r.grade_status) blockers.push(`estado: ${r.grade_status}`);
+    // 'pending' es el estado por defecto (= sin calificar) y NO debe bloquear
+    if (r.grade_status === "approved" || r.grade_status === "failed") blockers.push(`estado: ${r.grade_status}`);
     return { blockers, safeToDelete: blockers.length === 0 };
   }
 
@@ -308,7 +309,7 @@ export async function POST(req: Request) {
     checks.forEach((c, i) => { if ((c.count || 0) > 0) blockers.push(labels[i]); });
     if (reg.folio_enae) blockers.push("folio ENAE");
     if (reg.final_score != null) blockers.push("nota final");
-    if (reg.grade_status) blockers.push(`estado: ${reg.grade_status}`);
+    if (reg.grade_status === "approved" || reg.grade_status === "failed") blockers.push(`estado: ${reg.grade_status}`);
 
     if (blockers.length) {
       return NextResponse.json(
@@ -330,15 +331,27 @@ export async function POST(req: Request) {
 
     const { data: tgt } = await supabaseAdmin.from("profiles").select("id").eq("id", targetId).maybeSingle();
     if (!tgt) return NextResponse.json({ error: "Perfil destino no existe" }, { status: 404 });
+    const { data: src } = await supabaseAdmin.from("profiles").select("id, email").eq("id", sourceId).maybeSingle();
+    if (!src) return NextResponse.json({ error: "Perfil origen no existe" }, { status: 404 });
 
-    // reasignar inscripciones vinculadas por profile_id
+    // 1) reasignar inscripciones vinculadas por profile_id
     const { error: upErr } = await supabaseAdmin
       .from("registrations")
       .update({ profile_id: targetId })
       .eq("profile_id", sourceId);
     if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
 
-    // borrar el perfil source (sus inscripciones ya fueron reasignadas; no se pierde nada académico)
+    // 2) reasignar inscripciones vinculadas SOLO por email (profile_id null) — frecuente en datos históricos
+    if (src.email) {
+      const { error: upEmailErr } = await supabaseAdmin
+        .from("registrations")
+        .update({ profile_id: targetId })
+        .is("profile_id", null)
+        .ilike("email", src.email);
+      if (upEmailErr) return NextResponse.json({ error: upEmailErr.message }, { status: 500 });
+    }
+
+    // 3) borrar el perfil source (sus inscripciones ya fueron reasignadas; no se pierde nada académico)
     const { error: delErr } = await supabaseAdmin.from("profiles").delete().eq("id", sourceId);
     if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 });
     return NextResponse.json({ ok: true });
