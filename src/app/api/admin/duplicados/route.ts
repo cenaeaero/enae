@@ -39,18 +39,27 @@ class UnionFind {
 }
 
 async function selectIds(table: string, col: string, filter?: (q: any) => any) {
-  let q = supabaseAdmin.from(table).select(col);
-  if (filter) q = filter(q);
-  const { data, error } = await q;
-  if (error) {
-    // tabla puede no existir en algún entorno; no romper la detección entera
-    console.error(`duplicados: error leyendo ${table}.${col}:`, error.message);
-    return new Set<string>();
-  }
+  // Paginado: Supabase limita a 1000 filas por consulta. Sin paginar, las
+  // tablas grandes (p.ej. activity_progress) quedan truncadas y la detección
+  // de "datos académicos" sub-reporta -> inscripciones con avance/nota
+  // aparecerían como "sin datos". Iteramos en páginas hasta agotar.
   const s = new Set<string>();
-  for (const row of data || []) {
-    const v = (row as any)[col];
-    if (v) s.add(v);
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    let q = supabaseAdmin.from(table).select(col).range(from, from + PAGE - 1);
+    if (filter) q = filter(q);
+    const { data, error } = await q;
+    if (error) {
+      // tabla puede no existir en algún entorno; no romper la detección entera
+      console.error(`duplicados: error leyendo ${table}.${col}:`, error.message);
+      break;
+    }
+    const rows = data || [];
+    for (const row of rows) {
+      const v = (row as any)[col];
+      if (v) s.add(v);
+    }
+    if (rows.length < PAGE) break;
   }
   return s;
 }
@@ -320,6 +329,42 @@ export async function POST(req: Request) {
 
     const { error: delErr } = await supabaseAdmin.from("registrations").delete().eq("id", id);
     if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  }
+
+  // ---- fusionar DOS inscripciones (mismo alumno/curso) sin perder datos ----
+  if (body.action === "merge-registrations") {
+    const { sourceId, keeperId } = body;
+    if (!sourceId || !keeperId || sourceId === keeperId)
+      return NextResponse.json({ error: "sourceId/keeperId inválidos" }, { status: 400 });
+
+    // Seguridad: ambas inscripciones deben ser del MISMO curso
+    const { data: regs } = await supabaseAdmin
+      .from("registrations")
+      .select("id, course_id")
+      .in("id", [sourceId, keeperId]);
+    if (!regs || regs.length !== 2) {
+      return NextResponse.json({ error: "Inscripción no encontrada" }, { status: 404 });
+    }
+    if (regs[0].course_id !== regs[1].course_id) {
+      return NextResponse.json({ error: "Las inscripciones son de cursos distintos" }, { status: 400 });
+    }
+
+    const { error } = await supabaseAdmin.rpc("merge_registrations", {
+      p_source: sourceId,
+      p_keeper: keeperId,
+    });
+    if (error) {
+      const missing = /merge_registrations|does not exist|function/i.test(error.message);
+      return NextResponse.json(
+        {
+          error: missing
+            ? "Falta crear la función en la BD: corre supabase/migration_merge_registrations.sql"
+            : error.message,
+        },
+        { status: missing ? 409 : 500 },
+      );
+    }
     return NextResponse.json({ ok: true });
   }
 

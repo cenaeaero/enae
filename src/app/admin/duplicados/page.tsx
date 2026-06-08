@@ -84,6 +84,27 @@ export default function DuplicadosPage() {
     load();
   }
 
+  async function mergeRegistration(source: RegMember, keeper: RegMember) {
+    const srcData = source.blockers.length ? `\n\nDatos de la que se elimina (se moverán): ${source.blockers.join(", ")}` : "";
+    if (!confirm(
+      `Fusionar inscripciones del mismo curso:\n\n` +
+      `• CONSERVAR: ${keeper.name} — ${keeper.email}\n` +
+      `• ELIMINAR:  ${source.email}${srcData}\n\n` +
+      `Todo el avance, notas y datos de la inscripción eliminada se mueven a la conservada. ¿Continuar?`
+    )) return;
+    setBusy(source.id); setMsg("");
+    const res = await fetch("/api/admin/duplicados", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "merge-registrations", sourceId: source.id, keeperId: keeper.id }),
+    });
+    const j = await res.json();
+    setBusy("");
+    if (!res.ok) { setMsg(`✗ ${j.error}`); return; }
+    setMsg("✓ Inscripciones fusionadas");
+    load();
+  }
+
   async function mergeProfiles(source: ProfMember, target: ProfMember) {
     if (!confirm(`Fusionar perfiles:\n\n• CONSERVAR: ${target.name} (${target.email})\n• ELIMINAR: ${source.name} (${source.email})\n\nLas inscripciones de la cuenta eliminada se reasignan a la conservada. ¿Continuar?`)) return;
     setBusy(source.id); setMsg("");
@@ -134,7 +155,13 @@ export default function DuplicadosPage() {
       {tab === "regs" && (
         <div className="mt-4 space-y-4">
           {regGroups.length === 0 && <p className="text-gray-400 py-8 text-center">Sin inscripciones duplicadas. 🎉</p>}
-          {regGroups.map((g, gi) => (
+          {regGroups.map((g, gi) => {
+            // Conservar la que tenga más datos académicos; a igualdad, la más antigua
+            const keeper = [...g.members].sort(
+              (a, b) => b.blockers.length - a.blockers.length || a.created_at.localeCompare(b.created_at),
+            )[0];
+            const anyData = g.members.some((m) => m.blockers.length > 0);
+            return (
             <div key={gi} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center gap-2">
                 <span className="font-semibold text-[#003366]">{g.course.title}</span>
@@ -153,10 +180,15 @@ export default function DuplicadosPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {g.members.map((m) => (
-                    <tr key={m.id} className={m.safeToDelete ? "" : "bg-green-50/40"}>
+                  {g.members.map((m) => {
+                    const isKeeper = m.id === keeper.id;
+                    return (
+                    <tr key={m.id} className={isKeeper ? "bg-green-50/40" : ""}>
                       <td className="px-4 py-2">
-                        <p className="font-medium text-[#003366]">{m.name}</p>
+                        <p className="font-medium text-[#003366]">
+                          {m.name}
+                          {isKeeper && <span className="ml-2 text-[10px] text-green-700 font-semibold">★ conservar</span>}
+                        </p>
                         <p className="text-[10px] text-gray-400">{m.email}{m.rut ? ` · ${m.rut}` : ""}{m.organization ? ` · ${m.organization}` : ""}</p>
                       </td>
                       <td className="px-4 py-2 text-xs text-gray-600">{m.status}</td>
@@ -173,24 +205,44 @@ export default function DuplicadosPage() {
                         )}
                       </td>
                       <td className="px-4 py-2 text-right">
-                        {m.safeToDelete ? (
-                          <button
-                            onClick={() => deleteRegistration(m)}
-                            disabled={busy === m.id}
-                            className="text-xs bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white font-semibold px-3 py-1.5 rounded"
-                          >
-                            {busy === m.id ? "…" : "Eliminar"}
-                          </button>
+                        {isKeeper ? (
+                          <span className="text-[10px] text-green-700 font-semibold">se conserva</span>
                         ) : (
-                          <span className="text-[10px] text-green-700 font-semibold" title="Tiene datos académicos — protegida">🔒 conservar</span>
+                          <div className="flex gap-1 justify-end">
+                            <button
+                              onClick={() => mergeRegistration(m, keeper)}
+                              disabled={busy === m.id}
+                              className="text-xs bg-[#0072CE] hover:bg-[#005fa3] disabled:bg-blue-300 text-white font-semibold px-3 py-1.5 rounded"
+                              title="Mueve avance/notas/datos a la conservada y elimina esta"
+                            >
+                              {busy === m.id ? "…" : "Fusionar → conservar"}
+                            </button>
+                            {m.safeToDelete && (
+                              <button
+                                onClick={() => deleteRegistration(m)}
+                                disabled={busy === m.id}
+                                className="text-xs bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white font-semibold px-3 py-1.5 rounded"
+                                title="Esta inscripción no tiene datos; eliminarla directamente"
+                              >
+                                Eliminar
+                              </button>
+                            )}
+                          </div>
                         )}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
+              {anyData && (
+                <p className="px-4 py-2 text-[10px] text-gray-400 bg-gray-50">
+                  Fusionar mueve todo (avance, notas, exámenes, asistencia) a la inscripción ★ y elimina la otra. Nunca se pierden datos académicos.
+                </p>
+              )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
