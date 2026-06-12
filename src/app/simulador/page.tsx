@@ -12,6 +12,8 @@ import {
   subscribeActions, logAction, logEvent, countPositions, fetchEvalData,
 } from '@/lib/sim/net';
 import { certificadoPdf } from '@/lib/sim/certificado';
+import { supabase as enaeAuth } from '@/lib/supabase';
+import type { SimMsg } from '@/lib/sim/engine';
 
 const GREEN = '#27e07a';
 const CYAN = '#39c8d8';
@@ -132,7 +134,7 @@ function Win({
   );
 }
 
-type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone' | 'eval';
+type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone' | 'eval' | 'aftn';
 
 interface EvalRow {
   position_id: string | null;
@@ -165,13 +167,24 @@ export default function SimuladorPage() {
     instructor: { x: 900, y: 420, open: false },
     zone: { x: 600, y: 560, open: false },
     eval: { x: 380, y: 200, open: false },
+    aftn: { x: 420, y: 120, open: false },
   });
   const [evalRows, setEvalRows] = useState<EvalRow[]>([]);
   const [evalBusy, setEvalBusy] = useState(false);
   const [evalSaved, setEvalSaved] = useState(false);
 
+  // autenticación (cuentas del portal ENAE)
+  const [auth, setAuth] = useState<'checking' | 'login' | 'ok'>('checking');
+  const [authRole, setAuthRole] = useState<string>('');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPass, setLoginPass] = useState('');
+  const [loginErr, setLoginErr] = useState('');
+  const [loginBusy, setLoginBusy] = useState(false);
+
   // multi-puesto
   const [mode, setMode] = useState<'lobby' | 'local' | 'instructor' | 'student'>('lobby');
+  const [posRole, setPosRole] = useState<'controller' | 'aftn'>('controller');
+  const [selMsg, setSelMsg] = useState<number | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionCode, setSessionCode] = useState('');
   const [positionId, setPositionId] = useState<string | null>(null);
@@ -187,6 +200,58 @@ export default function SimuladorPage() {
 
   const setWin = (id: WinId, p: Partial<{ x: number; y: number; open: boolean }>) =>
     setWins((w) => ({ ...w, [id]: { ...w[id], ...p } }));
+
+  // sesión del portal ENAE al cargar
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await enaeAuth.auth.getUser();
+      if (!user?.email) {
+        setAuth('login');
+        return;
+      }
+      const { data: prof } = await enaeAuth
+        .from('profiles')
+        .select('role, first_name, last_name')
+        .eq('email', user.email)
+        .maybeSingle();
+      if (!prof) {
+        setAuth('login');
+        setLoginErr('Cuenta sin perfil habilitado en ENAE.');
+        return;
+      }
+      setAuthRole(prof.role ?? 'student');
+      setUserName(`${prof.first_name ?? ''} ${prof.last_name ?? ''}`.trim().toUpperCase() || user.email.toUpperCase());
+      setAuth('ok');
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const doLogin = async () => {
+    setLoginBusy(true);
+    setLoginErr('');
+    try {
+      const { error } = await enaeAuth.auth.signInWithPassword({ email: loginEmail.trim(), password: loginPass });
+      if (error) {
+        setLoginErr('Credenciales inválidas.');
+        return;
+      }
+      const { data: prof } = await enaeAuth
+        .from('profiles')
+        .select('role, first_name, last_name')
+        .eq('email', loginEmail.trim().toLowerCase())
+        .maybeSingle();
+      if (!prof) {
+        setLoginErr('Cuenta sin perfil habilitado en ENAE.');
+        await enaeAuth.auth.signOut();
+        return;
+      }
+      setAuthRole(prof.role ?? 'student');
+      setUserName(`${prof.first_name ?? ''} ${prof.last_name ?? ''}`.trim().toUpperCase() || loginEmail.toUpperCase());
+      setAuth('ok');
+    } finally {
+      setLoginBusy(false);
+    }
+  };
 
   useEffect(() => {
     let raf = 0;
@@ -210,6 +275,7 @@ export default function SimuladorPage() {
           speed: eng.speed,
           tracks: Array.from(eng.tracks.values()),
           log: eng.log,
+          msgs: eng.msgs,
         }).catch(() => {});
       }
     }, 100);
@@ -234,6 +300,7 @@ export default function SimuladorPage() {
       eng.t = st.sim_t;
       eng.speed = st.speed;
       eng.log = st.log ?? [];
+      eng.msgs = st.msgs ?? [];
       for (const tr of st.tracks ?? []) eng.tracks.set(tr.callsign, tr);
       setPaused(st.paused);
       setSpeed(st.speed);
@@ -253,6 +320,8 @@ export default function SimuladorPage() {
       if (a.action === 'DECLARE_CONTINGENCY' && flight)
         eng.addLog(`${flight} CONTINGENCIA DECLARADA POR CONTROLADOR`, 'WARN');
       if (a.action === 'ACK_ALARM' && flight) eng.addLog(`${flight} ALARMA RECONOCIDA POR CONTROLADOR`, 'INFO');
+      if (a.action === 'ACK_MSG' && flight) eng.addLog(`${flight} MENSAJE ACUSADO POR OPERACIONES`, 'INFO');
+      if (a.action === 'RELAY_ALERT' && flight) eng.addLog(`${flight} OPERACIONES ALERTA AL CONTROLADOR`, 'WARN');
     });
     const iv = setInterval(() => countPositions(sessionId).then(setPeers).catch(() => {}), 8000);
     return () => {
@@ -445,10 +514,11 @@ export default function SimuladorPage() {
     setLobbyBusy(true);
     setLobbyErr('');
     try {
-      const r = await joinSession(joinCode, userName || 'ALUMNO');
+      const r = await joinSession(joinCode, userName || 'ALUMNO', posRole);
       setSessionId(r.sessionId);
       setSessionCode(r.code);
       setPositionId(r.positionId);
+      if (posRole === 'aftn') setWin('aftn', { open: true });
       setMode('student');
     } catch (e) {
       setLobbyErr((e as Error).message || 'Error uniéndose a la sesión');
@@ -577,7 +647,53 @@ export default function SimuladorPage() {
     </span>
   );
 
+  if (auth !== 'ok') {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center" style={{ background: '#101210' }}>
+        <div style={{ ...bevelOut, width: 420 }} className="font-mono">
+          <div className="px-1 py-0.5 text-center text-[12px] font-bold tracking-widest text-black"
+            style={{ background: '#a8a8a8', borderBottom: '1px solid #5a5a5a' }}>
+            CONDOR SIM — ACCESO RESTRINGIDO
+          </div>
+          <div className="p-3 space-y-2" style={{ background: '#c9c9c9' }}>
+            {auth === 'checking' ? (
+              <div className="text-[11px] text-black text-center py-4">VERIFICANDO SESIÓN…</div>
+            ) : (
+              <>
+                <div className="text-[9px] text-[#444]">
+                  Ingrese con su cuenta del portal ENAE. El acceso queda registrado.
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold text-black mb-0.5">CORREO</div>
+                  <input value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} type="email"
+                    autoComplete="username" style={{ ...bevelIn, background: '#fff' }}
+                    className="w-full px-2 py-1 text-[12px] font-mono outline-none" />
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold text-black mb-0.5">CONTRASEÑA</div>
+                  <input value={loginPass} onChange={(e) => setLoginPass(e.target.value)} type="password"
+                    autoComplete="current-password" style={{ ...bevelIn, background: '#fff' }}
+                    onKeyDown={(e) => e.key === 'Enter' && doLogin()}
+                    className="w-full px-2 py-1 text-[12px] font-mono outline-none" />
+                </div>
+                {loginErr && <div className="text-[10px] font-bold" style={{ color: '#a00' }}>{loginErr}</div>}
+                <button onClick={doLogin} disabled={loginBusy || !loginEmail || !loginPass} style={bevelOut}
+                  className="w-full py-2 text-[12px] font-bold disabled:opacity-50">
+                  {loginBusy ? 'VERIFICANDO…' : 'INGRESAR'}
+                </button>
+              </>
+            )}
+            <div className="text-center text-[9px] text-[#555] border-t border-[#999] pt-1">
+              ENAE · ESCUELA DE NAVEGACIÓN AÉREA — ENTRENAMIENTO UTM
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (mode === 'lobby') {
+    const isInstructor = authRole === 'instructor' || authRole === 'admin';
     return (
       <div className="h-screen w-screen flex items-center justify-center" style={{ background: '#101210' }}>
         <div style={{ ...bevelOut, width: 460 }} className="font-mono">
@@ -586,23 +702,26 @@ export default function SimuladorPage() {
             CONDOR SIM — LOGIN DE POSICIÓN
           </div>
           <div className="p-3 space-y-3" style={{ background: '#c9c9c9' }}>
-            <div>
-              <div className="text-[10px] font-bold text-black mb-0.5">NOMBRE</div>
-              <input value={userName} onChange={(e) => setUserName(e.target.value.toUpperCase())}
-                placeholder="NOMBRE Y APELLIDO" style={bevelIn}
-                className="w-full px-2 py-1 text-[12px] font-mono outline-none" />
+            <div className="text-[10px] text-black">
+              USUARIO: <b>{userName}</b> · ROL: <b>{authRole.toUpperCase()}</b>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <button onClick={startInstructor} disabled={lobbyBusy} style={bevelOut}
-                className="py-2 text-[11px] font-bold disabled:opacity-50">
-                INSTRUCTOR<br /><span className="font-normal text-[9px]">CREAR SESIÓN</span>
-              </button>
+              {isInstructor && (
+                <button onClick={startInstructor} disabled={lobbyBusy} style={bevelOut}
+                  className="py-2 text-[11px] font-bold disabled:opacity-50">
+                  INSTRUCTOR<br /><span className="font-normal text-[9px]">CREAR SESIÓN</span>
+                </button>
+              )}
               <button onClick={startLocal} style={bevelOut} className="py-2 text-[11px] font-bold">
                 MODO LOCAL<br /><span className="font-normal text-[9px]">PRÁCTICA INDIVIDUAL</span>
               </button>
             </div>
             <div style={bevelIn} className="p-2">
-              <div className="text-[10px] font-bold text-black mb-1">ALUMNO — UNIRSE A SESIÓN</div>
+              <div className="text-[10px] font-bold text-black mb-1">UNIRSE A SESIÓN — POSICIÓN</div>
+              <div className="flex gap-1 mb-2">
+                <MB label="CONTROLADOR (RADAR)" active={posRole === 'controller'} onClick={() => setPosRole('controller')} />
+                <MB label="OPERACIONES (AFTN)" active={posRole === 'aftn'} onClick={() => setPosRole('aftn')} />
+              </div>
               <div className="flex gap-2">
                 <input value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                   placeholder="CÓDIGO" maxLength={5} style={{ ...bevelIn, background: '#fff' }}
@@ -774,6 +893,55 @@ export default function SimuladorPage() {
           </Win>
         )}
 
+        {wins.aftn.open && (
+          <Win title="TERMINAL AFTN — EJERCICIO" x={wins.aftn.x} y={wins.aftn.y} w={460}
+            onClose={() => setWin('aftn', { open: false })}
+            onDrag={(x, y) => setWin('aftn', { x, y })}>
+            <div style={{ background: '#000' }} className="font-mono text-[10px]">
+              <div className="max-h-[120px] overflow-y-auto border-b border-[#444]">
+                {eng.msgs.length === 0 && <div className="text-[#666] p-1">SIN MENSAJES — INICIE EL EJERCICIO</div>}
+                {eng.msgs.map((m: SimMsg) => (
+                  <div key={m.id} onClick={() => setSelMsg(m.id)}
+                    className={`px-1 cursor-pointer flex gap-2 ${selMsg === m.id ? 'bg-[#2a2a2a]' : ''}`}
+                    style={{ color: m.prio === 'FF' ? RED : GREEN }}>
+                    <span className="font-bold">{m.prio}</span>
+                    <span>{m.type}</span>
+                    <span>{m.flight}</span>
+                    <span className="text-[#888]">{fmtT(m.t)}</span>
+                    <span className="text-[#888]">{m.from}→{m.to}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="p-1 min-h-[100px] max-h-[180px] overflow-y-auto whitespace-pre-wrap"
+                style={{ color: CYAN }}>
+                {(() => {
+                  const m = eng.msgs.find((x: SimMsg) => x.id === selMsg);
+                  return m
+                    ? `${m.prio} ${m.to}\n${fmtT(m.t).replace(/:/g, '').slice(0, 6)} ${m.from}\n${m.body}`
+                    : '— SELECCIONE UN MENSAJE —';
+                })()}
+              </div>
+              {mode === 'student' && posRole === 'aftn' && (
+                <div className="flex gap-1 p-1 border-t border-[#444]" style={{ background: '#c0c0c0' }}>
+                  <MB label="ACUSAR RECIBO" onClick={() => {
+                    const m = eng.msgs.find((x: SimMsg) => x.id === selMsg);
+                    if (m && sessionId) {
+                      logAction(sessionId, positionId, eng.t, 'ACK_MSG', { msgId: m.id, type: m.type, flight: m.flight }).catch(() => {});
+                      m.read = true;
+                    }
+                  }} />
+                  <MB label="ALERTAR CONTROLADOR" onClick={() => {
+                    const m = eng.msgs.find((x: SimMsg) => x.id === selMsg);
+                    if (m && sessionId) {
+                      logAction(sessionId, positionId, eng.t, 'RELAY_ALERT', { msgId: m.id, flight: m.flight }).catch(() => {});
+                    }
+                  }} />
+                </div>
+              )}
+            </div>
+          </Win>
+        )}
+
         {wins.eval.open && mode === 'instructor' && (
           <Win title="EVALUACIÓN DEL EJERCICIO" x={wins.eval.x} y={wins.eval.y} w={560}
             onClose={() => setWin('eval', { open: false })}
@@ -919,6 +1087,8 @@ export default function SimuladorPage() {
           <MB label="ZONE INFO" active={wins.zone.open} onClick={() => setWin('zone', { open: !wins.zone.open })} />
           <MB label={mode === 'student' ? 'ÓRDENES' : 'INSTRUCTOR'} active={wins.instructor.open} onClick={() => setWin('instructor', { open: !wins.instructor.open })} />
           {mode === 'instructor' && <MB label="EVAL" active={wins.eval.open} onClick={runEval} />}
+          <MB label="AFTN" active={wins.aftn.open} onClick={() => setWin('aftn', { open: !wins.aftn.open })}
+            color={eng.msgs.some((m: SimMsg) => m.prio === 'FF' && !m.read) ? RED : undefined} />
           <span className="flex-1" />
           {[6, 12, 24, 48].map((r) => (
             <MB key={r} label={String(r)} active={rangeNm === r} onClick={() => setRangeNm(r)} />

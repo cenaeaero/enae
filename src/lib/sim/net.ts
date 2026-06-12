@@ -4,7 +4,7 @@
 // en sim_actions y el puesto instructor las aplica al motor.
 
 import { createClient, type SupabaseClient, type RealtimeChannel } from '@supabase/supabase-js';
-import type { TrackState } from './engine';
+import type { TrackState, SimMsg } from './engine';
 
 let _client: SupabaseClient | null = null;
 
@@ -25,6 +25,7 @@ export interface NetState {
   speed: number;
   tracks: TrackState[];
   log: { t: number; msg: string; level: 'INFO' | 'WARN' | 'ALARM' }[];
+  msgs?: SimMsg[];
 }
 
 export async function createSession(scenarioId: string, instructorName: string) {
@@ -45,7 +46,7 @@ export async function createSession(scenarioId: string, instructorName: string) 
   return { sessionId: data.id as string, code, positionId: pos.data?.id as string };
 }
 
-export async function joinSession(code: string, studentName: string) {
+export async function joinSession(code: string, studentName: string, role: 'controller' | 'aftn' = 'controller') {
   const db = simDb();
   const { data: ses, error } = await db
     .from('sim_sessions')
@@ -56,25 +57,34 @@ export async function joinSession(code: string, studentName: string) {
   if (error || !ses) throw new Error('Sesión no encontrada. Verifique el código.');
   const { data: pos, error: e2 } = await db
     .from('sim_positions')
-    .insert({ session_id: ses.id, role: 'controller', student_name: studentName })
+    .insert({ session_id: ses.id, role, student_name: studentName })
     .select()
     .single();
   if (e2) throw e2;
   return { sessionId: ses.id as string, code: ses.code as string, scenarioId: ses.scenario_id as string, positionId: pos.id as string };
 }
 
+let msgsColumnOk = true;
+
 export async function publishState(sessionId: string, st: NetState) {
-  await simDb()
-    .from('sim_state')
-    .upsert({
-      session_id: sessionId,
-      sim_t: st.sim_t,
-      paused: st.paused,
-      speed: st.speed,
-      tracks: st.tracks,
-      log: st.log.slice(0, 50),
-      updated_at: new Date().toISOString(),
-    });
+  const base = {
+    session_id: sessionId,
+    sim_t: st.sim_t,
+    paused: st.paused,
+    speed: st.speed,
+    tracks: st.tracks,
+    log: st.log.slice(0, 50),
+    updated_at: new Date().toISOString(),
+  };
+  const db = simDb();
+  if (msgsColumnOk) {
+    const { error } = await db.from('sim_state').upsert({ ...base, msgs: st.msgs ?? [] });
+    if (!error) return;
+    // columna msgs aún no migrada: degradar sin perder el resto del estado
+    if (/msgs/.test(error.message)) msgsColumnOk = false;
+    else return;
+  }
+  await db.from('sim_state').upsert(base);
 }
 
 export function subscribeState(sessionId: string, cb: (st: NetState) => void): RealtimeChannel {

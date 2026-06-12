@@ -114,6 +114,18 @@ export function pointInRing(lng: number, lat: number, ring: [number, number][]):
   return inside;
 }
 
+export interface SimMsg {
+  id: number;
+  t: number;
+  prio: 'FF' | 'GG' | 'KK';
+  from: string;
+  to: string;
+  type: 'FPL' | 'DEP' | 'ARR' | 'ALR' | 'SVC';
+  flight: string;
+  body: string;
+  read?: boolean;
+}
+
 export class SimEngine {
   scenario: Scenario;
   t = 0; // segundos de simulación
@@ -121,6 +133,8 @@ export class SimEngine {
   paused = true;
   tracks = new Map<string, TrackState>();
   log: { t: number; msg: string; level: 'INFO' | 'WARN' | 'ALARM' }[] = [];
+  msgs: SimMsg[] = [];
+  private msgSeq = 0;
   private firedEvents = new Set<number>();
 
   constructor(scenario: Scenario) {
@@ -133,6 +147,8 @@ export class SimEngine {
     this.paused = true;
     this.firedEvents.clear();
     this.log = [];
+    this.msgs = [];
+    this.msgSeq = 0;
     this.tracks.clear();
     for (const f of this.scenario.flights) {
       const wp0 = f.route[0];
@@ -162,6 +178,53 @@ export class SimEngine {
     if (this.log.length > 200) this.log.pop();
   }
 
+  // hora del ejercicio en formato hhmm (el ejercicio "inicia" a las 1200 UTC)
+  private hhmm(offsetS = 0): string {
+    const total = 12 * 3600 + this.t + offsetS;
+    const h = Math.floor(total / 3600) % 24;
+    const m = Math.floor((total % 3600) / 60);
+    return String(h).padStart(2, '0') + String(m).padStart(2, '0');
+  }
+
+  private addMsg(type: SimMsg['type'], flight: string, body: string, prio: SimMsg['prio'] = 'GG') {
+    this.msgs.unshift({
+      id: ++this.msgSeq,
+      t: this.t,
+      prio,
+      from: 'SCUACNDX',
+      to: 'SCUAUASX',
+      type,
+      flight,
+      body,
+    });
+    if (this.msgs.length > 60) this.msgs.pop();
+  }
+
+  private msgsForFlight(f: SimFlight, kind: 'FPL' | 'DEP' | 'ARR' | 'ALR') {
+    const cs = f.callsign;
+    const eet = Math.round((f.batteryMin * 0.8) / 60 * 100) / 100;
+    const eetHHMM = '00' + String(Math.max(10, Math.round(f.batteryMin * 0.6))).padStart(2, '0');
+    switch (kind) {
+      case 'FPL':
+        this.addMsg('FPL', cs,
+          `(FPL-${cs}-VG\n-1ZZZZ/L -V/C\n-ZZZZ${this.hhmm(120)}\n-N${String(Math.round(f.speedKt)).padStart(4, '0')}VFR DCT\n-ZZZZ${eetHHMM}\n-DEP/OPERACION UAS DEST/OPERACION UAS\n TYP/UAS ${f.acType} RMK/AUT ${f.authRef} EJERCICIO CONDOR SIM)`,
+          'GG');
+        void eet;
+        break;
+      case 'DEP':
+        this.addMsg('DEP', cs, `(DEP-${cs}-ZZZZ${this.hhmm()}-ZZZZ-DOF/EJERCICIO)`, 'GG');
+        break;
+      case 'ARR':
+        this.addMsg('ARR', cs, `(ARR-${cs}-ZZZZ-ZZZZ${this.hhmm()})`, 'GG');
+        break;
+      case 'ALR':
+        this.addMsg('ALR', cs,
+          `(ALR-INCERFA/SCUACNDX/PERDIDA ENLACE C2\n-${cs}-ZZZZ-AUT ${f.authRef}\n-ULTIMA POSICION CONOCIDA EN ZONA DE OPERACION\n-REQ VIGILAR CONFORMANCE Y CONFIRMAR RTH)`,
+          'FF');
+        break;
+    }
+  }
+
   injectEvent(flight: string, type: SimEvent['type']) {
     this.applyEvent({ t: this.t, flight, type, duration: type === 'C2LOSS' ? 45 : undefined });
   }
@@ -170,11 +233,14 @@ export class SimEngine {
     const tr = this.tracks.get(ev.flight);
     if (!tr || tr.status === 'LANDED') return;
     switch (ev.type) {
-      case 'C2LOSS':
+      case 'C2LOSS': {
         tr.status = 'C2LOSS';
         if (!tr.alerts.includes('C2')) tr.alerts.push('C2');
         this.addLog(`${ev.flight} PÉRDIDA DE ENLACE C2`, 'ALARM');
+        const fl = this.scenario.flights.find((f) => f.callsign === ev.flight);
+        if (fl) this.msgsForFlight(fl, 'ALR');
         break;
+      }
       case 'C2RESTORE':
         if (tr.status === 'C2LOSS') tr.status = 'NORMAL';
         tr.alerts = tr.alerts.filter((a) => a !== 'C2');
@@ -234,6 +300,8 @@ export class SimEngine {
           tr.speedKt = f.speedKt;
           tr.wpIdx = 1;
           this.addLog(`${f.callsign} DESPEGUE — AUT ${f.authRef}`, 'INFO');
+          this.msgsForFlight(f, 'FPL');
+          this.msgsForFlight(f, 'DEP');
         } else continue;
       }
 
@@ -248,6 +316,7 @@ export class SimEngine {
         tr.speedKt = 0;
         tr.alt = 0;
         this.addLog(`${f.callsign} ATERRIZAJE FORZOSO — BATERÍA AGOTADA`, 'ALARM');
+        this.msgsForFlight(f, 'ARR');
         continue;
       }
 
@@ -264,6 +333,7 @@ export class SimEngine {
           tr.speedKt = 0;
           tr.alt = 0;
           this.addLog(`${f.callsign} ATERRIZADO — MISIÓN COMPLETA`, 'INFO');
+          this.msgsForFlight(f, 'ARR');
         } else {
           tr.wpIdx++;
         }
