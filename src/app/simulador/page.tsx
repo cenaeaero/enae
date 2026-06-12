@@ -667,14 +667,14 @@ export default function SimuladorPage() {
                   <div className="text-[10px] font-bold text-black mb-0.5">CORREO</div>
                   <input value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} type="email"
                     autoComplete="username" style={{ ...bevelIn, background: '#fff' }}
-                    className="w-full px-2 py-1 text-[12px] font-mono outline-none" />
+                    className="w-full px-2 py-1 text-[12px] font-mono outline-none text-black" />
                 </div>
                 <div>
                   <div className="text-[10px] font-bold text-black mb-0.5">CONTRASEÑA</div>
                   <input value={loginPass} onChange={(e) => setLoginPass(e.target.value)} type="password"
                     autoComplete="current-password" style={{ ...bevelIn, background: '#fff' }}
                     onKeyDown={(e) => e.key === 'Enter' && doLogin()}
-                    className="w-full px-2 py-1 text-[12px] font-mono outline-none" />
+                    className="w-full px-2 py-1 text-[12px] font-mono outline-none text-black" />
                 </div>
                 {loginErr && <div className="text-[10px] font-bold" style={{ color: '#a00' }}>{loginErr}</div>}
                 <button onClick={doLogin} disabled={loginBusy || !loginEmail || !loginPass} style={bevelOut}
@@ -725,7 +725,7 @@ export default function SimuladorPage() {
               <div className="flex gap-2">
                 <input value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                   placeholder="CÓDIGO" maxLength={5} style={{ ...bevelIn, background: '#fff' }}
-                  className="flex-1 px-2 py-1 text-[14px] font-mono font-bold tracking-[6px] text-center outline-none" />
+                  className="flex-1 px-2 py-1 text-[14px] font-mono font-bold tracking-[6px] text-center outline-none text-black" />
                 <button onClick={joinStudent} disabled={lobbyBusy || joinCode.length < 5} style={bevelOut}
                   className="px-4 text-[11px] font-bold disabled:opacity-50">
                   UNIRSE
