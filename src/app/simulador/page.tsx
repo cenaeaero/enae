@@ -1,7 +1,8 @@
 'use client';
 
-// CONDOR SIM — Posición de Controlador UTM (réplica estilo display radar ATC)
-// Pantalla negra, símbolos de pista, etiquetas, ventanas flotantes y menús inferiores.
+// CONDOR SIM — Posición de Controlador UTM
+// Réplica de la posición de control (lámina 12 deck CONDOR): ventanas grises
+// arrastrables estilo consola, barra superior de estado y botonera densa inferior.
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { SimEngine, type TrackState } from '@/lib/sim/engine';
@@ -20,6 +21,96 @@ function fmtT(t: number) {
   return [h, m, s].map((v) => String(v).padStart(2, '0')).join(':');
 }
 
+// ---------- chrome Motif ----------
+const bevelOut: React.CSSProperties = {
+  background: '#c9c9c9',
+  borderWidth: 2,
+  borderStyle: 'solid',
+  borderTopColor: '#f2f2f2',
+  borderLeftColor: '#f2f2f2',
+  borderBottomColor: '#5a5a5a',
+  borderRightColor: '#5a5a5a',
+};
+const bevelIn: React.CSSProperties = {
+  background: '#c0c0c0',
+  borderWidth: 2,
+  borderStyle: 'solid',
+  borderTopColor: '#5a5a5a',
+  borderLeftColor: '#5a5a5a',
+  borderBottomColor: '#f2f2f2',
+  borderRightColor: '#f2f2f2',
+};
+
+function MB({
+  label,
+  active,
+  onClick,
+  wide,
+  color,
+}: {
+  label: string;
+  active?: boolean;
+  onClick?: () => void;
+  wide?: boolean;
+  color?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={active ? { ...bevelIn, background: '#9aa49a' } : bevelOut}
+      className={`px-1.5 text-[10px] font-bold font-mono leading-4 whitespace-nowrap ${wide ? 'min-w-[64px]' : ''}`}
+    >
+      <span style={{ color: color ?? '#1a1a1a' }}>{label}</span>
+    </button>
+  );
+}
+
+// ventana gris arrastrable
+function Win({
+  title,
+  x,
+  y,
+  onClose,
+  onDrag,
+  children,
+  w,
+}: {
+  title: string;
+  x: number;
+  y: number;
+  onClose: () => void;
+  onDrag: (x: number, y: number) => void;
+  children: React.ReactNode;
+  w?: number;
+}) {
+  const drag = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
+  return (
+    <div className="absolute z-20" style={{ left: x, top: y, width: w, ...bevelOut }}>
+      <div
+        className="flex items-center justify-between px-1 cursor-move select-none"
+        style={{ background: '#a8a8a8', borderBottom: '1px solid #5a5a5a' }}
+        onPointerDown={(e) => {
+          drag.current = { sx: e.clientX, sy: e.clientY, ox: x, oy: y };
+          (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          if (!drag.current) return;
+          onDrag(drag.current.ox + e.clientX - drag.current.sx, drag.current.oy + e.clientY - drag.current.sy);
+        }}
+        onPointerUp={() => (drag.current = null)}
+      >
+        <span className="text-[11px] font-bold font-mono tracking-wider text-black mx-auto">{title}</span>
+        <button onClick={onClose} style={bevelOut} className="px-1 text-[10px] font-bold leading-3">
+          ×
+        </button>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone';
+
 export default function SimuladorPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<SimEngine | null>(null);
@@ -30,19 +121,25 @@ export default function SimuladorPage() {
   const [showLabels, setShowLabels] = useState(true);
   const [showZones, setShowZones] = useState(true);
   const [showTrails, setShowTrails] = useState(true);
-  const [showFlights, setShowFlights] = useState(true);
-  const [showLog, setShowLog] = useState(true);
-  const [showInstructor, setShowInstructor] = useState(false);
+  const [rings, setRings] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
   const [clock, setClock] = useState('--:--:--');
+  const [wins, setWins] = useState<Record<WinId, { x: number; y: number; open: boolean }>>({
+    flights: { x: 150, y: 60, open: true },
+    stations: { x: 980, y: 50, open: true },
+    sectors: { x: 60, y: 420, open: true },
+    time: { x: 1180, y: 560, open: true },
+    msg: { x: 560, y: 40, open: true },
+    instructor: { x: 900, y: 420, open: false },
+    zone: { x: 600, y: 560, open: false },
+  });
 
-  // motor
-  if (!engineRef.current) {
-    engineRef.current = new SimEngine(SCENARIOS[0]);
-  }
+  if (!engineRef.current) engineRef.current = new SimEngine(SCENARIOS[0]);
   const eng = engineRef.current;
 
-  // bucle de simulación + render
+  const setWin = (id: WinId, p: Partial<{ x: number; y: number; open: boolean }>) =>
+    setWins((w) => ({ ...w, [id]: { ...w[id], ...p } }));
+
   useEffect(() => {
     let raf = 0;
     const loop = () => {
@@ -50,7 +147,6 @@ export default function SimuladorPage() {
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
-    // física desacoplada del render: avanza aunque el navegador limite RAF
     let last = performance.now();
     const phys = setInterval(() => {
       const now = performance.now();
@@ -69,9 +165,8 @@ export default function SimuladorPage() {
       clearInterval(iv);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeNm, showLabels, showZones, showTrails, selected]);
+  }, [rangeNm, showLabels, showZones, showTrails, rings, selected]);
 
-  // proyección simple lat/lng → px centrada en el escenario
   const project = useCallback(
     (lng: number, lat: number, w: number, h: number): [number, number] => {
       const [clng, clat] = eng.scenario.center;
@@ -93,31 +188,30 @@ export default function SimuladorPage() {
     if (!ctx) return;
     const w = cv.width;
     const h = cv.height;
-    ctx.fillStyle = '#000';
+    ctx.fillStyle = '#101210';
     ctx.fillRect(0, 0, w, h);
 
-    // anillos de rango cada 5 NM
     const [cx, cy] = [w / 2, h / 2];
     const pxPerNm = Math.min(w, h) / (rangeNm * 2);
-    ctx.strokeStyle = '#10241a';
-    ctx.fillStyle = '#1d4030';
-    ctx.font = '10px monospace';
-    for (let r = 5; r <= rangeNm * 2; r += 5) {
-      ctx.beginPath();
-      ctx.arc(cx, cy, r * pxPerNm, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.fillText(`${r}`, cx + r * pxPerNm + 3, cy - 3);
-    }
-    // cruz central
-    ctx.strokeStyle = '#1d4030';
-    ctx.beginPath();
-    ctx.moveTo(cx - 8, cy);
-    ctx.lineTo(cx + 8, cy);
-    ctx.moveTo(cx, cy - 8);
-    ctx.lineTo(cx, cy + 8);
-    ctx.stroke();
 
-    // zonas
+    if (rings) {
+      ctx.strokeStyle = '#1c2a20';
+      ctx.fillStyle = '#2a4a36';
+      ctx.font = '10px monospace';
+      for (let r = 5; r <= rangeNm * 2; r += 5) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * pxPerNm, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillText(`${r}`, cx + r * pxPerNm + 3, cy - 3);
+      }
+      ctx.beginPath();
+      ctx.moveTo(cx - 8, cy);
+      ctx.lineTo(cx + 8, cy);
+      ctx.moveTo(cx, cy - 8);
+      ctx.lineTo(cx, cy + 8);
+      ctx.stroke();
+    }
+
     if (showZones) {
       for (const z of eng.scenario.zones) {
         const col = z.kind === 'PROHIBITED' ? RED : z.kind === 'SEGREGATED' ? CYAN : AMBER;
@@ -126,9 +220,9 @@ export default function SimuladorPage() {
         ctx.lineWidth = 1.2;
         ctx.beginPath();
         z.ring.forEach(([lng, lat], i) => {
-          const [x, y] = project(lng, lat, w, h);
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
+          const [px, py] = project(lng, lat, w, h);
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
         });
         ctx.stroke();
         ctx.setLineDash([]);
@@ -139,14 +233,12 @@ export default function SimuladorPage() {
       }
     }
 
-    // tracks
     for (const tr of eng.tracks.values()) {
       if (!tr.airborne && tr.status !== 'LANDED') continue;
       const [x, y] = project(tr.lng, tr.lat, w, h);
       const alarm = tr.alerts.length > 0;
       const col = tr.status === 'LANDED' ? GRAY : alarm ? RED : GREEN;
 
-      // trail (historia)
       if (showTrails && tr.history.length > 1) {
         ctx.strokeStyle = alarm ? 'rgba(255,59,48,.35)' : 'rgba(39,224,122,.3)';
         ctx.lineWidth = 1;
@@ -159,7 +251,6 @@ export default function SimuladorPage() {
         ctx.stroke();
       }
 
-      // símbolo: triángulo ADS-B (como tabla de símbolos del sistema)
       ctx.strokeStyle = col;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
@@ -173,7 +264,6 @@ export default function SimuladorPage() {
         ctx.strokeRect(x - 10, y - 10, 20, 20);
       }
 
-      // vector de velocidad (1 min)
       if (tr.speedKt > 0) {
         const vNm = tr.speedKt / 60;
         const vx = x + Math.sin((tr.hdg * Math.PI) / 180) * vNm * pxPerNm;
@@ -186,7 +276,6 @@ export default function SimuladorPage() {
         ctx.stroke();
       }
 
-      // etiqueta
       if (showLabels && tr.status !== 'LANDED') {
         const lx = x + 14;
         const ly = y - 22;
@@ -196,7 +285,6 @@ export default function SimuladorPage() {
         ctx.lineTo(lx - 2, ly + 10);
         ctx.stroke();
         ctx.font = 'bold 11px monospace';
-        // línea de alarma (roja, sobre la etiqueta) — como las "pistas en peligro"
         if (alarm) {
           ctx.fillStyle = RED;
           ctx.fillText(tr.alerts.join(' '), lx, ly - 12);
@@ -208,9 +296,8 @@ export default function SimuladorPage() {
         ctx.fillText(`${tr.acType} ${tr.authRef.slice(-4)}`, lx, ly + 24);
       }
     }
-  }, [eng, project, rangeNm, showLabels, showZones, showTrails, selected]);
+  }, [eng, project, rangeNm, showLabels, showZones, showTrails, rings, selected]);
 
-  // resize canvas
   useEffect(() => {
     const cv = canvasRef.current;
     if (!cv) return;
@@ -222,7 +309,6 @@ export default function SimuladorPage() {
     return () => ro.disconnect();
   }, []);
 
-  // click para seleccionar track
   const onCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const cv = canvasRef.current;
     if (!cv) return;
@@ -242,13 +328,17 @@ export default function SimuladorPage() {
     setSelected(best);
   };
 
-  const togglePause = () => {
-    eng.paused = !eng.paused;
-    setPaused(eng.paused);
-  };
+  // velocidades estilo replay: S 0 ½ 1 3 5 8
   const setSpd = (s: number) => {
-    eng.speed = s;
-    setSpeed(s);
+    if (s === 0) {
+      eng.paused = true;
+      setPaused(true);
+    } else {
+      eng.speed = s;
+      eng.paused = false;
+      setSpeed(s);
+      setPaused(false);
+    }
   };
   const resetEx = () => {
     eng.reset();
@@ -256,174 +346,247 @@ export default function SimuladorPage() {
     setSelected(null);
   };
 
-  const MBtn = ({
-    label,
-    active,
-    danger,
-    onClick,
-  }: {
-    label: string;
-    active?: boolean;
-    danger?: boolean;
-    onClick?: () => void;
-  }) => (
-    <button
-      onClick={onClick}
-      className={`px-2 py-0.5 text-[11px] font-mono border ${
-        danger
-          ? 'border-red-700 text-red-400 bg-red-950/40'
-          : active
-          ? 'border-emerald-500 text-black bg-emerald-400'
-          : 'border-zinc-600 text-zinc-300 bg-zinc-800 hover:bg-zinc-700'
-      }`}
-    >
-      {label}
-    </button>
-  );
-
   const tracks: TrackState[] = Array.from(eng.tracks.values());
   const anyAlarm = tracks.some((t) => t.alerts.length > 0);
+  const selZone = eng.scenario.zones.find(
+    (z) => z.id === eng.scenario.flights.find((f) => f.callsign === selected)?.zoneId
+  );
+
+  const TSeg = ({ label, color, bg }: { label: string; color?: string; bg?: string }) => (
+    <span
+      className="px-1.5 text-[10px] font-bold font-mono border-r border-[#5a5a5a] leading-5"
+      style={{ color: color ?? '#d6d6d6', background: bg }}
+    >
+      {label}
+    </span>
+  );
 
   return (
-    <div className="h-screen w-screen bg-black flex flex-col overflow-hidden select-none">
-      {/* barra superior mínima */}
-      <div className="flex items-center justify-between px-2 py-0.5 bg-zinc-900 border-b border-zinc-700 font-mono text-[11px]">
-        <div className="flex gap-3">
-          <span className="text-emerald-400 font-bold">CONDOR SIM</span>
-          <span className="text-zinc-400">POSICIÓN: CONTROLADOR UTM</span>
-          <span className="text-cyan-400">{eng.scenario.name}</span>
+    <div className="h-screen w-screen flex flex-col overflow-hidden select-none" style={{ background: '#9c9c9c' }}>
+      {/* ===== barra superior de estado ===== */}
+      <div className="flex items-center justify-between" style={{ background: '#2b2b2b', borderBottom: '2px solid #5a5a5a' }}>
+        <div className="flex items-center">
+          <TSeg label="ST" />
+          <TSeg label="MSAW" color={GREEN} />
+          <TSeg label="CONF" color={GREEN} />
+          <TSeg label="APW" color={anyAlarm ? RED : GREEN} />
+          <TSeg label="C2" color={tracks.some((t) => t.alerts.includes('C2')) ? RED : GREEN} />
+          <TSeg label="PSR T" />
+          <TSeg label="OPTIONS" />
+          <TSeg label={`RANGE: ${rangeNm} NM`} />
+          <TSeg label="SIM" color={AMBER} />
+          <TSeg label={paused ? 'HOLD' : `RUN x${speed}`} color={paused ? AMBER : GREEN} />
+          <TSeg label={`Wx: CAVOK`} />
         </div>
-        <div className="flex gap-3 items-center">
-          {anyAlarm && <span className="text-red-500 font-bold animate-pulse">⚠ ALARMA</span>}
-          <span className="text-zinc-400">SIM {fmtT(eng.t)}</span>
-          <span className="bg-black border border-emerald-700 text-emerald-400 px-2 font-bold">
-            {clock} UTC
-          </span>
+        <div className="text-[11px] font-bold font-mono" style={{ color: GREEN }}>
+          CONDOR UTM — POSICIÓN CONTROLADOR · {eng.scenario.name}
+        </div>
+        <div className="flex items-center">
+          <TSeg label="Q" />
+          <TSeg label="EST" />
+          <TSeg label="FPL" />
+          <TSeg label="MAP" />
+          <TSeg label="CONFIG" />
+          <button onClick={() => setWin('msg', { open: !wins.msg.open })}>
+            <TSeg label="SYS MSG" bg={wins.msg.open ? '#4a4a4a' : undefined} color={anyAlarm ? RED : '#d6d6d6'} />
+          </button>
+          <button onClick={() => setWin('time', { open: !wins.time.open })}>
+            <TSeg label="CLOCK" bg={wins.time.open ? '#4a4a4a' : undefined} />
+          </button>
+          <TSeg label="MENU" color={AMBER} />
         </div>
       </div>
 
-      {/* pantalla radar */}
-      <div className="flex-1 relative">
+      {/* ===== pantalla radar + ventanas ===== */}
+      <div className="flex-1 relative" style={{ background: '#101210' }}>
         <canvas ref={canvasRef} className="w-full h-full cursor-crosshair" onClick={onCanvasClick} />
 
-        {/* ventana: lista de vuelos */}
-        {showFlights && (
-          <div className="absolute top-2 left-2 w-[300px] border border-zinc-600 bg-black/90 font-mono text-[11px]">
-            <div className="bg-zinc-800 text-zinc-200 px-2 py-0.5 flex justify-between">
-              <span>VUELOS</span>
-              <button onClick={() => setShowFlights(false)} className="text-zinc-400">×</button>
+        {wins.flights.open && (
+          <Win title="VUELOS" x={wins.flights.x} y={wins.flights.y} w={430}
+            onClose={() => setWin('flights', { open: false })}
+            onDrag={(x, y) => setWin('flights', { x, y })}>
+            <div style={{ background: '#000' }} className="font-mono text-[11px] p-0.5">
+              <div className="grid grid-cols-7 text-[#bdbdbd] px-1" style={{ background: '#3a3a3a' }}>
+                <span>C/S</span><span>TYPE</span><span>AUT</span><span>ALT</span><span>SPD</span><span>BAT</span><span>EST</span>
+              </div>
+              {tracks.map((t) => (
+                <div key={t.callsign} onClick={() => setSelected(t.callsign)}
+                  className={`grid grid-cols-7 px-1 cursor-pointer ${selected === t.callsign ? 'bg-[#2a2a2a]' : ''}`}
+                  style={{ color: t.alerts.length ? RED : t.status === 'LANDED' ? '#777' : GREEN }}>
+                  <span>{t.callsign}</span>
+                  <span>{t.acType}</span>
+                  <span>{t.authRef.slice(-4)}</span>
+                  <span>{Math.round(t.alt)}M</span>
+                  <span>{Math.round(t.speedKt)}KT</span>
+                  <span>{Math.round(t.batteryPct)}%</span>
+                  <span>{t.status === 'NORMAL' && t.airborne ? 'VUELO' : t.status === 'LANDED' ? 'TIERRA' : t.airborne ? t.status : 'ESPERA'}</span>
+                </div>
+              ))}
             </div>
-            <table className="w-full">
-              <thead>
-                <tr className="text-zinc-500">
-                  <th className="text-left px-2">C/S</th>
-                  <th className="text-left">TIPO</th>
-                  <th className="text-left">AUT</th>
-                  <th className="text-right px-2">BAT</th>
-                  <th className="text-right px-2">EST</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tracks.map((t) => (
-                  <tr
-                    key={t.callsign}
-                    onClick={() => setSelected(t.callsign)}
-                    className={`cursor-pointer ${
-                      selected === t.callsign ? 'bg-zinc-800' : ''
-                    } ${t.alerts.length ? 'text-red-400' : t.status === 'LANDED' ? 'text-zinc-500' : 'text-emerald-400'}`}
-                  >
-                    <td className="px-2">{t.callsign}</td>
-                    <td>{t.acType}</td>
-                    <td>{t.authRef.slice(-4)}</td>
-                    <td className="text-right px-2">{Math.round(t.batteryPct)}%</td>
-                    <td className="text-right px-2">
-                      {t.status === 'NORMAL' && t.airborne ? 'VUELO' : t.status === 'LANDED' ? 'TIERRA' : t.airborne ? t.status : 'ESPERA'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          </Win>
         )}
 
-        {/* ventana: log del sistema */}
-        {showLog && (
-          <div className="absolute top-2 right-2 w-[360px] max-h-[40%] border border-zinc-600 bg-black/90 font-mono text-[11px] flex flex-col">
-            <div className="bg-zinc-800 text-zinc-200 px-2 py-0.5 flex justify-between">
-              <span>MENSAJES DEL SISTEMA</span>
-              <button onClick={() => setShowLog(false)} className="text-zinc-400">×</button>
+        {wins.stations.open && (
+          <Win title="ESTACIONES GCS" x={wins.stations.x} y={wins.stations.y} w={260}
+            onClose={() => setWin('stations', { open: false })}
+            onDrag={(x, y) => setWin('stations', { x, y })}>
+            <div className="font-mono text-[10px] p-1" style={{ background: '#c0c0c0' }}>
+              <div className="grid grid-cols-3 font-bold text-black mb-0.5">
+                <span>GCS</span><span>SUP STATUS</span><span>RX STATUS</span>
+              </div>
+              {tracks.map((t) => {
+                const rx = t.alerts.includes('C2') ? 'NO DATA' : t.airborne && t.status !== 'LANDED' ? 'DATA' : 'STBY';
+                return (
+                  <div key={t.callsign} className="grid grid-cols-3 mb-0.5 items-center">
+                    <span className="font-bold text-black">{t.callsign}</span>
+                    <span className="text-center font-bold" style={{ background: '#19c25a', color: '#063' }}>ON</span>
+                    <span className="text-center font-bold"
+                      style={rx === 'NO DATA' ? { background: '#e03a30', color: '#fff' } : rx === 'DATA' ? { background: '#19c25a', color: '#063' } : { background: '#999', color: '#222' }}>
+                      {rx}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
-            <div className="overflow-y-auto p-1 space-y-0.5">
+          </Win>
+        )}
+
+        {wins.sectors.open && (
+          <Win title="SECTORES / ZONAS" x={wins.sectors.x} y={wins.sectors.y} w={300}
+            onClose={() => setWin('sectors', { open: false })}
+            onDrag={(x, y) => setWin('sectors', { x, y })}>
+            <div style={{ background: '#000' }} className="font-mono text-[11px] p-1 text-[#b9e8c9]">
+              {eng.scenario.zones.map((z, i) => (
+                <div key={z.id} style={{ color: z.kind === 'PROHIBITED' ? RED : CYAN }}>
+                  UCS {i + 1}  {z.id}  {z.name}  {z.floor}-{z.ceiling}M
+                </div>
+              ))}
+            </div>
+          </Win>
+        )}
+
+        {wins.time.open && (
+          <Win title="SYSTEM TIME" x={wins.time.x} y={wins.time.y} w={230}
+            onClose={() => setWin('time', { open: false })}
+            onDrag={(x, y) => setWin('time', { x, y })}>
+            <div style={{ background: '#000' }} className="px-2 py-1 text-center">
+              <div className="font-mono font-bold text-[26px] leading-7" style={{ color: GREEN }}>{clock}</div>
+              <div className="font-mono text-[11px]" style={{ color: AMBER }}>SIM {fmtT(eng.t)}</div>
+            </div>
+          </Win>
+        )}
+
+        {wins.msg.open && (
+          <Win title="SYS MSG" x={wins.msg.x} y={wins.msg.y} w={400}
+            onClose={() => setWin('msg', { open: false })}
+            onDrag={(x, y) => setWin('msg', { x, y })}>
+            <div style={{ background: '#000' }} className="font-mono text-[10px] p-1 max-h-[150px] overflow-y-auto">
               {eng.log.slice(0, 30).map((l, i) => (
-                <div
-                  key={i}
-                  className={
-                    l.level === 'ALARM' ? 'text-red-400' : l.level === 'WARN' ? 'text-amber-400' : 'text-emerald-500'
-                  }
-                >
+                <div key={i} style={{ color: l.level === 'ALARM' ? RED : l.level === 'WARN' ? AMBER : GREEN }}>
                   {fmtT(l.t)} {l.msg}
                 </div>
               ))}
             </div>
-          </div>
+          </Win>
         )}
 
-        {/* ventana: instructor / pseudo-piloto */}
-        {showInstructor && (
-          <div className="absolute bottom-4 right-2 w-[300px] border border-amber-700 bg-black/95 font-mono text-[11px]">
-            <div className="bg-amber-900/60 text-amber-200 px-2 py-0.5 flex justify-between">
-              <span>INSTRUCTOR — INYECCIÓN DE EVENTOS</span>
-              <button onClick={() => setShowInstructor(false)} className="text-amber-300">×</button>
-            </div>
-            <div className="p-2 space-y-1">
-              <div className="text-zinc-400">
-                Objetivo: {selected ?? '— seleccione un vuelo —'}
+        {wins.zone.open && selZone && (
+          <Win title={`ZONA ${selZone.id}`} x={wins.zone.x} y={wins.zone.y} w={300}
+            onClose={() => setWin('zone', { open: false })}
+            onDrag={(x, y) => setWin('zone', { x, y })}>
+            <div style={{ background: '#000' }} className="font-mono text-[10px] p-1">
+              <div><span style={{ color: AMBER }}>Status: </span><span style={{ color: GREEN }}>ACTIVA</span></div>
+              <div><span style={{ color: AMBER }}>Lower limit: </span><span style={{ color: GREEN }}>{selZone.floor}M AGL</span></div>
+              <div><span style={{ color: AMBER }}>Upper limit: </span><span style={{ color: GREEN }}>{selZone.ceiling}M AGL</span></div>
+              <div><span style={{ color: AMBER }}>Nombre: </span><span style={{ color: GREEN }}>{selZone.name}</span></div>
+              <div className="flex gap-1 mt-1">
+                <MB label="MSAW" /><MB label="APW" active /><MB label="CONF" active />
               </div>
-              <div className="flex flex-wrap gap-1">
+            </div>
+          </Win>
+        )}
+
+        {wins.instructor.open && (
+          <Win title="INSTRUCTOR — PSEUDO PILOTO" x={wins.instructor.x} y={wins.instructor.y} w={320}
+            onClose={() => setWin('instructor', { open: false })}
+            onDrag={(x, y) => setWin('instructor', { x, y })}>
+            <div className="p-1 font-mono text-[10px]" style={{ background: '#c0c0c0' }}>
+              <div className="text-black mb-1">OBJETIVO: <b>{selected ?? '— seleccione vuelo —'}</b></div>
+              <div className="flex flex-wrap gap-1 mb-1">
                 {(['C2LOSS', 'C2RESTORE', 'LOWBAT', 'EMERG', 'RTH'] as const).map((ev) => (
-                  <button
-                    key={ev}
-                    disabled={!selected}
-                    onClick={() => selected && eng.injectEvent(selected, ev)}
-                    className="px-2 py-0.5 border border-amber-700 text-amber-300 disabled:opacity-30 hover:bg-amber-900/40"
-                  >
-                    {ev}
-                  </button>
+                  <MB key={ev} label={ev} onClick={() => selected && eng.injectEvent(selected, ev)} />
                 ))}
               </div>
-              <div className="text-zinc-500 pt-1 border-t border-zinc-800">
-                {eng.scenario.briefing}
-              </div>
+              <div className="text-[9px] text-[#333] border-t border-[#888] pt-1">{eng.scenario.briefing}</div>
             </div>
-          </div>
+          </Win>
         )}
       </div>
 
-      {/* ===== MENÚS INFERIORES (estilo display ATC) ===== */}
-      <div className="bg-zinc-900 border-t border-zinc-700 px-1 py-1 flex flex-wrap items-center gap-1 font-mono">
-        <span className="text-zinc-500 text-[10px] px-1">EJECUTIVO</span>
-        <MBtn label={paused ? 'INICIAR' : 'PAUSA'} active={!paused} onClick={togglePause} />
-        <MBtn label="RESET" onClick={resetEx} />
-        <span className="w-px h-5 bg-zinc-700 mx-1" />
-        <span className="text-zinc-500 text-[10px]">VEL</span>
-        {[1, 2, 4].map((s) => (
-          <MBtn key={s} label={`x${s}`} active={speed === s} onClick={() => setSpd(s)} />
-        ))}
-        <span className="w-px h-5 bg-zinc-700 mx-1" />
-        <span className="text-zinc-500 text-[10px]">RANGO</span>
-        {[6, 12, 24, 48].map((r) => (
-          <MBtn key={r} label={`${r}NM`} active={rangeNm === r} onClick={() => setRangeNm(r)} />
-        ))}
-        <span className="w-px h-5 bg-zinc-700 mx-1" />
-        <MBtn label="ETIQ" active={showLabels} onClick={() => setShowLabels(!showLabels)} />
-        <MBtn label="ZONAS" active={showZones} onClick={() => setShowZones(!showZones)} />
-        <MBtn label="HIST" active={showTrails} onClick={() => setShowTrails(!showTrails)} />
-        <span className="w-px h-5 bg-zinc-700 mx-1" />
-        <MBtn label="VUELOS" active={showFlights} onClick={() => setShowFlights(!showFlights)} />
-        <MBtn label="MSG" active={showLog} onClick={() => setShowLog(!showLog)} />
-        <MBtn label="INSTRUCTOR" active={showInstructor} onClick={() => setShowInstructor(!showInstructor)} />
-        <div className="flex-1" />
-        <span className="text-zinc-500 text-[10px] px-2">ENAE · ESCUELA DE NAVEGACIÓN AÉREA — ENTRENAMIENTO UTM</span>
+      {/* ===== botonera inferior (doble fila estilo consola) ===== */}
+      <div style={{ background: '#b0b0b0', borderTop: '2px solid #f0f0f0' }} className="px-0.5 py-0.5">
+        <div className="flex items-center gap-0.5 flex-wrap">
+          <MB label="EXECUTIVE" wide active />
+          <MB label="TWR" />
+          <MB label="CPDLC" />
+          <MB label="VIEW1" />
+          <MB label="LMG" />
+          <MB label="ZONBLK" active={showZones} onClick={() => setShowZones(!showZones)} />
+          <MB label="RTE OFF" />
+          <MB label="DATBLK" active={showLabels} onClick={() => setShowLabels(!showLabels)} />
+          <MB label="QNH" />
+          <MB label="RBL ALM" color={anyAlarm ? RED : undefined} />
+          <MB label="OVERLAP" />
+          <MB label="LAST POS" active={showTrails} onClick={() => setShowTrails(!showTrails)} />
+          <MB label="USERS" onClick={() => setWin('flights', { open: !wins.flights.open })} active={wins.flights.open} />
+          <span className="mx-0.5 font-mono text-[10px] font-bold">{rangeNm} NM</span>
+          <MB label="−" onClick={() => setRangeNm(Math.min(96, rangeNm * 2))} />
+          <MB label="+" onClick={() => setRangeNm(Math.max(3, Math.round(rangeNm / 2)))} />
+          <MB label="EXP+" onClick={() => setRangeNm(Math.max(3, rangeNm - 3))} />
+          <span className="flex-1" />
+          {/* velocidades estilo replay */}
+          <span style={bevelIn} className="flex items-center gap-0.5 px-0.5">
+            <MB label="S" onClick={resetEx} />
+            <MB label="0" active={paused} onClick={() => setSpd(0)} />
+            <MB label="½" active={!paused && speed === 0.5} onClick={() => setSpd(0.5)} />
+            <MB label="1" active={!paused && speed === 1} onClick={() => setSpd(1)} />
+            <MB label="3" active={!paused && speed === 3} onClick={() => setSpd(3)} />
+            <MB label="5" active={!paused && speed === 5} onClick={() => setSpd(5)} />
+            <MB label="8" active={!paused && speed === 8} onClick={() => setSpd(8)} />
+          </span>
+          <span className="flex-1" />
+          <MB label="SUT" />
+          <MB label="STE" />
+          <MB label="PRINT LISTS" />
+          <MB label="LOGIN" />
+        </div>
+        <div className="flex items-center gap-0.5 flex-wrap mt-0.5">
+          <MB label="PLANNER" wide />
+          <MB label="ARR" />
+          <MB label="ADS AIR" />
+          <MB label="VIEW2" />
+          <MB label="RINGS" active={rings} onClick={() => setRings(!rings)} />
+          <MB label="ELW" />
+          <MB label="RBL OFF" />
+          <MB label="BRIGHT" />
+          <MB label="METEO" />
+          <MB label="MTCD" />
+          <MB label="FREETEXT" />
+          <MB label="FINDER" />
+          <MB label="RADAR" onClick={() => setWin('stations', { open: !wins.stations.open })} active={wins.stations.open} />
+          <MB label="SECTORS" active={wins.sectors.open} onClick={() => setWin('sectors', { open: !wins.sectors.open })} />
+          <MB label="ZONE INFO" active={wins.zone.open} onClick={() => setWin('zone', { open: !wins.zone.open })} />
+          <MB label="INSTRUCTOR" active={wins.instructor.open} onClick={() => setWin('instructor', { open: !wins.instructor.open })} />
+          <span className="flex-1" />
+          {[6, 12, 24, 48].map((r) => (
+            <MB key={r} label={String(r)} active={rangeNm === r} onClick={() => setRangeNm(r)} />
+          ))}
+          <MB label="DEF" onClick={() => setRangeNm(12)} />
+          <span className="flex-1" />
+          <MB label="ACC" />
+          <MB label="ATMCSUP" />
+          <MB label="LOGOUT" />
+        </div>
       </div>
     </div>
   );
