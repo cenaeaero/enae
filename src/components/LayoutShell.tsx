@@ -16,9 +16,10 @@ export default function LayoutShell({
   const isInstructor = pathname.startsWith("/instructor");
   const isSupervisor = pathname.startsWith("/supervisor");
   const isPortal = pathname.startsWith("/portal");
+  const isSimulador = pathname.startsWith("/simulador");
 
   // Portales con su propio chrome (sin Header/Footer público)
-  if (isTpems || isAdminLogin || isInstructor || isSupervisor || isPortal) {
+  if (isTpems || isAdminLogin || isInstructor || isSupervisor || isPortal || isSimulador) {
     return <>{children}</>;
   }
 
