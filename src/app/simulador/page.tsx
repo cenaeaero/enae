@@ -10,6 +10,7 @@ import { SCENARIOS } from '@/lib/sim/scenarios';
 import {
   simDb, createSession, joinSession, publishState, subscribeState,
   subscribeActions, logAction, logEvent, countPositions, fetchEvalData,
+  subscribeLiveTracks,
 } from '@/lib/sim/net';
 import { certificadoPdf } from '@/lib/sim/certificado';
 import { supabase as enaeAuth } from '@/lib/supabase';
@@ -310,6 +311,47 @@ export default function SimuladorPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, sessionId]);
+
+  // instructor: tracks externos del puente Mission Planner/ArduPilot
+  const extRef = useRef(new Map<string, number>());
+  useEffect(() => {
+    if (mode !== 'instructor' || !sessionCode) return;
+    const ch = subscribeLiveTracks(sessionCode, (t) => {
+      const prev = eng.tracks.get(t.callsign);
+      const tr: TrackState = prev ?? {
+        callsign: t.callsign,
+        acType: 'MAV',
+        lat: t.lat, lng: t.lng, alt: t.alt_m, hdg: t.hdg,
+        speedKt: t.speed_kt, batteryPct: t.battery_pct,
+        status: 'NORMAL', alerts: [], inside: true, wpIdx: 0,
+        airborne: true, authRef: 'EXT-MP', history: [],
+      };
+      if (!prev) eng.addLog(`${t.callsign} TRACK EXTERNO CONECTADO (MISSION PLANNER)`, 'INFO');
+      tr.lat = t.lat; tr.lng = t.lng; tr.alt = t.alt_m; tr.hdg = t.hdg;
+      tr.speedKt = t.speed_kt; tr.batteryPct = t.battery_pct; tr.airborne = true;
+      const last = tr.history[tr.history.length - 1];
+      if (!last || last[0] !== t.lng || last[1] !== t.lat) {
+        tr.history.push([t.lng, t.lat]);
+        if (tr.history.length > 60) tr.history.shift();
+      }
+      eng.tracks.set(t.callsign, tr);
+      extRef.current.set(t.callsign, Date.now());
+    });
+    const prune = setInterval(() => {
+      for (const [cs, ts] of extRef.current) {
+        if (Date.now() - ts > 20000) {
+          eng.tracks.delete(cs);
+          extRef.current.delete(cs);
+          eng.addLog(`${cs} TRACK EXTERNO PERDIDO (SIN DATOS 20 S)`, 'WARN');
+        }
+      }
+    }, 5000);
+    return () => {
+      simDb().removeChannel(ch);
+      clearInterval(prune);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, sessionCode]);
 
   // instructor: aplicar órdenes de los controladores + conteo de puestos
   useEffect(() => {

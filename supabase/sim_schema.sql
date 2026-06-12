@@ -99,3 +99,20 @@ create policy sim_events_all on sim_events for all using (true) with check (true
 create policy sim_actions_all on sim_actions for all using (true) with check (true);
 -- resultados: solo lectura desde el navegador; escritura vía service key (API route)
 create policy sim_results_read on sim_results for select using (true);
+
+-- 7) Tracks externos (Mission Planner / ArduPilot via condor-bridge)
+create table if not exists sim_live_tracks (
+  session_code text not null,
+  callsign text not null,
+  lat double precision not null,
+  lng double precision not null,
+  alt_m numeric not null default 0,
+  hdg numeric not null default 0,
+  speed_kt numeric not null default 0,
+  battery_pct numeric not null default 100,
+  updated_at timestamptz not null default now(),
+  primary key (session_code, callsign)
+);
+alter publication supabase_realtime add table sim_live_tracks;
+alter table sim_live_tracks enable row level security;
+create policy sim_live_tracks_all on sim_live_tracks for all using (true) with check (true);

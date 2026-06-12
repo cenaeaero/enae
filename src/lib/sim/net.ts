@@ -147,6 +147,37 @@ export async function logEvent(sessionId: string, simT: number, flight: string, 
   });
 }
 
+// tracks externos (Mission Planner / ArduPilot vía condor-bridge)
+export interface LiveTrack {
+  session_code: string;
+  callsign: string;
+  lat: number;
+  lng: number;
+  alt_m: number;
+  hdg: number;
+  speed_kt: number;
+  battery_pct: number;
+  updated_at: string;
+}
+
+export function subscribeLiveTracks(code: string, cb: (t: LiveTrack) => void): RealtimeChannel {
+  const db = simDb();
+  db.from('sim_live_tracks')
+    .select()
+    .eq('session_code', code)
+    .then(({ data }) => (data ?? []).forEach((r) => cb(r as LiveTrack)));
+  return db
+    .channel(`sim_live_${code}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'sim_live_tracks', filter: `session_code=eq.${code}` },
+      (payload) => {
+        if (payload.new) cb(payload.new as LiveTrack);
+      }
+    )
+    .subscribe();
+}
+
 export interface EvalPosition { id: string; student_name: string; role: string }
 export interface EvalAction { position_id: string | null; sim_t: number; action: string; detail: { flight?: string } | null }
 export interface EvalEvent { sim_t: number; flight: string; event_type: string }
