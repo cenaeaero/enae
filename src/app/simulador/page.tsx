@@ -9,8 +9,9 @@ import { SimEngine, type TrackState } from '@/lib/sim/engine';
 import { SCENARIOS } from '@/lib/sim/scenarios';
 import {
   simDb, createSession, joinSession, publishState, subscribeState,
-  subscribeActions, logAction, logEvent, countPositions,
+  subscribeActions, logAction, logEvent, countPositions, fetchEvalData,
 } from '@/lib/sim/net';
+import { certificadoPdf } from '@/lib/sim/certificado';
 
 const GREEN = '#27e07a';
 const CYAN = '#39c8d8';
@@ -45,6 +46,24 @@ const bevelIn: React.CSSProperties = {
   borderRightColor: '#f2f2f2',
 };
 
+// botones de menú: fondo celeste
+const btnOut: React.CSSProperties = {
+  ...bevelOut,
+  background: '#b5e3f0',
+  borderTopColor: '#e8f8fd',
+  borderLeftColor: '#e8f8fd',
+  borderBottomColor: '#46707e',
+  borderRightColor: '#46707e',
+};
+const btnIn: React.CSSProperties = {
+  ...bevelIn,
+  background: '#6fb9cf',
+  borderTopColor: '#46707e',
+  borderLeftColor: '#46707e',
+  borderBottomColor: '#e8f8fd',
+  borderRightColor: '#e8f8fd',
+};
+
 function MB({
   label,
   active,
@@ -61,7 +80,7 @@ function MB({
   return (
     <button
       onClick={onClick}
-      style={active ? { ...bevelIn, background: '#9aa49a' } : bevelOut}
+      style={active ? btnIn : btnOut}
       className={`px-1.5 text-[10px] font-bold font-mono leading-4 whitespace-nowrap ${wide ? 'min-w-[64px]' : ''}`}
     >
       <span style={{ color: color ?? '#1a1a1a' }}>{label}</span>
@@ -113,7 +132,16 @@ function Win({
   );
 }
 
-type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone';
+type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone' | 'eval';
+
+interface EvalRow {
+  position_id: string | null;
+  student_name: string;
+  score: number;
+  passed: boolean;
+  competencies: Record<string, unknown>;
+  folio: string | null;
+}
 
 export default function SimuladorPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -136,7 +164,11 @@ export default function SimuladorPage() {
     msg: { x: 560, y: 40, open: true },
     instructor: { x: 900, y: 420, open: false },
     zone: { x: 600, y: 560, open: false },
+    eval: { x: 380, y: 200, open: false },
   });
+  const [evalRows, setEvalRows] = useState<EvalRow[]>([]);
+  const [evalBusy, setEvalBusy] = useState(false);
+  const [evalSaved, setEvalSaved] = useState(false);
 
   // multi-puesto
   const [mode, setMode] = useState<'lobby' | 'local' | 'instructor' | 'student'>('lobby');
@@ -438,6 +470,78 @@ export default function SimuladorPage() {
     eng.addLog(`${selected} ${action} TRANSMITIDA`, 'INFO');
   };
 
+  // evaluación: rúbrica transparente sobre sim_actions vs sim_events
+  //  - detectar y reconocer la alarma (ACK): 40 pts (pleno ≤30 s tras el evento)
+  //  - ordenar RTH al vuelo afectado: 30 pts
+  //  - declarar la contingencia: 30 pts · aprueba con ≥70
+  const runEval = async () => {
+    if (mode !== 'instructor' || !sessionId) return;
+    setEvalBusy(true);
+    try {
+      const { positions, actions, events } = await fetchEvalData(sessionId);
+      const alarm = events.find((e) => e.event_type === 'C2LOSS' || e.event_type === 'EMERG');
+      const t0 = alarm ? Number(alarm.sim_t) : null;
+      const rows: EvalRow[] = positions.map((p) => {
+        const mine = actions.filter((a) => a.position_id === p.id);
+        const ack = mine.find((a) => a.action === 'ACK_ALARM' && (t0 === null || Number(a.sim_t) >= t0));
+        const rth = mine.find((a) => a.action === 'ORDER_RTH');
+        const cont = mine.find((a) => a.action === 'DECLARE_CONTINGENCY');
+        let score = 0;
+        if (ack && t0 !== null) {
+          const dt = Number(ack.sim_t) - t0;
+          score += dt <= 30 ? 40 : Math.max(10, Math.round(40 - (dt - 30) / 3));
+        } else if (ack) score += 30;
+        if (rth) score += 30;
+        if (cont) score += 30;
+        score = Math.min(100, score);
+        return {
+          position_id: p.id,
+          student_name: p.student_name,
+          score,
+          passed: score >= 70,
+          competencies: {
+            deteccion_s: ack && t0 !== null ? Math.round(Number(ack.sim_t) - t0) : null,
+            rth: !!rth,
+            contingencia: !!cont,
+          },
+          folio: null,
+        };
+      });
+      setEvalRows(rows);
+      setEvalSaved(false);
+      setWin('eval', { open: true });
+    } finally {
+      setEvalBusy(false);
+    }
+  };
+
+  const saveEval = async () => {
+    if (!sessionId || evalRows.length === 0) return;
+    setEvalBusy(true);
+    try {
+      const res = await fetch('/api/sim/evaluar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          results: evalRows.map(({ folio: _f, ...r }) => r),
+        }),
+      });
+      const j = await res.json();
+      if (j.results) {
+        setEvalRows(
+          j.results.map((r: EvalRow & { certificate_folio: string | null }) => ({
+            ...r,
+            folio: r.certificate_folio,
+          }))
+        );
+        setEvalSaved(true);
+      }
+    } finally {
+      setEvalBusy(false);
+    }
+  };
+
   // velocidades estilo replay: S 0 ½ 1 3 5 8
   const setSpd = (s: number) => {
     if (mode === 'student') return; // el alumno no controla el reloj
@@ -670,6 +774,61 @@ export default function SimuladorPage() {
           </Win>
         )}
 
+        {wins.eval.open && mode === 'instructor' && (
+          <Win title="EVALUACIÓN DEL EJERCICIO" x={wins.eval.x} y={wins.eval.y} w={560}
+            onClose={() => setWin('eval', { open: false })}
+            onDrag={(x, y) => setWin('eval', { x, y })}>
+            <div className="p-2 font-mono text-[10px]" style={{ background: '#c9c9c9' }}>
+              {evalRows.length === 0 ? (
+                <div className="text-black">Sin controladores en la sesión.</div>
+              ) : (
+                <table className="w-full text-black">
+                  <thead>
+                    <tr className="font-bold text-left border-b border-[#888]">
+                      <th>ALUMNO</th><th>DETECCIÓN</th><th>RTH</th><th>CONT</th><th>NOTA</th><th>RESULTADO</th><th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {evalRows.map((r, i) => (
+                      <tr key={i} className="border-b border-[#aaa]">
+                        <td className="font-bold">{r.student_name}</td>
+                        <td>{r.competencies.deteccion_s != null ? `${r.competencies.deteccion_s} s` : '—'}</td>
+                        <td>{r.competencies.rth ? 'SÍ' : 'NO'}</td>
+                        <td>{r.competencies.contingencia ? 'SÍ' : 'NO'}</td>
+                        <td className="font-bold">{r.score}</td>
+                        <td className="font-bold" style={{ color: r.passed ? '#0a7a3a' : '#a00' }}>
+                          {r.passed ? 'APTO' : 'NO APTO'}
+                        </td>
+                        <td>
+                          {r.passed && r.folio && (
+                            <MB label="CERT PDF" onClick={() =>
+                              certificadoPdf({
+                                studentName: r.student_name,
+                                folio: r.folio!,
+                                score: r.score,
+                                scenarioName: eng.scenario.name,
+                                instructorName: userName || 'INSTRUCTOR',
+                              })
+                            } />
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <div className="flex gap-2 mt-2 items-center">
+                <MB label={evalBusy ? '…' : 'RECALCULAR'} onClick={runEval} />
+                <MB label={evalSaved ? 'GUARDADO ✓' : 'GUARDAR Y EMITIR FOLIOS'} active={evalSaved}
+                  onClick={evalSaved ? undefined : saveEval} />
+                <span className="text-[9px] text-[#444]">
+                  Rúbrica: ACK ≤30 s = 40 pts · RTH = 30 · Contingencia = 30 · Aprueba ≥70
+                </span>
+              </div>
+            </div>
+          </Win>
+        )}
+
         {wins.instructor.open && mode === 'student' && (
           <Win title="CONTROLADOR — ÓRDENES" x={wins.instructor.x} y={wins.instructor.y} w={300}
             onClose={() => setWin('instructor', { open: false })}
@@ -759,6 +918,7 @@ export default function SimuladorPage() {
           <MB label="SECTORS" active={wins.sectors.open} onClick={() => setWin('sectors', { open: !wins.sectors.open })} />
           <MB label="ZONE INFO" active={wins.zone.open} onClick={() => setWin('zone', { open: !wins.zone.open })} />
           <MB label={mode === 'student' ? 'ÓRDENES' : 'INSTRUCTOR'} active={wins.instructor.open} onClick={() => setWin('instructor', { open: !wins.instructor.open })} />
+          {mode === 'instructor' && <MB label="EVAL" active={wins.eval.open} onClick={runEval} />}
           <span className="flex-1" />
           {[6, 12, 24, 48].map((r) => (
             <MB key={r} label={String(r)} active={rangeNm === r} onClick={() => setRangeNm(r)} />

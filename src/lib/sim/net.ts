@@ -137,6 +137,24 @@ export async function logEvent(sessionId: string, simT: number, flight: string, 
   });
 }
 
+export interface EvalPosition { id: string; student_name: string; role: string }
+export interface EvalAction { position_id: string | null; sim_t: number; action: string; detail: { flight?: string } | null }
+export interface EvalEvent { sim_t: number; flight: string; event_type: string }
+
+export async function fetchEvalData(sessionId: string) {
+  const db = simDb();
+  const [pos, act, ev] = await Promise.all([
+    db.from('sim_positions').select('id,student_name,role').eq('session_id', sessionId).eq('role', 'controller'),
+    db.from('sim_actions').select('position_id,sim_t,action,detail').eq('session_id', sessionId).order('sim_t'),
+    db.from('sim_events').select('sim_t,flight,event_type').eq('session_id', sessionId).order('sim_t'),
+  ]);
+  return {
+    positions: (pos.data ?? []) as EvalPosition[],
+    actions: (act.data ?? []) as EvalAction[],
+    events: (ev.data ?? []) as EvalEvent[],
+  };
+}
+
 export async function countPositions(sessionId: string): Promise<number> {
   const { count } = await simDb()
     .from('sim_positions')
