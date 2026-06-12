@@ -1,0 +1,146 @@
+// CONDOR SIM — capa de red multi-puesto (Supabase condor-sim)
+// El instructor corre el motor y publica el estado ~1 Hz; los alumnos lo
+// reciben por Realtime. Las órdenes del alumno (RTH, contingencia) se insertan
+// en sim_actions y el puesto instructor las aplica al motor.
+
+import { createClient, type SupabaseClient, type RealtimeChannel } from '@supabase/supabase-js';
+import type { TrackState } from './engine';
+
+let _client: SupabaseClient | null = null;
+
+export function simDb(): SupabaseClient {
+  if (!_client) {
+    _client = createClient(
+      process.env.NEXT_PUBLIC_SIM_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SIM_SUPABASE_KEY!,
+      { auth: { persistSession: false } }
+    );
+  }
+  return _client;
+}
+
+export interface NetState {
+  sim_t: number;
+  paused: boolean;
+  speed: number;
+  tracks: TrackState[];
+  log: { t: number; msg: string; level: 'INFO' | 'WARN' | 'ALARM' }[];
+}
+
+export async function createSession(scenarioId: string, instructorName: string) {
+  const code = Math.random().toString(36).slice(2, 7).toUpperCase();
+  const db = simDb();
+  const { data, error } = await db
+    .from('sim_sessions')
+    .insert({ code, scenario_id: scenarioId, status: 'running', instructor_name: instructorName })
+    .select()
+    .single();
+  if (error) throw error;
+  await db.from('sim_state').insert({ session_id: data.id });
+  const pos = await db
+    .from('sim_positions')
+    .insert({ session_id: data.id, role: 'instructor', student_name: instructorName })
+    .select()
+    .single();
+  return { sessionId: data.id as string, code, positionId: pos.data?.id as string };
+}
+
+export async function joinSession(code: string, studentName: string) {
+  const db = simDb();
+  const { data: ses, error } = await db
+    .from('sim_sessions')
+    .select()
+    .eq('code', code.toUpperCase().trim())
+    .neq('status', 'closed')
+    .single();
+  if (error || !ses) throw new Error('Sesión no encontrada. Verifique el código.');
+  const { data: pos, error: e2 } = await db
+    .from('sim_positions')
+    .insert({ session_id: ses.id, role: 'controller', student_name: studentName })
+    .select()
+    .single();
+  if (e2) throw e2;
+  return { sessionId: ses.id as string, code: ses.code as string, scenarioId: ses.scenario_id as string, positionId: pos.id as string };
+}
+
+export async function publishState(sessionId: string, st: NetState) {
+  await simDb()
+    .from('sim_state')
+    .upsert({
+      session_id: sessionId,
+      sim_t: st.sim_t,
+      paused: st.paused,
+      speed: st.speed,
+      tracks: st.tracks,
+      log: st.log.slice(0, 50),
+      updated_at: new Date().toISOString(),
+    });
+}
+
+export function subscribeState(sessionId: string, cb: (st: NetState) => void): RealtimeChannel {
+  const db = simDb();
+  // estado inicial
+  db.from('sim_state')
+    .select()
+    .eq('session_id', sessionId)
+    .single()
+    .then(({ data }) => {
+      if (data) cb(data as unknown as NetState);
+    });
+  return db
+    .channel(`sim_state_${sessionId}`)
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'sim_state', filter: `session_id=eq.${sessionId}` },
+      (payload) => cb(payload.new as unknown as NetState)
+    )
+    .subscribe();
+}
+
+export async function logAction(
+  sessionId: string,
+  positionId: string | null,
+  simT: number,
+  action: string,
+  detail?: Record<string, unknown>
+) {
+  await simDb().from('sim_actions').insert({
+    session_id: sessionId,
+    position_id: positionId,
+    sim_t: simT,
+    action,
+    detail: detail ?? null,
+  });
+}
+
+export function subscribeActions(
+  sessionId: string,
+  cb: (a: { sim_t: number; action: string; detail: Record<string, unknown> | null }) => void
+): RealtimeChannel {
+  return simDb()
+    .channel(`sim_actions_${sessionId}`)
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'sim_actions', filter: `session_id=eq.${sessionId}` },
+      (payload) => cb(payload.new as { sim_t: number; action: string; detail: Record<string, unknown> | null })
+    )
+    .subscribe();
+}
+
+export async function logEvent(sessionId: string, simT: number, flight: string, eventType: string, by: string) {
+  await simDb().from('sim_events').insert({
+    session_id: sessionId,
+    sim_t: simT,
+    flight,
+    event_type: eventType,
+    injected_by: by,
+  });
+}
+
+export async function countPositions(sessionId: string): Promise<number> {
+  const { count } = await simDb()
+    .from('sim_positions')
+    .select('*', { count: 'exact', head: true })
+    .eq('session_id', sessionId);
+  return count ?? 0;
+}
