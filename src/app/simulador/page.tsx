@@ -462,16 +462,19 @@ export default function SimuladorPage() {
     }
   }, [eng, project, rangeNm, showLabels, showZones, showTrails, rings, selected]);
 
+  // re-vincular cuando el canvas aparece tras login/lobby (auth y mode cambian el árbol)
   useEffect(() => {
     const cv = canvasRef.current;
     if (!cv) return;
+    cv.width = cv.clientWidth;
+    cv.height = cv.clientHeight;
     const ro = new ResizeObserver(() => {
       cv.width = cv.clientWidth;
       cv.height = cv.clientHeight;
     });
     ro.observe(cv);
     return () => ro.disconnect();
-  }, []);
+  }, [auth, mode]);
 
   const onCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const cv = canvasRef.current;
