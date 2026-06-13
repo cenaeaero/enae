@@ -151,6 +151,7 @@ export default function SimuladorPage() {
   const engineRef = useRef<SimEngine | null>(null);
   const [, force] = useState(0);
   const [rangeNm, setRangeNm] = useState(12);
+  const [pan, setPan] = useState({ x: 0, y: 0 }); // desplazamiento de presentación (px) — descentrado/pan del mapa
   const [paused, setPaused] = useState(true);
   const [speed, setSpeed] = useState(1);
   const [showLabels, setShowLabels] = useState(true);
@@ -291,7 +292,7 @@ export default function SimuladorPage() {
       clearInterval(iv);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeNm, showLabels, showZones, showTrails, rings, selected, mode, sessionId]);
+  }, [rangeNm, pan, showLabels, showZones, showTrails, rings, selected, mode, sessionId]);
 
   // alumno: recibir estado por Realtime
   useEffect(() => {
@@ -380,11 +381,11 @@ export default function SimuladorPage() {
       const nmPerDegLng = 60 * Math.cos((clat * Math.PI) / 180);
       const pxPerNm = Math.min(w, h) / (rangeNm * 2);
       return [
-        w / 2 + (lng - clng) * nmPerDegLng * pxPerNm,
-        h / 2 - (lat - clat) * nmPerDegLat * pxPerNm,
+        w / 2 + pan.x + (lng - clng) * nmPerDegLng * pxPerNm,
+        h / 2 + pan.y - (lat - clat) * nmPerDegLat * pxPerNm,
       ];
     },
-    [eng, rangeNm]
+    [eng, rangeNm, pan]
   );
 
   const draw = useCallback(() => {
@@ -397,7 +398,7 @@ export default function SimuladorPage() {
     ctx.fillStyle = '#101210';
     ctx.fillRect(0, 0, w, h);
 
-    const [cx, cy] = [w / 2, h / 2];
+    const [cx, cy] = [w / 2 + pan.x, h / 2 + pan.y];
     const pxPerNm = Math.min(w, h) / (rangeNm * 2);
 
     if (rings) {
@@ -502,7 +503,7 @@ export default function SimuladorPage() {
         ctx.fillText(`${tr.acType} ${tr.authRef.slice(-4)}`, lx, ly + 24);
       }
     }
-  }, [eng, project, rangeNm, showLabels, showZones, showTrails, rings, selected]);
+  }, [eng, project, rangeNm, pan, showLabels, showZones, showTrails, rings, selected]);
 
   // re-vincular cuando el canvas aparece tras login/lobby (auth y mode cambian el árbol)
   useEffect(() => {
@@ -518,12 +519,10 @@ export default function SimuladorPage() {
     return () => ro.disconnect();
   }, [auth, mode]);
 
-  const onCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  // selección de pista por cercanía al pixel (mx,my en coords de canvas)
+  const selectAt = (mx: number, my: number) => {
     const cv = canvasRef.current;
     if (!cv) return;
-    const rect = cv.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
     let best: string | null = null;
     let bestD = 18;
     for (const tr of eng.tracks.values()) {
@@ -535,6 +534,66 @@ export default function SimuladorPage() {
       }
     }
     setSelected(best);
+  };
+
+  // arrastre del mapa (descentrado/pan). Distingue click (seleccionar) de arrastre.
+  const panDrag = useRef<{ sx: number; sy: number; ox: number; oy: number; moved: boolean } | null>(null);
+  const onCanvasPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    panDrag.current = { sx: e.clientX, sy: e.clientY, ox: pan.x, oy: pan.y, moved: false };
+  };
+  const onCanvasPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const d = panDrag.current;
+    if (!d) return;
+    const dx = e.clientX - d.sx;
+    const dy = e.clientY - d.sy;
+    if (!d.moved && Math.abs(dx) + Math.abs(dy) > 3) d.moved = true;
+    if (d.moved) setPan({ x: d.ox + dx, y: d.oy + dy });
+  };
+  const onCanvasPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const d = panDrag.current;
+    panDrag.current = null;
+    if (!d || d.moved) return; // fue arrastre, no seleccionar
+    const cv = canvasRef.current;
+    if (!cv) return;
+    const rect = cv.getBoundingClientRect();
+    selectAt(e.clientX - rect.left, e.clientY - rect.top);
+  };
+
+  // zoom con rueda, manteniendo fijo el punto bajo el cursor (estilo EXP+/EXP-)
+  const onCanvasWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
+    const cv = canvasRef.current;
+    if (!cv) return;
+    const rect = cv.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const r0 = rangeNm;
+    const r1 =
+      e.deltaY < 0 ? Math.max(3, Math.round(r0 * 0.8)) : Math.min(96, Math.round(r0 * 1.25));
+    if (r1 === r0) return;
+    const k = r0 / r1; // razón de escala (scale' = scale * r0/r1)
+    setPan((p) => ({
+      x: mx - cv.width / 2 - (mx - cv.width / 2 - p.x) * k,
+      y: my - cv.height / 2 - (my - cv.height / 2 - p.y) * k,
+    }));
+    setRangeNm(r1);
+  };
+
+  // CEN: re-centra la presentación (pan a 0). CSEL: centra en la pista seleccionada.
+  const centerView = () => setPan({ x: 0, y: 0 });
+  const centerSelected = () => {
+    const cv = canvasRef.current;
+    if (!cv || !selected) return;
+    const tr = eng.tracks.get(selected);
+    if (!tr) return;
+    const [clng, clat] = eng.scenario.center;
+    const nmPerDegLat = 60;
+    const nmPerDegLng = 60 * Math.cos((clat * Math.PI) / 180);
+    const pxPerNm = Math.min(cv.width, cv.height) / (rangeNm * 2);
+    setPan({
+      x: -(tr.lng - clng) * nmPerDegLng * pxPerNm,
+      y: (tr.lat - clat) * nmPerDegLat * pxPerNm,
+    });
   };
 
   // lobby
@@ -831,7 +890,15 @@ export default function SimuladorPage() {
 
       {/* ===== pantalla radar + ventanas ===== */}
       <div className="flex-1 relative" style={{ background: '#101210' }}>
-        <canvas ref={canvasRef} className="w-full h-full cursor-crosshair" onClick={onCanvasClick} />
+        <canvas
+          ref={canvasRef}
+          className="w-full h-full cursor-crosshair touch-none"
+          onPointerDown={onCanvasPointerDown}
+          onPointerMove={onCanvasPointerMove}
+          onPointerUp={onCanvasPointerUp}
+          onPointerCancel={() => (panDrag.current = null)}
+          onWheel={onCanvasWheel}
+        />
 
         {wins.flights.open && (
           <Win title="VUELOS" x={wins.flights.x} y={wins.flights.y} w={430}
@@ -1097,6 +1164,9 @@ export default function SimuladorPage() {
           <MB label="−" onClick={() => setRangeNm(Math.min(96, rangeNm * 2))} />
           <MB label="+" onClick={() => setRangeNm(Math.max(3, Math.round(rangeNm / 2)))} />
           <MB label="EXP+" onClick={() => setRangeNm(Math.max(3, rangeNm - 3))} />
+          <MB label="EXP−" onClick={() => setRangeNm(Math.min(96, rangeNm + 3))} />
+          <MB label="CEN" onClick={centerView} active={pan.x === 0 && pan.y === 0} />
+          <MB label="CSEL" onClick={centerSelected} active={!!selected} />
           <span className="flex-1" />
           {/* velocidades estilo replay */}
           <span style={bevelIn} className="flex items-center gap-0.5 px-0.5">
@@ -1138,7 +1208,7 @@ export default function SimuladorPage() {
           {[6, 12, 24, 48].map((r) => (
             <MB key={r} label={String(r)} active={rangeNm === r} onClick={() => setRangeNm(r)} />
           ))}
-          <MB label="DEF" onClick={() => setRangeNm(12)} />
+          <MB label="DEF" onClick={() => { setRangeNm(12); centerView(); }} />
           <span className="flex-1" />
           <MB label="ACC" />
           <MB label="ATMCSUP" />
