@@ -135,7 +135,7 @@ function Win({
   );
 }
 
-type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone' | 'eval' | 'aftn';
+type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone' | 'eval' | 'aftn' | 'layers';
 
 interface EvalRow {
   position_id: string | null;
@@ -152,6 +152,10 @@ export default function SimuladorPage() {
   const [, force] = useState(0);
   const [rangeNm, setRangeNm] = useState(12);
   const [pan, setPan] = useState({ x: 0, y: 0 }); // desplazamiento de presentación (px) — descentrado/pan del mapa
+  const [showVectors, setShowVectors] = useState(true); // vector de predicción de velocidad
+  const [vectorMin, setVectorMin] = useState(1); // minutos del vector de predicción
+  const [showGrid, setShowGrid] = useState(false); // grilla geográfica (graticula)
+  const [altFilter, setAltFilter] = useState({ on: false, min: 0, max: 150 }); // filtro de banda de altitud (M AGL)
   const [paused, setPaused] = useState(true);
   const [speed, setSpeed] = useState(1);
   const [showLabels, setShowLabels] = useState(true);
@@ -170,6 +174,7 @@ export default function SimuladorPage() {
     zone: { x: 600, y: 560, open: false },
     eval: { x: 380, y: 200, open: false },
     aftn: { x: 420, y: 120, open: false },
+    layers: { x: 1120, y: 120, open: false },
   });
   const [evalRows, setEvalRows] = useState<EvalRow[]>([]);
   const [evalBusy, setEvalBusy] = useState(false);
@@ -292,7 +297,7 @@ export default function SimuladorPage() {
       clearInterval(iv);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeNm, pan, showLabels, showZones, showTrails, rings, selected, mode, sessionId]);
+  }, [rangeNm, pan, showLabels, showZones, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, altFilter]);
 
   // alumno: recibir estado por Realtime
   useEffect(() => {
@@ -401,6 +406,42 @@ export default function SimuladorPage() {
     const [cx, cy] = [w / 2 + pan.x, h / 2 + pan.y];
     const pxPerNm = Math.min(w, h) / (rangeNm * 2);
 
+    // grilla geográfica (meridianos/paralelos) — capa cartográfica
+    if (showGrid) {
+      const [gclng, gclat] = eng.scenario.center;
+      const nmLat = 60;
+      const nmLng = 60 * Math.cos((gclat * Math.PI) / 180);
+      const invLng = (px: number) => gclng + (px - cx) / (nmLng * pxPerNm);
+      const invLat = (py: number) => gclat - (py - cy) / (nmLat * pxPerNm);
+      const spanDeg = h / pxPerNm / nmLat; // grados visibles en vertical
+      const nice = [0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5];
+      const step = nice.find((s) => spanDeg / s <= 8) ?? 5;
+      const lngMin = invLng(0);
+      const lngMax = invLng(w);
+      const latMin = invLat(h);
+      const latMax = invLat(0);
+      ctx.strokeStyle = 'rgba(70,110,90,.28)';
+      ctx.fillStyle = 'rgba(110,150,130,.55)';
+      ctx.lineWidth = 1;
+      ctx.font = '9px monospace';
+      for (let lng = Math.ceil(lngMin / step) * step; lng <= lngMax; lng += step) {
+        const [px] = project(lng, gclat, w, h);
+        ctx.beginPath();
+        ctx.moveTo(px, 0);
+        ctx.lineTo(px, h);
+        ctx.stroke();
+        ctx.fillText(`${lng.toFixed(2)}°`, px + 2, 10);
+      }
+      for (let lat = Math.ceil(latMin / step) * step; lat <= latMax; lat += step) {
+        const [, py] = project(gclng, lat, w, h);
+        ctx.beginPath();
+        ctx.moveTo(0, py);
+        ctx.lineTo(w, py);
+        ctx.stroke();
+        ctx.fillText(`${lat.toFixed(2)}°`, 2, py - 2);
+      }
+    }
+
     if (rings) {
       ctx.strokeStyle = '#1c2a20';
       ctx.fillStyle = '#2a4a36';
@@ -442,6 +483,7 @@ export default function SimuladorPage() {
 
     for (const tr of eng.tracks.values()) {
       if (!tr.airborne && tr.status !== 'LANDED') continue;
+      if (altFilter.on && (tr.alt < altFilter.min || tr.alt > altFilter.max)) continue; // filtro de banda de altitud
       const [x, y] = project(tr.lng, tr.lat, w, h);
       const alarm = tr.alerts.length > 0;
       const col = tr.status === 'LANDED' ? GRAY : alarm ? RED : GREEN;
@@ -471,8 +513,8 @@ export default function SimuladorPage() {
         ctx.strokeRect(x - 10, y - 10, 20, 20);
       }
 
-      if (tr.speedKt > 0) {
-        const vNm = tr.speedKt / 60;
+      if (showVectors && tr.speedKt > 0) {
+        const vNm = (tr.speedKt / 60) * vectorMin;
         const vx = x + Math.sin((tr.hdg * Math.PI) / 180) * vNm * pxPerNm;
         const vy = y - Math.cos((tr.hdg * Math.PI) / 180) * vNm * pxPerNm;
         ctx.strokeStyle = col;
@@ -503,7 +545,7 @@ export default function SimuladorPage() {
         ctx.fillText(`${tr.acType} ${tr.authRef.slice(-4)}`, lx, ly + 24);
       }
     }
-  }, [eng, project, rangeNm, pan, showLabels, showZones, showTrails, rings, selected]);
+  }, [eng, project, rangeNm, pan, showLabels, showZones, showTrails, rings, selected, showVectors, vectorMin, showGrid, altFilter]);
 
   // re-vincular cuando el canvas aparece tras login/lobby (auth y mode cambian el árbol)
   useEffect(() => {
@@ -876,7 +918,9 @@ export default function SimuladorPage() {
           <TSeg label="Q" />
           <TSeg label="EST" />
           <TSeg label="FPL" />
-          <TSeg label="MAP" />
+          <button onClick={() => setWin('layers', { open: !wins.layers.open })}>
+            <TSeg label="MAP" bg={wins.layers.open ? '#4a4a4a' : undefined} />
+          </button>
           <TSeg label="CONFIG" />
           <button onClick={() => setWin('msg', { open: !wins.msg.open })}>
             <TSeg label="SYS MSG" bg={wins.msg.open ? '#4a4a4a' : undefined} color={anyAlarm ? RED : '#d6d6d6'} />
@@ -1000,6 +1044,47 @@ export default function SimuladorPage() {
               <div><span style={{ color: AMBER }}>Nombre: </span><span style={{ color: GREEN }}>{selZone.name}</span></div>
               <div className="flex gap-1 mt-1">
                 <MB label="MSAW" /><MB label="APW" active /><MB label="CONF" active />
+              </div>
+            </div>
+          </Win>
+        )}
+
+        {wins.layers.open && (
+          <Win title="CAPAS / PRESENTACIÓN" x={wins.layers.x} y={wins.layers.y} w={252}
+            onClose={() => setWin('layers', { open: false })}
+            onDrag={(x, y) => setWin('layers', { x, y })}>
+            <div style={{ background: '#000' }} className="font-mono text-[10px] p-1.5 space-y-1">
+              <div className="text-[#7aa] tracking-wider">CARTOGRAFÍA</div>
+              <div className="flex flex-wrap gap-1">
+                <MB label="GRILLA" active={showGrid} onClick={() => setShowGrid(!showGrid)} />
+                <MB label="ZONAS" active={showZones} onClick={() => setShowZones(!showZones)} />
+                <MB label="ANILLOS" active={rings} onClick={() => setRings(!rings)} />
+              </div>
+              <div className="text-[#7aa] tracking-wider pt-1">PISTAS</div>
+              <div className="flex flex-wrap gap-1 items-center">
+                <MB label="ETIQUETA" active={showLabels} onClick={() => setShowLabels(!showLabels)} />
+                <MB label="ESTELA" active={showTrails} onClick={() => setShowTrails(!showTrails)} />
+                <MB label="VECTOR" active={showVectors} onClick={() => setShowVectors(!showVectors)} />
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-[#888]">VEC PRED:</span>
+                {[1, 2, 4].map((m) => (
+                  <MB key={m} label={`${m}m`} active={showVectors && vectorMin === m}
+                    onClick={() => { setShowVectors(true); setVectorMin(m); }} />
+                ))}
+              </div>
+              <div className="text-[#7aa] tracking-wider pt-1">FILTRO ALTITUD (M AGL)</div>
+              <div className="flex items-center gap-1">
+                <MB label={altFilter.on ? 'ON' : 'OFF'} active={altFilter.on}
+                  onClick={() => setAltFilter((f) => ({ ...f, on: !f.on }))} />
+                <span className="text-[#888]">MIN</span>
+                <input type="number" value={altFilter.min}
+                  onChange={(e) => setAltFilter((f) => ({ ...f, min: +e.target.value }))}
+                  style={{ ...bevelIn, background: '#000', color: GREEN, width: 46 }} className="px-1 text-[10px]" />
+                <span className="text-[#888]">MAX</span>
+                <input type="number" value={altFilter.max}
+                  onChange={(e) => setAltFilter((f) => ({ ...f, max: +e.target.value }))}
+                  style={{ ...bevelIn, background: '#000', color: GREEN, width: 46 }} className="px-1 text-[10px]" />
               </div>
             </div>
           </Win>
@@ -1188,7 +1273,8 @@ export default function SimuladorPage() {
           <MB label="PLANNER" wide />
           <MB label="ARR" />
           <MB label="ADS AIR" />
-          <MB label="VIEW2" />
+          <MB label="CAPAS" active={wins.layers.open} onClick={() => setWin('layers', { open: !wins.layers.open })} />
+          <MB label="GRID" active={showGrid} onClick={() => setShowGrid(!showGrid)} />
           <MB label="RINGS" active={rings} onClick={() => setRings(!rings)} />
           <MB label="ELW" />
           <MB label="RBL OFF" />
