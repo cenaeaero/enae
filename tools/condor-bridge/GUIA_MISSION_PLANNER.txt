@@ -1,0 +1,80 @@
+GUIA — PROBAR EL BRIDGE CON MISSION PLANNER (SITL) -> CONDOR SIM
+================================================================
+Objetivo: un dron simulado por Mission Planner aparece MOVIENDOSE en la consola
+del instructor de sim.enae.cl. No hace falta un dron real.
+
+Flujo:  Mission Planner SITL  --(mirror UDP 14551)-->  bridge.py  -->  Supabase  -->  consola instructor
+
+------------------------------------------------------------------
+PASO 0 — Una sola vez
+------------------------------------------------------------------
+- Instalar Python 3 (python.org) marcando "Add Python to PATH".
+- En CMD:   pip install pymavlink requests
+- Tener bridge.py en una carpeta conocida (p.ej. C:\condor-bridge\).
+
+------------------------------------------------------------------
+PASO 1 — Abrir sesion en CONDOR SIM
+------------------------------------------------------------------
+- En sim.enae.cl entrar como INSTRUCTOR y CREAR sesion.
+- Anotar el codigo SES de 5 caracteres (arriba en la consola). Ej: ABC12
+
+------------------------------------------------------------------
+PASO 2 — Lanzar el dron simulado (SITL) en Mission Planner
+------------------------------------------------------------------
+- Mission Planner > pestania superior "SIMULATION".
+- Elegir "Multirotor" (ArduCopter) > "Stable".
+  Mission Planner descarga/lanza el SITL y se conecta solo (HUD con copter).
+- (Opcional, para que aparezca en Calama) antes de lanzar, en la casilla de
+  ubicacion del SITL escribir lat/lon de la faena: -22.4727 , -68.8809.
+  Si no, saldra en la ubicacion por defecto; igual sirve para la prueba.
+
+------------------------------------------------------------------
+PASO 3 — Reflejar la telemetria hacia el bridge (mirror)
+------------------------------------------------------------------
+- Con MP conectado al SITL, presionar  Ctrl+F.
+- En el panel que aparece, clic en el boton  "Mavlink".
+- En el dialogo elegir salida  UDP (Client/Host):
+      Host / IP:  127.0.0.1
+      Puerto:     14551
+  Aceptar. (MP empieza a "espejar" toda la telemetria a 127.0.0.1:14551.)
+
+------------------------------------------------------------------
+PASO 4 — Arrancar el bridge
+------------------------------------------------------------------
+- CMD en la carpeta del bridge:
+      python bridge.py --session ABC12 --callsign MAV01
+- Debe imprimir:  [BRIDGE] heartbeat OK (sys 1) ...
+  y luego 1 linea por segundo:  [BRIDGE] MAV01 -22.47..,-68.88.. ... -> sim OK
+- Si dice "esperando" y nunca llega heartbeat: el mirror del PASO 3 no esta
+  enviando a 14551 (revisar host/puerto) o un firewall bloquea UDP local.
+
+------------------------------------------------------------------
+PASO 5 — Hacer volar el dron (para que se MUEVA en la consola)
+------------------------------------------------------------------
+Estando disarmado el dron solo reporta posicion fija. Para moverlo:
+  a) MP > pestania "DATA" > sub-pestania "Actions".
+  b) Modo:  GUIDED  (boton Set Mode) .
+  c) Si NO deja armar por PreArm:  MP > CONFIG > Full Parameter List >
+     buscar  ARMING_CHECK  > poner  0  > "Write Params".  (solo para SITL)
+  d) Arm/Disarm (botón) — el HUD pasa a "ARMED".
+  e) Takeoff:  en Actions hay "Takeoff" (o clic derecho en el mapa > Takeoff),
+     altura p.ej. 50 m.
+  f) Mover: clic derecho en el mapa > "Fly to Here" (en GUIDED el copter va).
+     O cargar una mision (FLIGHT PLAN, poner waypoints, Write) y modo AUTO.
+- A medida que el copter se desplaza, "MAV01" se mueve en el radar del instructor
+  y aparece el log "MAV01 TRACK EXTERNO CONECTADO (MISSION PLANNER)".
+
+------------------------------------------------------------------
+PROBLEMAS COMUNES
+------------------------------------------------------------------
+- No aparece en la consola: confirmar que el codigo --session = SES del instructor
+  y que la sesion sigue abierta.
+- "heartbeat OK" pero no se mueve: el dron esta disarmado/quieto -> PASO 5.
+- PreArm: 3D ... / EKF / GPS: esperar 30-60 s tras lanzar SITL, o ARMING_CHECK=0.
+- Puerto 14551 ocupado: usar otro (ej 14552) en el mirror y en el bridge:
+      python bridge.py --session ABC12 --callsign MAV01 --conn udpin:0.0.0.0:14552
+- Quiero verlo TAMBIEN en el mapa real de uascontrol.io: agregar
+      --uascontrol-token TU_TOKEN --autorizacion-id 123
+
+ATAJO PARA ENSAYAR LA CONSOLA SIN MISSION PLANNER:
+      python bridge.py --session ABC12 --callsign GHOST --fake
