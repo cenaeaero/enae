@@ -156,6 +156,11 @@ export default function SimuladorPage() {
   const [vectorMin, setVectorMin] = useState(1); // minutos del vector de predicción
   const [showGrid, setShowGrid] = useState(false); // grilla geográfica (graticula)
   const [altFilter, setAltFilter] = useState({ on: false, min: 0, max: 150 }); // filtro de banda de altitud (M AGL)
+  const [rblMode, setRblMode] = useState(false); // modo medición rango/marcación (clic-clic)
+  const [rbls, setRbls] = useState<{ a: [number, number]; b: [number, number] }[]>([]); // mediciones [lng,lat]
+  const rblPend = useRef<[number, number] | null>(null); // primer punto pendiente
+  const [cursorLL, setCursorLL] = useState<[number, number] | null>(null); // cursor para línea viva
+  const [bright, setBright] = useState(0); // 0=día 1=crepúsculo 2=noche
   const [paused, setPaused] = useState(true);
   const [speed, setSpeed] = useState(1);
   const [showLabels, setShowLabels] = useState(true);
@@ -297,7 +302,7 @@ export default function SimuladorPage() {
       clearInterval(iv);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeNm, pan, showLabels, showZones, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, altFilter]);
+  }, [rangeNm, pan, showLabels, showZones, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL]);
 
   // alumno: recibir estado por Realtime
   useEffect(() => {
@@ -392,6 +397,31 @@ export default function SimuladorPage() {
     },
     [eng, rangeNm, pan]
   );
+
+  // inverso de project: pixel de pantalla -> [lng, lat]
+  const unproject = useCallback(
+    (px: number, py: number, w: number, h: number): [number, number] => {
+      const [clng, clat] = eng.scenario.center;
+      const nmPerDegLat = 60;
+      const nmPerDegLng = 60 * Math.cos((clat * Math.PI) / 180);
+      const pxPerNm = Math.min(w, h) / (rangeNm * 2);
+      return [
+        clng + (px - w / 2 - pan.x) / (nmPerDegLng * pxPerNm),
+        clat - (py - h / 2 - pan.y) / (nmPerDegLat * pxPerNm),
+      ];
+    },
+    [eng, rangeNm, pan]
+  );
+
+  // distancia (NM) y marcación verdadera (°) entre dos puntos [lng,lat]
+  const distBearing = (a: [number, number], b: [number, number]): { nm: number; brg: number } => {
+    const mlat = ((a[1] + b[1]) / 2) * (Math.PI / 180);
+    const north = (b[1] - a[1]) * 60;
+    const east = (b[0] - a[0]) * 60 * Math.cos(mlat);
+    const nm = Math.hypot(north, east);
+    const brg = (Math.atan2(east, north) * 180) / Math.PI;
+    return { nm, brg: (brg + 360) % 360 };
+  };
 
   const draw = useCallback(() => {
     const cv = canvasRef.current;
@@ -545,7 +575,34 @@ export default function SimuladorPage() {
         ctx.fillText(`${tr.acType} ${tr.authRef.slice(-4)}`, lx, ly + 24);
       }
     }
-  }, [eng, project, rangeNm, pan, showLabels, showZones, showTrails, rings, selected, showVectors, vectorMin, showGrid, altFilter]);
+
+    // RBL — líneas rango/marcación (medición distancia/rumbo)
+    const drawRbl = (a: [number, number], b: [number, number], live: boolean) => {
+      const [ax, ay] = project(a[0], a[1], w, h);
+      const [bx, by] = project(b[0], b[1], w, h);
+      const { nm, brg } = distBearing(a, b);
+      ctx.strokeStyle = live ? 'rgba(255,209,102,.7)' : AMBER;
+      ctx.setLineDash(live ? [4, 3] : []);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.arc(ax, ay, 3, 0, Math.PI * 2);
+      ctx.moveTo(bx + 3, by);
+      ctx.arc(bx, by, 3, 0, Math.PI * 2);
+      ctx.stroke();
+      const mx = (ax + bx) / 2;
+      const my = (ay + by) / 2;
+      ctx.fillStyle = AMBER;
+      ctx.font = 'bold 11px monospace';
+      ctx.fillText(`${nm.toFixed(1)}NM / ${String(Math.round(brg)).padStart(3, '0')}°`, mx + 6, my - 4);
+    };
+    for (const r of rbls) drawRbl(r.a, r.b, false);
+    if (rblPend.current && cursorLL) drawRbl(rblPend.current, cursorLL, true);
+  }, [eng, project, rangeNm, pan, showLabels, showZones, showTrails, rings, selected, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL]);
 
   // re-vincular cuando el canvas aparece tras login/lobby (auth y mode cambian el árbol)
   useEffect(() => {
@@ -585,21 +642,44 @@ export default function SimuladorPage() {
     panDrag.current = { sx: e.clientX, sy: e.clientY, ox: pan.x, oy: pan.y, moved: false };
   };
   const onCanvasPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const cv = canvasRef.current;
     const d = panDrag.current;
-    if (!d) return;
-    const dx = e.clientX - d.sx;
-    const dy = e.clientY - d.sy;
-    if (!d.moved && Math.abs(dx) + Math.abs(dy) > 3) d.moved = true;
-    if (d.moved) setPan({ x: d.ox + dx, y: d.oy + dy });
+    if (d) {
+      const dx = e.clientX - d.sx;
+      const dy = e.clientY - d.sy;
+      if (!d.moved && Math.abs(dx) + Math.abs(dy) > 3) d.moved = true;
+      if (d.moved) setPan({ x: d.ox + dx, y: d.oy + dy });
+      return;
+    }
+    // sin arrastre: línea viva del RBL pendiente
+    if (rblMode && rblPend.current && cv) {
+      const rect = cv.getBoundingClientRect();
+      setCursorLL(unproject(e.clientX - rect.left, e.clientY - rect.top, cv.width, cv.height));
+    }
   };
   const onCanvasPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const d = panDrag.current;
     panDrag.current = null;
-    if (!d || d.moved) return; // fue arrastre, no seleccionar
+    if (!d || d.moved) return; // fue arrastre = pan
     const cv = canvasRef.current;
     if (!cv) return;
     const rect = cv.getBoundingClientRect();
-    selectAt(e.clientX - rect.left, e.clientY - rect.top);
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    if (rblMode) {
+      const ll = unproject(mx, my, cv.width, cv.height);
+      if (!rblPend.current) {
+        rblPend.current = ll;
+        setCursorLL(ll);
+      } else {
+        const a = rblPend.current;
+        setRbls((rs) => [...rs, { a, b: ll }]);
+        rblPend.current = null;
+        setCursorLL(null);
+      }
+      return;
+    }
+    selectAt(mx, my);
   };
 
   // zoom con rueda, manteniendo fijo el punto bajo el cursor (estilo EXP+/EXP-)
@@ -937,6 +1017,7 @@ export default function SimuladorPage() {
         <canvas
           ref={canvasRef}
           className="w-full h-full cursor-crosshair touch-none"
+          style={{ filter: bright === 1 ? 'brightness(.78)' : bright === 2 ? 'brightness(.55)' : 'none' }}
           onPointerDown={onCanvasPointerDown}
           onPointerMove={onCanvasPointerMove}
           onPointerUp={onCanvasPointerUp}
@@ -1277,8 +1358,9 @@ export default function SimuladorPage() {
           <MB label="GRID" active={showGrid} onClick={() => setShowGrid(!showGrid)} />
           <MB label="RINGS" active={rings} onClick={() => setRings(!rings)} />
           <MB label="ELW" />
-          <MB label="RBL OFF" />
-          <MB label="BRIGHT" />
+          <MB label="RBL" active={rblMode} onClick={() => setRblMode((v) => !v)} />
+          <MB label="RBL OFF" onClick={() => { setRbls([]); rblPend.current = null; setCursorLL(null); setRblMode(false); }} />
+          <MB label={['BRIGHT', 'DUSK', 'NIGHT'][bright]} active={bright > 0} onClick={() => setBright((b) => (b + 1) % 3)} />
           <MB label="METEO" />
           <MB label="MTCD" />
           <MB label="FREETEXT" />
