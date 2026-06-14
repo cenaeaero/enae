@@ -29,6 +29,79 @@ function fmtT(t: number) {
   return [h, m, s].map((v) => String(v).padStart(2, '0')).join(':');
 }
 
+// ---------- predicción / detección de conflictos (STCA + salida de zona) ----------
+type LL = [number, number];
+// posición extrapolada a t segundos asumiendo rumbo y velocidad actuales
+function predictPos(tr: { lng: number; lat: number; hdg: number; speedKt: number }, tSec: number): LL {
+  const distNm = tr.speedKt * (tSec / 3600);
+  const dLat = (distNm * Math.cos((tr.hdg * Math.PI) / 180)) / 60;
+  const dLng = (distNm * Math.sin((tr.hdg * Math.PI) / 180)) / (60 * Math.cos((tr.lat * Math.PI) / 180));
+  return [tr.lng + dLng, tr.lat + dLat];
+}
+function distMeters(a: LL, b: LL): number {
+  const mlat = (((a[1] + b[1]) / 2) * Math.PI) / 180;
+  const north = (b[1] - a[1]) * 111320;
+  const east = (b[0] - a[0]) * 111320 * Math.cos(mlat);
+  return Math.hypot(north, east);
+}
+function pointInPoly(p: LL, ring: LL[]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+    if ((yi > p[1]) !== (yj > p[1]) && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+const SEP_H_M = 150; // separación horizontal mínima (m)
+const SEP_V_M = 30; // separación vertical mínima (m)
+interface ConflictTrack { callsign: string; lng: number; lat: number; hdg: number; speedKt: number; alt: number; airborne: boolean; }
+interface ConflictZone { id?: string; name: string; kind: string; ring: LL[]; }
+// Monitoriza todos los pares de aeronaves (STCA) y la salida de zonas segregadas
+// dentro del horizonte del vector de predicción (minutos). Devuelve warnings por C/S
+// y las líneas rojas a dibujar entre la aeronave y el conflicto.
+function computeConflicts(tracks: ConflictTrack[], zones: ConflictZone[], horizonMin: number) {
+  const warnings = new Map<string, string[]>();
+  const redLines: { from: LL; to: LL }[] = [];
+  const add = (cs: string, m: string) => {
+    const a = warnings.get(cs) ?? [];
+    a.push(m);
+    warnings.set(cs, a);
+  };
+  const flying = tracks.filter((t) => t.airborne && t.speedKt > 0);
+  const H = Math.max(60, horizonMin * 60);
+  const STEP = 6;
+  for (let i = 0; i < flying.length; i++) {
+    for (let j = i + 1; j < flying.length; j++) {
+      const a = flying[i], b = flying[j];
+      if (Math.abs(a.alt - b.alt) > SEP_V_M) continue;
+      let minD = Infinity, tC = -1;
+      for (let t = 0; t <= H; t += STEP) {
+        const d = distMeters(predictPos(a, t), predictPos(b, t));
+        if (d < minD) { minD = d; tC = t; }
+      }
+      if (minD < SEP_H_M) {
+        add(a.callsign, `CONF ${b.callsign} ${tC}s`);
+        add(b.callsign, `CONF ${a.callsign} ${tC}s`);
+        redLines.push({ from: [a.lng, a.lat], to: [b.lng, b.lat] });
+      }
+    }
+  }
+  for (const tr of flying) {
+    for (const z of zones) {
+      if (z.kind !== 'SEGREGATED' || !pointInPoly([tr.lng, tr.lat], z.ring)) continue;
+      for (let t = STEP; t <= H; t += STEP) {
+        const p = predictPos(tr, t);
+        if (!pointInPoly(p, z.ring)) {
+          add(tr.callsign, `SALE ${z.id ?? z.name} ${t}s`);
+          redLines.push({ from: [tr.lng, tr.lat], to: p });
+          break;
+        }
+      }
+    }
+  }
+  return { warnings, redLines };
+}
+
 // ---------- chrome Motif ----------
 const bevelOut: React.CSSProperties = {
   background: '#c9c9c9',
@@ -514,11 +587,33 @@ export default function SimuladorPage() {
       }
     }
 
+    // detección de conflictos (STCA + salida de zona) en el horizonte del vector
+    const { warnings: cfWarn, redLines: cfLines } = computeConflicts(
+      Array.from(eng.tracks.values()),
+      eng.scenario.zones as unknown as ConflictZone[],
+      vectorMin
+    );
+    ctx.save();
+    ctx.strokeStyle = RED;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 4]);
+    for (const ln of cfLines) {
+      const [ax, ay] = project(ln.from[0], ln.from[1], w, h);
+      const [bx, by] = project(ln.to[0], ln.to[1], w, h);
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    ctx.restore();
+
     for (const tr of eng.tracks.values()) {
       if (!tr.airborne && tr.status !== 'LANDED') continue;
       if (altFilter.on && (tr.alt < altFilter.min || tr.alt > altFilter.max)) continue; // filtro de banda de altitud
       const [x, y] = project(tr.lng, tr.lat, w, h);
-      const alarm = tr.alerts.length > 0;
+      const conflict = cfWarn.has(tr.callsign);
+      const alarm = tr.alerts.length > 0 || conflict;
       const col = tr.status === 'LANDED' ? GRAY : alarm ? RED : GREEN;
 
       if (showTrails && tr.history.length > 1) {
@@ -547,15 +642,20 @@ export default function SimuladorPage() {
       }
 
       if (showVectors && tr.speedKt > 0) {
-        const vNm = (tr.speedKt / 60) * vectorMin;
-        const vx = x + Math.sin((tr.hdg * Math.PI) / 180) * vNm * pxPerNm;
-        const vy = y - Math.cos((tr.hdg * Math.PI) / 180) * vNm * pxPerNm;
+        // vector segmentado: un trazo por minuto (contar trazos = minutos de predicción)
+        const dirx = Math.sin((tr.hdg * Math.PI) / 180);
+        const diry = -Math.cos((tr.hdg * Math.PI) / 180);
+        const minPx = (tr.speedKt / 60) * pxPerNm; // px por minuto
         ctx.strokeStyle = col;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.lineTo(vx, vy);
-        ctx.stroke();
+        ctx.lineWidth = 1.4;
+        for (let mn = 0; mn < vectorMin; mn++) {
+          const d0 = (mn + 0.06) * minPx;
+          const d1 = (mn + 0.94) * minPx;
+          ctx.beginPath();
+          ctx.moveTo(x + dirx * d0, y + diry * d0);
+          ctx.lineTo(x + dirx * d1, y + diry * d1);
+          ctx.stroke();
+        }
       }
 
       if (showLabels && tr.status !== 'LANDED') {
@@ -570,9 +670,12 @@ export default function SimuladorPage() {
         ctx.stroke();
         ctx.font = `bold ${fp}px monospace`;
         let yy = ly;
-        if (alarm) {
+        // warnings (conflictos de predicción + alertas del motor) en rojo sobre el C/S
+        const warnLines = [...(cfWarn.get(tr.callsign) ?? [])];
+        if (tr.alerts.length) warnLines.unshift(tr.alerts.join(' '));
+        if (warnLines.length) {
           ctx.fillStyle = RED;
-          ctx.fillText(tr.alerts.join(' '), lx, yy - lh);
+          warnLines.forEach((wl, wi) => ctx.fillText(wl, lx, yy - lh * (warnLines.length - wi)));
         }
         ctx.fillStyle = alarm ? RED : GREEN;
         ctx.fillText(`${tr.callsign}  ${String(Math.round(tr.alt)).padStart(3, '0')}M`, lx, yy);
