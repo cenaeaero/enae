@@ -34,6 +34,7 @@ export interface Zone {
   floor: number;
   ceiling: number; // m AGL
   kind: 'SEGREGATED' | 'PROHIBITED' | 'RESTRICTED' | 'DANGER';
+  vlimit?: string; // límites verticales según publicación NOTAM (texto, p.ej. "FL 90 / 3000 FT")
 }
 
 export interface TrackState {

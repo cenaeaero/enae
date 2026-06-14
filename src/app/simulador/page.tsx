@@ -272,6 +272,7 @@ export default function SimuladorPage() {
   const [zoneForm, setZoneForm] = useState<{ name: string; floor: number; ceiling: number; kind: Zone['kind']; radiusM: number }>(
     { name: '', floor: 0, ceiling: 120, kind: 'SEGREGATED', radiusM: 1000 }
   );
+  const [dms, setDms] = useState({ latD: 33, latM: 0, latS: 0, latH: 'S', lngD: 70, lngM: 0, lngS: 0, lngH: 'W' });
   const [paused, setPaused] = useState(true);
   const [speed, setSpeed] = useState(1);
   const [showLabels, setShowLabels] = useState(true);
@@ -721,7 +722,7 @@ export default function SimuladorPage() {
         const [lx, ly] = project(z.ring[0][0], z.ring[0][1], w, h);
         ctx.fillStyle = col;
         ctx.font = '10px monospace';
-        ctx.fillText(`${z.name} ${z.floor}-${z.ceiling}M`, lx + 4, ly - 4);
+        ctx.fillText(`${z.name} ${z.vlimit ? z.vlimit : `${z.floor}-${z.ceiling}M`}`, lx + 4, ly - 4);
       }
     }
 
@@ -1138,6 +1139,26 @@ export default function SimuladorPage() {
   const deleteZone = (id: string) => {
     eng.scenario.zones = eng.scenario.zones.filter((z) => z.id !== id);
     force((x) => x + 1);
+  };
+  // agrega un vértice ingresando coordenadas en Grados/Minutos/Segundos
+  const addDmsVertex = () => {
+    const lat = (dms.latD + dms.latM / 60 + dms.latS / 3600) * (dms.latH === 'S' ? -1 : 1);
+    const lng = (dms.lngD + dms.lngM / 60 + dms.lngS / 3600) * (dms.lngH === 'W' ? -1 : 1);
+    setZonePts((p) => [...p, [lng, lat]]);
+  };
+  // importa las zonas reales publicadas por NOTAM (snapshot de uascontrol.io)
+  const importRealZones = async () => {
+    try {
+      const res = await fetch('/sim/zonas-reales.json');
+      const zs = (await res.json()) as Zone[];
+      const have = new Set(eng.scenario.zones.map((z) => z.id));
+      let n = 0;
+      for (const z of zs) if (!have.has(z.id)) { eng.scenario.zones.push(z); n++; }
+      eng.addLog(`IMPORTADAS ${n} ZONAS REALES (NOTAM DGAC)`, 'INFO');
+      force((x) => x + 1);
+    } catch {
+      eng.addLog('NO SE PUDO IMPORTAR ZONAS REALES', 'WARN');
+    }
   };
 
   // lobby
@@ -1711,6 +1732,24 @@ export default function SimuladorPage() {
                 <span className="text-[#888]">m</span>
                 <MB label="CREAR CÍRCULO" onClick={createCircleZone} />
               </div>
+              <div className="text-[#7aa] tracking-wider pt-1">COORDENADAS GMS (vértice)</div>
+              <div className="flex items-center gap-1">
+                <span className="text-[#888] w-7">LAT</span>
+                <input type="number" value={dms.latD} onChange={(e) => setDms((s) => ({ ...s, latD: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 34 }} className="px-1 text-[10px]" />
+                <input type="number" value={dms.latM} onChange={(e) => setDms((s) => ({ ...s, latM: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 30 }} className="px-1 text-[10px]" />
+                <input type="number" value={dms.latS} onChange={(e) => setDms((s) => ({ ...s, latS: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 42 }} className="px-1 text-[10px]" />
+                <select value={dms.latH} onChange={(e) => setDms((s) => ({ ...s, latH: e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN }} className="text-[10px]"><option>S</option><option>N</option></select>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-[#888] w-7">LNG</span>
+                <input type="number" value={dms.lngD} onChange={(e) => setDms((s) => ({ ...s, lngD: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 34 }} className="px-1 text-[10px]" />
+                <input type="number" value={dms.lngM} onChange={(e) => setDms((s) => ({ ...s, lngM: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 30 }} className="px-1 text-[10px]" />
+                <input type="number" value={dms.lngS} onChange={(e) => setDms((s) => ({ ...s, lngS: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 42 }} className="px-1 text-[10px]" />
+                <select value={dms.lngH} onChange={(e) => setDms((s) => ({ ...s, lngH: e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN }} className="text-[10px]"><option>W</option><option>E</option></select>
+                <MB label="+ VÉRT" onClick={addDmsVertex} />
+              </div>
+              <div className="text-[9px] text-[#666]">Grados/min/seg. Agregá vértices y luego CREAR (arriba).</div>
+              <div className="pt-1"><MB label="IMPORTAR REALES (NOTAM)" onClick={importRealZones} /></div>
               <div className="text-[#7aa] tracking-wider pt-1">ZONAS ACTIVAS</div>
               <div className="max-h-[90px] overflow-y-auto space-y-0.5">
                 {eng.scenario.zones.map((z) => (
