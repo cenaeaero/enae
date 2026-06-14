@@ -287,6 +287,7 @@ export default function SimuladorPage() {
   const [labelMode, setLabelMode] = useState(1); // 0 compacta, 1 estándar, 2 completa
   const [labelFont, setLabelFont] = useState(11); // px etiqueta de pista
   const [finder, setFinder] = useState(''); // buscador de pista por C/S
+  const [labelOffsets, setLabelOffsets] = useState<Record<string, { dx: number; dy: number }>>({}); // posición del data block por pista
   // instructor: alta manual de zona (dibujo de vértices o círculo)
   const [zoneDrawing, setZoneDrawing] = useState(false);
   const [zonePts, setZonePts] = useState<LL[]>([]);
@@ -517,7 +518,7 @@ export default function SimuladorPage() {
       clearInterval(iv);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeNm, pan, rot, showLabels, showZones, zoneKinds, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont, zonePts]);
+  }, [rangeNm, pan, rot, showLabels, showZones, zoneKinds, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont, labelOffsets, zonePts]);
 
   // alumno: recibir estado por Realtime
   useEffect(() => {
@@ -838,12 +839,14 @@ export default function SimuladorPage() {
       if (showLabels && tr.status !== 'LANDED') {
         const fp = labelFont;
         const lh = fp + 1;
-        const lx = x + 14;
-        const ly = y - 22;
+        const off = labelOffsets[tr.callsign] ?? { dx: 14, dy: -22 };
+        const lx = x + off.dx;
+        const ly = y + off.dy;
+        // leader line desde el símbolo hasta el data block (sigue al arrastrar la etiqueta)
         ctx.strokeStyle = 'rgba(120,140,130,.5)';
         ctx.beginPath();
-        ctx.moveTo(x + 6, y - 4);
-        ctx.lineTo(lx - 2, ly + 10);
+        ctx.moveTo(x, y);
+        ctx.lineTo(lx - 2, ly + 2);
         ctx.stroke();
         ctx.font = `bold ${fp}px monospace`;
         let yy = ly;
@@ -988,7 +991,7 @@ export default function SimuladorPage() {
       ctx.font = 'bold 11px monospace';
       ctx.fillText('N', tipx - 3 + nxs * 8, tipy + 4 + nys * 8);
     }
-  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, zoneKinds, showTrails, rings, selected, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont, playAlarm, recording, zonePts]);
+  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, zoneKinds, showTrails, rings, selected, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont, labelOffsets, playAlarm, recording, zonePts]);
 
   // re-vincular cuando el canvas aparece tras login/lobby (auth y mode cambian el árbol)
   useEffect(() => {
@@ -1021,15 +1024,47 @@ export default function SimuladorPage() {
     return best;
   };
   const selectAt = (mx: number, my: number) => setSelected(findTrackAt(mx, my));
+  const labelOffOf = (cs: string) => labelOffsets[cs] ?? { dx: 14, dy: -22 };
+  // ¿el pixel cae sobre el data block (etiqueta) de alguna pista?
+  const findLabelAt = (mx: number, my: number): string | null => {
+    const cv = canvasRef.current;
+    if (!cv || !showLabels) return null;
+    const lh = labelFont + 1;
+    for (const tr of eng.tracks.values()) {
+      if (!tr.airborne || tr.status === 'LANDED') continue;
+      const [x, y] = project(tr.lng, tr.lat, cv.width, cv.height);
+      const off = labelOffOf(tr.callsign);
+      const lx = x + off.dx;
+      const ly = y + off.dy;
+      if (mx >= lx - 4 && mx <= lx + 150 && my >= ly - lh - 6 && my <= ly + lh * 3) return tr.callsign;
+    }
+    return null;
+  };
 
-  // arrastre del mapa (descentrado/pan). Distingue click (seleccionar) de arrastre.
+  // arrastre del mapa (descentrado/pan) y arrastre del data block (etiqueta).
   const panDrag = useRef<{ sx: number; sy: number; ox: number; oy: number; moved: boolean } | null>(null);
+  const labelDrag = useRef<{ cs: string; sx: number; sy: number; ox: number; oy: number } | null>(null);
   const onCanvasPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    const cv = canvasRef.current;
+    if (cv && !zoneDrawing && !rblMode) {
+      const rect = cv.getBoundingClientRect();
+      const cs = findLabelAt(e.clientX - rect.left, e.clientY - rect.top);
+      if (cs) {
+        const off = labelOffOf(cs);
+        labelDrag.current = { cs, sx: e.clientX, sy: e.clientY, ox: off.dx, oy: off.dy };
+        return;
+      }
+    }
     panDrag.current = { sx: e.clientX, sy: e.clientY, ox: pan.x, oy: pan.y, moved: false };
   };
   const onCanvasPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const cv = canvasRef.current;
+    const ld = labelDrag.current;
+    if (ld) {
+      setLabelOffsets((o) => ({ ...o, [ld.cs]: { dx: ld.ox + (e.clientX - ld.sx), dy: ld.oy + (e.clientY - ld.sy) } }));
+      return;
+    }
     const d = panDrag.current;
     if (d) {
       const dx = e.clientX - d.sx;
@@ -1045,6 +1080,7 @@ export default function SimuladorPage() {
     }
   };
   const onCanvasPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (labelDrag.current) { labelDrag.current = null; return; } // soltó el data block
     const d = panDrag.current;
     panDrag.current = null;
     if (!d || d.moved) return; // fue arrastre = pan
@@ -1524,7 +1560,7 @@ export default function SimuladorPage() {
           onPointerDown={onCanvasPointerDown}
           onPointerMove={onCanvasPointerMove}
           onPointerUp={onCanvasPointerUp}
-          onPointerCancel={() => (panDrag.current = null)}
+          onPointerCancel={() => { panDrag.current = null; labelDrag.current = null; }}
           onWheel={onCanvasWheel}
         />
 
