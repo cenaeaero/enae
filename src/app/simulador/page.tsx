@@ -5,7 +5,7 @@
 // arrastrables estilo consola, barra superior de estado y botonera densa inferior.
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { SimEngine, type TrackState, type Zone, type Scenario } from '@/lib/sim/engine';
+import { SimEngine, type TrackState, type Zone, type Scenario, type SimEvent } from '@/lib/sim/engine';
 import { SCENARIOS } from '@/lib/sim/scenarios';
 import {
   simDb, createSession, joinSession, publishState, subscribeState,
@@ -308,6 +308,7 @@ export default function SimuladorPage() {
   const [routeDrawing, setRouteDrawing] = useState(false);
   const [routePts, setRoutePts] = useState<LL[]>([]);
   const [acForm, setAcForm] = useState({ callsign: '', acType: 'M350', manned: false, speedKt: 35, startMin: 0, cruiseAlt: 100 });
+  const [evForm, setEvForm] = useState<{ flight: string; type: SimEvent['type']; startMin: number; durMin: number }>({ flight: '', type: 'C2LOSS', startMin: 1, durMin: 1 });
   const [paused, setPaused] = useState(true);
   const [speed, setSpeed] = useState(1);
   const [showLabels, setShowLabels] = useState(true);
@@ -1347,6 +1348,23 @@ export default function SimuladorPage() {
     eng.tracks.delete(cs);
     force((x) => x + 1);
   };
+  // supervisor: programar una contingencia/evento a T+min (Entradas de Supervisor del EPP)
+  const addEvent = () => {
+    const fl = evForm.flight || eng.scenario.flights[0]?.callsign;
+    if (!fl) return;
+    eng.scenario.events.push({
+      t: evForm.startMin * 60,
+      flight: fl,
+      type: evForm.type,
+      duration: evForm.type === 'C2LOSS' ? evForm.durMin * 60 : undefined,
+    });
+    eng.addLog(`CONTINGENCIA PROGRAMADA: ${fl} ${evForm.type} T+${evForm.startMin}m`, 'INFO');
+    force((x) => x + 1);
+  };
+  const removeEvent = (idx: number) => {
+    eng.scenario.events = eng.scenario.events.filter((_, i) => i !== idx);
+    force((x) => x + 1);
+  };
   // agrega un vértice ingresando coordenadas en Grados/Minutos/Segundos
   const addDmsVertex = () => {
     const lat = ((Number(dms.latD) || 0) + (Number(dms.latM) || 0) / 60 + (Number(dms.latS) || 0) / 3600) * (dms.latH === 'S' ? -1 : 1);
@@ -2044,6 +2062,29 @@ export default function SimuladorPage() {
                 <MB label="✚ AGREGAR AERONAVE" active={routePts.length >= 2} onClick={addAircraft} />
               </div>
               <div className="text-[9px] text-[#666]">Clic en el radar para la ruta (≥2 wp). Tripulada = cuadrado; UAS = triángulo.</div>
+              <div className="text-[#7aa] tracking-wider pt-1">CONTINGENCIA PROGRAMADA</div>
+              <div className="flex items-center gap-1 flex-wrap">
+                <select value={evForm.flight} onChange={(e) => setEvForm((f) => ({ ...f, flight: e.target.value }))}
+                  style={{ ...bevelIn, background: '#000', color: GREEN }} className="px-1 text-[10px]">
+                  <option value="">(1ª aeronave)</option>
+                  {eng.scenario.flights.map((f) => <option key={f.callsign} value={f.callsign}>{f.callsign}</option>)}
+                </select>
+                <select value={evForm.type} onChange={(e) => setEvForm((f) => ({ ...f, type: e.target.value as SimEvent['type'] }))}
+                  style={{ ...bevelIn, background: '#000', color: GREEN }} className="px-1 text-[10px]">
+                  {(['C2LOSS', 'LOWBAT', 'EMERG', 'RTH', 'C2RESTORE'] as const).map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <span className="text-[#888]">T+</span>
+                <input type="number" value={evForm.startMin} onChange={(e) => setEvForm((f) => ({ ...f, startMin: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 36 }} className="px-1 text-[10px]" />
+                <span className="text-[#888]">min</span>
+                {evForm.type === 'C2LOSS' && (
+                  <>
+                    <span className="text-[#888]">dur</span>
+                    <input type="number" value={evForm.durMin} onChange={(e) => setEvForm((f) => ({ ...f, durMin: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 32 }} className="px-1 text-[10px]" />
+                    <span className="text-[#888]">min</span>
+                  </>
+                )}
+                <MB label="+ AGREGAR" onClick={addEvent} />
+              </div>
               <div className="text-[#7aa] tracking-wider pt-1">CRONOLOGÍA</div>
               <div className="max-h-[160px] overflow-y-auto text-[10px] space-y-0.5">
                 {eng.scenario.zones.filter((z) => z.appearAt != null).map((z) => (
@@ -2064,9 +2105,12 @@ export default function SimuladorPage() {
                   </div>
                 ))}
                 {eng.scenario.events.map((ev, i) => (
-                  <div key={i} className="flex justify-between text-[#caa]">
+                  <div key={i} className="flex justify-between items-center gap-1 text-[#caa]">
                     <span>⚠ {ev.flight} {ev.type}</span>
-                    <span style={{ color: eng.t >= ev.t ? RED : AMBER }}>T+{Math.round(ev.t / 60)}m</span>
+                    <span className="flex items-center gap-1">
+                      <span style={{ color: eng.t >= ev.t ? RED : AMBER }}>T+{Math.round(ev.t / 60)}m</span>
+                      <button onClick={() => removeEvent(i)} style={bevelOut} className="px-1 text-[9px]">✕</button>
+                    </span>
                   </div>
                 ))}
                 {eng.scenario.zones.every((z) => z.appearAt == null) && !eng.scenario.flights.length && !eng.scenario.events.length && (
