@@ -161,6 +161,9 @@ export default function SimuladorPage() {
   const rblPend = useRef<[number, number] | null>(null); // primer punto pendiente
   const [cursorLL, setCursorLL] = useState<[number, number] | null>(null); // cursor para línea viva
   const [bright, setBright] = useState(0); // 0=día 1=crepúsculo 2=noche
+  const [labelMode, setLabelMode] = useState(1); // 0 compacta, 1 estándar, 2 completa
+  const [labelFont, setLabelFont] = useState(11); // px etiqueta de pista
+  const [finder, setFinder] = useState(''); // buscador de pista por C/S
   const [paused, setPaused] = useState(true);
   const [speed, setSpeed] = useState(1);
   const [showLabels, setShowLabels] = useState(true);
@@ -302,7 +305,7 @@ export default function SimuladorPage() {
       clearInterval(iv);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeNm, pan, showLabels, showZones, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL]);
+  }, [rangeNm, pan, showLabels, showZones, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont]);
 
   // alumno: recibir estado por Realtime
   useEffect(() => {
@@ -556,6 +559,8 @@ export default function SimuladorPage() {
       }
 
       if (showLabels && tr.status !== 'LANDED') {
+        const fp = labelFont;
+        const lh = fp + 1;
         const lx = x + 14;
         const ly = y - 22;
         ctx.strokeStyle = 'rgba(120,140,130,.5)';
@@ -563,16 +568,23 @@ export default function SimuladorPage() {
         ctx.moveTo(x + 6, y - 4);
         ctx.lineTo(lx - 2, ly + 10);
         ctx.stroke();
-        ctx.font = 'bold 11px monospace';
+        ctx.font = `bold ${fp}px monospace`;
+        let yy = ly;
         if (alarm) {
           ctx.fillStyle = RED;
-          ctx.fillText(tr.alerts.join(' '), lx, ly - 12);
+          ctx.fillText(tr.alerts.join(' '), lx, yy - lh);
         }
         ctx.fillStyle = alarm ? RED : GREEN;
-        ctx.fillText(`${tr.callsign}  ${String(Math.round(tr.alt)).padStart(3, '0')}M`, lx, ly);
-        ctx.fillText(`${Math.round(tr.speedKt)}KT ${Math.round(tr.batteryPct)}%`, lx, ly + 12);
-        ctx.fillStyle = alarm ? RED : '#1f9e5d';
-        ctx.fillText(`${tr.acType} ${tr.authRef.slice(-4)}`, lx, ly + 24);
+        ctx.fillText(`${tr.callsign}  ${String(Math.round(tr.alt)).padStart(3, '0')}M`, lx, yy);
+        if (labelMode >= 1) {
+          yy += lh;
+          ctx.fillText(`${Math.round(tr.speedKt)}KT ${Math.round(tr.batteryPct)}%`, lx, yy);
+        }
+        if (labelMode >= 2) {
+          yy += lh;
+          ctx.fillStyle = alarm ? RED : '#1f9e5d';
+          ctx.fillText(`${tr.acType} ${tr.authRef.slice(-4)} HDG${String(Math.round(tr.hdg)).padStart(3, '0')}`, lx, yy);
+        }
       }
     }
 
@@ -602,7 +614,7 @@ export default function SimuladorPage() {
     };
     for (const r of rbls) drawRbl(r.a, r.b, false);
     if (rblPend.current && cursorLL) drawRbl(rblPend.current, cursorLL, true);
-  }, [eng, project, rangeNm, pan, showLabels, showZones, showTrails, rings, selected, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL]);
+  }, [eng, project, rangeNm, pan, showLabels, showZones, showTrails, rings, selected, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont]);
 
   // re-vincular cuando el canvas aparece tras login/lobby (auth y mode cambian el árbol)
   useEffect(() => {
@@ -703,11 +715,9 @@ export default function SimuladorPage() {
 
   // CEN: re-centra la presentación (pan a 0). CSEL: centra en la pista seleccionada.
   const centerView = () => setPan({ x: 0, y: 0 });
-  const centerSelected = () => {
+  const centerOn = (tr: { lng: number; lat: number }) => {
     const cv = canvasRef.current;
-    if (!cv || !selected) return;
-    const tr = eng.tracks.get(selected);
-    if (!tr) return;
+    if (!cv) return;
     const [clng, clat] = eng.scenario.center;
     const nmPerDegLat = 60;
     const nmPerDegLng = 60 * Math.cos((clat * Math.PI) / 180);
@@ -716,6 +726,23 @@ export default function SimuladorPage() {
       x: -(tr.lng - clng) * nmPerDegLng * pxPerNm,
       y: (tr.lat - clat) * nmPerDegLat * pxPerNm,
     });
+  };
+  const centerSelected = () => {
+    if (!selected) return;
+    const tr = eng.tracks.get(selected);
+    if (tr) centerOn(tr);
+  };
+  // FINDER: busca una pista por C/S, la selecciona y la centra
+  const doFinder = () => {
+    const q = finder.trim().toUpperCase();
+    if (!q) return;
+    const hit = Array.from(eng.tracks.values()).find((t) => t.callsign.toUpperCase().includes(q));
+    if (!hit) {
+      eng.addLog(`BUSCADOR: SIN COINCIDENCIA "${q}"`, 'WARN');
+      return;
+    }
+    setSelected(hit.callsign);
+    centerOn(hit);
   };
 
   // lobby
@@ -1167,6 +1194,25 @@ export default function SimuladorPage() {
                   onChange={(e) => setAltFilter((f) => ({ ...f, max: +e.target.value }))}
                   style={{ ...bevelIn, background: '#000', color: GREEN, width: 46 }} className="px-1 text-[10px]" />
               </div>
+              <div className="text-[#7aa] tracking-wider pt-1">ETIQUETA PISTA</div>
+              <div className="flex items-center gap-1 flex-wrap">
+                {['COMPACTA', 'STD', 'FULL'].map((l, i) => (
+                  <MB key={l} label={l} active={labelMode === i} onClick={() => setLabelMode(i)} />
+                ))}
+                <span className="text-[#888] ml-1">FUENTE</span>
+                {([[10, 'S'], [11, 'M'], [13, 'L']] as [number, string][]).map(([px, l]) => (
+                  <MB key={l} label={l} active={labelFont === px} onClick={() => setLabelFont(px)} />
+                ))}
+              </div>
+              <div className="text-[#7aa] tracking-wider pt-1">BUSCAR PISTA</div>
+              <div className="flex items-center gap-1">
+                <input value={finder}
+                  onChange={(e) => setFinder(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => { if (e.key === 'Enter') doFinder(); }}
+                  placeholder="C/S" style={{ ...bevelIn, background: '#000', color: GREEN, width: 96 }}
+                  className="px-1 text-[10px] uppercase" />
+                <MB label="IR" onClick={doFinder} />
+              </div>
             </div>
           </Win>
         )}
@@ -1364,7 +1410,7 @@ export default function SimuladorPage() {
           <MB label="METEO" />
           <MB label="MTCD" />
           <MB label="FREETEXT" />
-          <MB label="FINDER" />
+          <MB label="FINDER" active={wins.layers.open} onClick={() => setWin('layers', { open: true })} />
           <MB label="RADAR" onClick={() => setWin('stations', { open: !wins.stations.open })} active={wins.stations.open} />
           <MB label="SECTORS" active={wins.sectors.open} onClick={() => setWin('sectors', { open: !wins.sectors.open })} />
           <MB label="ZONE INFO" active={wins.zone.open} onClick={() => setWin('zone', { open: !wins.zone.open })} />
