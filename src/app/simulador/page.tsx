@@ -248,7 +248,7 @@ function Win({
   );
 }
 
-type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone' | 'eval' | 'aftn' | 'layers' | 'zonemaker';
+type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone' | 'eval' | 'aftn' | 'layers' | 'zonemaker' | 'exercise';
 
 interface EvalRow {
   position_id: string | null;
@@ -290,8 +290,8 @@ export default function SimuladorPage() {
   // instructor: alta manual de zona (dibujo de vértices o círculo)
   const [zoneDrawing, setZoneDrawing] = useState(false);
   const [zonePts, setZonePts] = useState<LL[]>([]);
-  const [zoneForm, setZoneForm] = useState<{ name: string; floor: number; ceiling: number; kind: Zone['kind']; radiusNm: number }>(
-    { name: '', floor: 0, ceiling: 120, kind: 'SEGREGATED', radiusNm: 1 }
+  const [zoneForm, setZoneForm] = useState<{ name: string; floor: number; ceiling: number; kind: Zone['kind']; radiusNm: number; appearMin: number }>(
+    { name: '', floor: 0, ceiling: 120, kind: 'SEGREGATED', radiusNm: 1, appearMin: 0 }
   );
   const [dms, setDms] = useState({ latD: 33, latM: 0, latS: 0, latH: 'S', lngD: 70, lngM: 0, lngS: 0, lngH: 'W' });
   const [paused, setPaused] = useState(true);
@@ -314,6 +314,7 @@ export default function SimuladorPage() {
     aftn: { x: 420, y: 120, open: false },
     layers: { x: 1120, y: 120, open: false },
     zonemaker: { x: 80, y: 120, open: false },
+    exercise: { x: 80, y: 60, open: false },
   });
   const [evalRows, setEvalRows] = useState<EvalRow[]>([]);
   const [evalBusy, setEvalBusy] = useState(false);
@@ -760,6 +761,7 @@ export default function SimuladorPage() {
 
     if (showZones) {
       for (const z of eng.scenario.zones) {
+        if (z.appearAt != null && eng.t < z.appearAt) continue; // zona programada aún no aparece
         if (!zoneKinds[z.kind as keyof typeof zoneKinds]) continue; // capa de tipo de zona oculta
         const col = z.kind === 'PROHIBITED' ? RED : z.kind === 'DANGER' ? '#ff8c00' : z.kind === 'RESTRICTED' ? AMBER : CYAN;
         ctx.strokeStyle = col;
@@ -789,7 +791,7 @@ export default function SimuladorPage() {
     }));
     const { warnings: cfWarn, redLines: cfLines } = computeConflicts(
       cTracks,
-      eng.scenario.zones as unknown as ConflictZone[],
+      eng.scenario.zones.filter((z) => z.appearAt == null || eng.t >= z.appearAt) as unknown as ConflictZone[],
       vectorMin
     );
     // alarma sonora al aparecer un conflicto/alerta nuevo (3 s)
@@ -1231,6 +1233,7 @@ export default function SimuladorPage() {
       floor: zoneForm.floor,
       ceiling: zoneForm.ceiling,
       kind: zoneForm.kind,
+      appearAt: zoneForm.appearMin > 0 ? zoneForm.appearMin * 60 : undefined,
     };
     eng.scenario.zones.push(z);
     eng.addLog(`ZONA CREADA: ${z.name} (${z.kind}) ${z.floor}-${z.ceiling}M`, 'INFO');
@@ -1321,7 +1324,7 @@ export default function SimuladorPage() {
       setSessionId(r.sessionId);
       setSessionCode(r.code);
       setPositionId(r.positionId);
-      setWin('instructor', { open: true });
+      setWin('exercise', { open: true });
       setMode('instructor');
     } catch (e) {
       setLobbyErr((e as Error).message || 'Error creando sesión');
@@ -1458,6 +1461,22 @@ export default function SimuladorPage() {
     setPaused(true);
     setSelected(null);
   };
+  // SUPERVISOR: iniciar el ejercicio = reloj a 0, correr y grabar (las zonas/aeronaves
+  // programadas van apareciendo según su hora). DETENER = pausa + cierra grabación.
+  const startExercise = () => {
+    if (mode === 'student') return;
+    eng.reset();
+    setSelected(null);
+    setSpd(1);
+    if (!recording) startRec();
+    eng.addLog('EJERCICIO INICIADO — GRABANDO', 'INFO');
+  };
+  const stopExercise = () => {
+    if (mode === 'student') return;
+    setSpd(0);
+    if (recording) stopRec();
+    eng.addLog('EJERCICIO DETENIDO', 'INFO');
+  };
 
   const tracks: TrackState[] = Array.from(eng.tracks.values());
   const anyAlarm = tracks.some((t) => t.alerts.length > 0);
@@ -1552,7 +1571,7 @@ export default function SimuladorPage() {
               {isInstructor && (
                 <button onClick={startInstructor} disabled={lobbyBusy} style={bevelOut}
                   className="py-2 text-[11px] font-bold disabled:opacity-50">
-                  INSTRUCTOR<br /><span className="font-normal text-[9px]">CREAR SESIÓN</span>
+                  SUPERVISOR<br /><span className="font-normal text-[9px]">SALA TÉCNICA · CREAR SESIÓN</span>
                 </button>
               )}
               <button onClick={startLocal} style={bevelOut} className="py-2 text-[11px] font-bold">
@@ -1607,7 +1626,7 @@ export default function SimuladorPage() {
           <TSeg label={paused ? 'HOLD' : `RUN x${speed}`} color={paused ? AMBER : GREEN} />
           {(mode === 'instructor' || mode === 'student') && (
             <TSeg
-              label={mode === 'instructor' ? `SES ${sessionCode} · ${peers}P · INSTRUCTOR` : `SES ${sessionCode} · ${userName || 'ALUMNO'}`}
+              label={mode === 'instructor' ? `SES ${sessionCode} · ${peers}P · SUPERVISOR` : `SES ${sessionCode} · ${userName || 'ALUMNO'}`}
               color={CYAN}
             />
           )}
@@ -1848,6 +1867,52 @@ export default function SimuladorPage() {
           </Win>
         )}
 
+        {wins.exercise.open && mode !== 'student' && (
+          <Win title="EJERCICIO — CONTROL (SUPERVISOR)" x={wins.exercise.x} y={wins.exercise.y} w={340}
+            onClose={() => setWin('exercise', { open: false })}
+            onDrag={(x, y) => setWin('exercise', { x, y })}>
+            <div style={{ background: '#000' }} className="font-mono text-[10px] p-2 space-y-1 text-[#cbd5e1]">
+              <div className="flex items-center gap-1">
+                <MB label="▶ INICIAR EJERCICIO" active={!paused} onClick={startExercise} />
+                <MB label="■ DETENER" onClick={stopExercise} />
+              </div>
+              <div className="text-[9px] text-[#666]">Reloj a 0, corre y graba. Zonas/aeronaves programadas aparecen a su hora.</div>
+              <div className="text-[#7aa] tracking-wider pt-1">CREAR DATOS DEL EJERCICIO</div>
+              <div className="flex items-center gap-1 flex-wrap">
+                <MB label="ZONAS / POLÍGONOS" active={wins.zonemaker.open} onClick={() => setWin('zonemaker', { open: !wins.zonemaker.open })} />
+                <MB label="CONTINGENCIAS" active={wins.instructor.open} onClick={() => setWin('instructor', { open: !wins.instructor.open })} />
+              </div>
+              <div className="text-[#7aa] tracking-wider pt-1">CRONOLOGÍA</div>
+              <div className="max-h-[160px] overflow-y-auto text-[10px] space-y-0.5">
+                {eng.scenario.zones.filter((z) => z.appearAt != null).map((z) => (
+                  <div key={z.id} className="flex justify-between">
+                    <span>🛑 {z.name}</span>
+                    <span style={{ color: eng.t >= (z.appearAt ?? 0) ? GREEN : AMBER }}>
+                      T+{Math.round((z.appearAt ?? 0) / 60)}m {eng.t >= (z.appearAt ?? 0) ? 'ACTIVA' : 'pend.'}
+                    </span>
+                  </div>
+                ))}
+                {eng.scenario.flights.map((f) => (
+                  <div key={f.callsign} className="flex justify-between">
+                    <span>✈ {f.callsign} <span className="text-[#666]">{f.acType}</span></span>
+                    <span style={{ color: eng.t >= f.startT ? GREEN : AMBER }}>T+{Math.round(f.startT / 60)}m</span>
+                  </div>
+                ))}
+                {eng.scenario.events.map((ev, i) => (
+                  <div key={i} className="flex justify-between text-[#caa]">
+                    <span>⚠ {ev.flight} {ev.type}</span>
+                    <span style={{ color: eng.t >= ev.t ? RED : AMBER }}>T+{Math.round(ev.t / 60)}m</span>
+                  </div>
+                ))}
+                {eng.scenario.zones.every((z) => z.appearAt == null) && !eng.scenario.flights.length && !eng.scenario.events.length && (
+                  <div className="text-[#666]">Sin elementos programados. Creá zonas con APARECE T+min o contingencias.</div>
+                )}
+              </div>
+              <div className="text-[9px] text-[#666] pt-1">Próximo: editor de aeronaves (tripuladas/no) por hora y guardado de ejercicios en Supabase.</div>
+            </div>
+          </Win>
+        )}
+
         {wins.zonemaker.open && (
           <Win title="ALTA DE ZONA (INSTRUCTOR)" x={wins.zonemaker.x} y={wins.zonemaker.y} w={500}
             onClose={() => setWin('zonemaker', { open: false })}
@@ -1880,6 +1945,13 @@ export default function SimuladorPage() {
                     <input type="number" value={zoneForm.ceiling} onChange={(e) => setZoneForm((f) => ({ ...f, ceiling: +e.target.value }))}
                       style={{ ...bevelIn, background: '#000', color: GREEN, width: 50 }} className="px-1 text-[10px]" />
                     <span className="text-[#888]">M</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[#888] w-10">APARECE</span>
+                    <span className="text-[#888]">T+</span>
+                    <input type="number" value={zoneForm.appearMin} onChange={(e) => setZoneForm((f) => ({ ...f, appearMin: +e.target.value }))}
+                      style={{ ...bevelIn, background: '#000', color: GREEN, width: 50 }} className="px-1 text-[10px]" />
+                    <span className="text-[#888]">min (0 = desde inicio)</span>
                   </div>
                   <div className="text-[#7aa] tracking-wider pt-1">DIBUJAR EN RADAR</div>
                   <div className="flex items-center gap-1 flex-wrap">
@@ -2146,6 +2218,9 @@ export default function SimuladorPage() {
           <MB label="SECTORS" active={wins.sectors.open} onClick={() => setWin('sectors', { open: !wins.sectors.open })} />
           <MB label="ZONE INFO" active={wins.zone.open} onClick={() => setWin('zone', { open: !wins.zone.open })} />
           <MB label={mode === 'student' ? 'ÓRDENES' : 'INSTRUCTOR'} active={wins.instructor.open} onClick={() => setWin('instructor', { open: !wins.instructor.open })} />
+          {(mode === 'instructor' || mode === 'local') && (
+            <MB label="EJERCICIO" active={wins.exercise.open} onClick={() => setWin('exercise', { open: !wins.exercise.open })} />
+          )}
           {(mode === 'instructor' || mode === 'local') && (
             <MB label="ZONA+" active={wins.zonemaker.open} onClick={() => setWin('zonemaker', { open: !wins.zonemaker.open })} />
           )}

@@ -35,6 +35,7 @@ export interface Zone {
   ceiling: number; // m AGL
   kind: 'SEGREGATED' | 'PROHIBITED' | 'RESTRICTED' | 'DANGER';
   vlimit?: string; // límites verticales según publicación NOTAM (texto, p.ej. "FL 90 / 3000 FT")
+  appearAt?: number; // s de simulación en que la zona aparece (programada en el ejercicio); null = desde el inicio
 }
 
 export interface TrackState {
