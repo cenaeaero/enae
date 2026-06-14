@@ -114,16 +114,8 @@ function computeConflicts(tracks: ConflictTrack[], zones: ConflictZone[], horizo
         }
       }
     } else {
-      // ya está FUERA de la zona segregada -> violación persistente (rojo)
+      // ya está FUERA de la zona segregada -> violación persistente (rojo, sin línea al vértice: confunde)
       add(tr.callsign, 'FUERA DE ZONA');
-      let best: LL | null = null;
-      let bestD = Infinity;
-      for (const z of segs)
-        for (const v of z.ring) {
-          const d = distMeters([tr.lng, tr.lat], v);
-          if (d < bestD) { bestD = d; best = v; }
-        }
-      if (best) redLines.push({ from: [tr.lng, tr.lat], to: best });
     }
   }
   // incursión en zonas prohibida / restringida / peligrosa
@@ -289,6 +281,7 @@ export default function SimuladorPage() {
   const [labelFont, setLabelFont] = useState(11); // px etiqueta de pista
   const [finder, setFinder] = useState(''); // buscador de pista por C/S
   const [labelOffsets, setLabelOffsets] = useState<Record<string, { dx: number; dy: number }>>({}); // posición del data block por pista
+  const [conflictCs, setConflictCs] = useState<string[]>([]); // C/S en alerta de conflicto (para colorear filas de VUELOS)
   // instructor: alta manual de zona (dibujo de vértices o círculo)
   const [zoneDrawing, setZoneDrawing] = useState(false);
   const [zonePts, setZonePts] = useState<LL[]>([]);
@@ -351,6 +344,7 @@ export default function SimuladorPage() {
   const audioRef = useRef<AudioContext | null>(null);
   const audioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null); // mezcla de audio para la grabación
   const alarmedRef = useRef<Set<string>>(new Set());
+  const conflictKeyRef = useRef(''); // membresía del set de conflicto (para sincronizar a React sólo al cambiar)
   const lastAlarmRef = useRef(0);
   const playAlarm = useCallback(() => {
     try {
@@ -763,6 +757,9 @@ export default function SimuladorPage() {
     // alarma sonora al aparecer un conflicto/alerta nuevo (3 s)
     const nowAlarmed = new Set<string>(cfWarn.keys());
     for (const t of eng.tracks.values()) if (t.alerts.length) nowAlarmed.add(t.callsign);
+    // sincronizar el set de conflicto a React (colorear filas de VUELOS) sólo cuando cambia
+    const akey = [...nowAlarmed].sort().join(',');
+    if (akey !== conflictKeyRef.current) { conflictKeyRef.current = akey; setConflictCs([...nowAlarmed]); }
     let freshAlarm = false;
     for (const cs of nowAlarmed) if (!alarmedRef.current.has(cs)) { freshAlarm = true; break; }
     alarmedRef.current = nowAlarmed;
@@ -1592,7 +1589,7 @@ export default function SimuladorPage() {
               {tracks.map((t) => (
                 <div key={t.callsign} onClick={() => setSelected(t.callsign)}
                   className={`grid grid-cols-7 px-1 cursor-pointer ${selected === t.callsign ? 'bg-[#2a2a2a]' : ''}`}
-                  style={{ color: t.alerts.length ? RED : t.status === 'LANDED' ? '#777' : GREEN }}>
+                  style={{ color: (t.alerts.length || conflictCs.includes(t.callsign)) ? RED : t.status === 'LANDED' ? '#777' : GREEN }}>
                   <span>{t.callsign}</span>
                   <span>{t.acType}</span>
                   <span>{t.authRef.slice(-4)}</span>
