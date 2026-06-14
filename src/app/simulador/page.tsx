@@ -252,6 +252,7 @@ export default function SimuladorPage() {
   const [, force] = useState(0);
   const [rangeNm, setRangeNm] = useState(12);
   const [pan, setPan] = useState({ x: 0, y: 0 }); // desplazamiento de presentación (px) — descentrado/pan del mapa
+  const [rot, setRot] = useState(0); // orientación de la presentación: rumbo que apunta hacia ARRIBA (0 = norte arriba)
   const [showVectors, setShowVectors] = useState(true); // vector de predicción de velocidad
   const [vectorMin, setVectorMin] = useState(1); // minutos del vector de predicción
   const [showGrid, setShowGrid] = useState(false); // grilla geográfica (graticula)
@@ -485,7 +486,7 @@ export default function SimuladorPage() {
       clearInterval(iv);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeNm, pan, showLabels, showZones, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont]);
+  }, [rangeNm, pan, rot, showLabels, showZones, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont]);
 
   // alumno: recibir estado por Realtime
   useEffect(() => {
@@ -573,12 +574,16 @@ export default function SimuladorPage() {
       const nmPerDegLat = 60;
       const nmPerDegLng = 60 * Math.cos((clat * Math.PI) / 180);
       const pxPerNm = Math.min(w, h) / (rangeNm * 2);
+      const u = (lng - clng) * nmPerDegLng * pxPerNm; // este (+x)
+      const v = -(lat - clat) * nmPerDegLat * pxPerNm; // norte (-y)
+      const R = (rot * Math.PI) / 180;
+      const cosR = Math.cos(R), sinR = Math.sin(R);
       return [
-        w / 2 + pan.x + (lng - clng) * nmPerDegLng * pxPerNm,
-        h / 2 + pan.y - (lat - clat) * nmPerDegLat * pxPerNm,
+        w / 2 + pan.x + (u * cosR + v * sinR),
+        h / 2 + pan.y + (-u * sinR + v * cosR),
       ];
     },
-    [eng, rangeNm, pan]
+    [eng, rangeNm, pan, rot]
   );
 
   // inverso de project: pixel de pantalla -> [lng, lat]
@@ -588,12 +593,18 @@ export default function SimuladorPage() {
       const nmPerDegLat = 60;
       const nmPerDegLng = 60 * Math.cos((clat * Math.PI) / 180);
       const pxPerNm = Math.min(w, h) / (rangeNm * 2);
+      const R = (rot * Math.PI) / 180;
+      const cosR = Math.cos(R), sinR = Math.sin(R);
+      const up = px - w / 2 - pan.x;
+      const vp = py - h / 2 - pan.y;
+      const u = up * cosR - vp * sinR; // deshace la rotación
+      const v = up * sinR + vp * cosR;
       return [
-        clng + (px - w / 2 - pan.x) / (nmPerDegLng * pxPerNm),
-        clat - (py - h / 2 - pan.y) / (nmPerDegLat * pxPerNm),
+        clng + u / (nmPerDegLng * pxPerNm),
+        clat - v / (nmPerDegLat * pxPerNm),
       ];
     },
-    [eng, rangeNm, pan]
+    [eng, rangeNm, pan, rot]
   );
 
   // distancia (NM) y marcación verdadera (°) entre dos puntos [lng,lat]
@@ -619,39 +630,48 @@ export default function SimuladorPage() {
     const [cx, cy] = [w / 2 + pan.x, h / 2 + pan.y];
     const pxPerNm = Math.min(w, h) / (rangeNm * 2);
 
-    // grilla geográfica (meridianos/paralelos) — capa cartográfica
+    // grilla geográfica (meridianos/paralelos) — capa cartográfica (rotación-correcta)
     if (showGrid) {
       const [gclng, gclat] = eng.scenario.center;
       const nmLat = 60;
       const nmLng = 60 * Math.cos((gclat * Math.PI) / 180);
-      const invLng = (px: number) => gclng + (px - cx) / (nmLng * pxPerNm);
-      const invLat = (py: number) => gclat - (py - cy) / (nmLat * pxPerNm);
-      const spanDeg = h / pxPerNm / nmLat; // grados visibles en vertical
+      const Rg = (rot * Math.PI) / 180;
+      const cosRg = Math.cos(Rg), sinRg = Math.sin(Rg);
+      const inv = (px: number, py: number): [number, number] => {
+        const up = px - cx;
+        const vp = py - cy;
+        const u = up * cosRg - vp * sinRg;
+        const v = up * sinRg + vp * cosRg;
+        return [gclng + u / (nmLng * pxPerNm), gclat - v / (nmLat * pxPerNm)];
+      };
+      const corners = [inv(0, 0), inv(w, 0), inv(0, h), inv(w, h)];
+      const lngs = corners.map((c) => c[0]);
+      const lats = corners.map((c) => c[1]);
+      const lngMin = Math.min(...lngs), lngMax = Math.max(...lngs);
+      const latMin = Math.min(...lats), latMax = Math.max(...lats);
       const nice = [0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5];
-      const step = nice.find((s) => spanDeg / s <= 8) ?? 5;
-      const lngMin = invLng(0);
-      const lngMax = invLng(w);
-      const latMin = invLat(h);
-      const latMax = invLat(0);
+      const step = nice.find((s) => (latMax - latMin) / s <= 10) ?? 5;
       ctx.strokeStyle = 'rgba(70,110,90,.28)';
       ctx.fillStyle = 'rgba(110,150,130,.55)';
       ctx.lineWidth = 1;
       ctx.font = '9px monospace';
       for (let lng = Math.ceil(lngMin / step) * step; lng <= lngMax; lng += step) {
-        const [px] = project(lng, gclat, w, h);
+        const [ax, ay] = project(lng, latMin, w, h);
+        const [bx, by] = project(lng, latMax, w, h);
         ctx.beginPath();
-        ctx.moveTo(px, 0);
-        ctx.lineTo(px, h);
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(bx, by);
         ctx.stroke();
-        ctx.fillText(`${lng.toFixed(2)}°`, px + 2, 10);
+        ctx.fillText(`${lng.toFixed(2)}°`, bx + 2, by + 9);
       }
       for (let lat = Math.ceil(latMin / step) * step; lat <= latMax; lat += step) {
-        const [, py] = project(gclng, lat, w, h);
+        const [ax, ay] = project(lngMin, lat, w, h);
+        const [bx, by] = project(lngMax, lat, w, h);
         ctx.beginPath();
-        ctx.moveTo(0, py);
-        ctx.lineTo(w, py);
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(bx, by);
         ctx.stroke();
-        ctx.fillText(`${lat.toFixed(2)}°`, 2, py - 2);
+        ctx.fillText(`${lat.toFixed(2)}°`, ax + 2, ay - 2);
       }
     }
 
@@ -765,8 +785,11 @@ export default function SimuladorPage() {
       if (showVectors && tr.speedKt > 0) {
         // vector segmentado: un trazo por minuto, orientado al curso real (dirección de vuelo)
         const course = courseFromHist(tr.history, tr.lng, tr.lat, tr.hdg);
-        const dirx = Math.sin((course * Math.PI) / 180);
-        const diry = -Math.cos((course * Math.PI) / 180);
+        const nx = Math.sin((course * Math.PI) / 180);
+        const ny = -Math.cos((course * Math.PI) / 180);
+        const Rv = (rot * Math.PI) / 180; // rotar el vector con la presentación
+        const dirx = nx * Math.cos(Rv) + ny * Math.sin(Rv);
+        const diry = -nx * Math.sin(Rv) + ny * Math.cos(Rv);
         const minPx = (tr.speedKt / 60) * pxPerNm; // px por minuto
         ctx.strokeStyle = col;
         ctx.lineWidth = 1.4;
@@ -868,10 +891,11 @@ export default function SimuladorPage() {
     for (const r of rbls) drawRbl(r.a, r.b, false);
     if (rblPend.current && cursorLL) drawRbl(rblPend.current, { kind: 'pt', ll: cursorLL }, true);
 
-    // HUD inferior con la HORA UTC + escenario + indicador de grabación (queda en el video)
+    // HUD inferior con la HORA UTC + escenario + orientación + indicador de grabación (queda en el video)
     ctx.font = 'bold 12px monospace';
     ctx.fillStyle = '#9fe3c0';
-    ctx.fillText(`${new Date().toISOString().slice(11, 19)}Z   ${eng.scenario.name}`, 12, h - 12);
+    const oriTxt = rot === 0 ? 'N-UP' : `ORI ${String(rot).padStart(3, '0')}°`;
+    ctx.fillText(`${new Date().toISOString().slice(11, 19)}Z   ${eng.scenario.name}   ${oriTxt}`, 12, h - 12);
     if (recording) {
       ctx.fillStyle = RED;
       ctx.beginPath();
@@ -879,7 +903,36 @@ export default function SimuladorPage() {
       ctx.fill();
       ctx.fillText('REC', 28, h - 26);
     }
-  }, [eng, project, rangeNm, pan, showLabels, showZones, showTrails, rings, selected, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont, playAlarm, recording]);
+
+    // rosa de Norte (apunta al norte verdadero según la orientación de la presentación)
+    {
+      const Rn = (rot * Math.PI) / 180;
+      const nxs = -Math.sin(Rn); // dirección de pantalla del norte verdadero
+      const nys = -Math.cos(Rn);
+      const ox = w - 34;
+      const oy = 40;
+      const L = 18;
+      ctx.strokeStyle = '#9fe3c0';
+      ctx.fillStyle = '#9fe3c0';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(ox - nxs * L, oy - nys * L);
+      ctx.lineTo(ox + nxs * L, oy + nys * L);
+      ctx.stroke();
+      // punta de flecha en el extremo norte
+      const tipx = ox + nxs * L;
+      const tipy = oy + nys * L;
+      const ang = Math.atan2(nys, nxs);
+      ctx.beginPath();
+      ctx.moveTo(tipx, tipy);
+      ctx.lineTo(tipx - 6 * Math.cos(ang - 0.4), tipy - 6 * Math.sin(ang - 0.4));
+      ctx.lineTo(tipx - 6 * Math.cos(ang + 0.4), tipy - 6 * Math.sin(ang + 0.4));
+      ctx.closePath();
+      ctx.fill();
+      ctx.font = 'bold 11px monospace';
+      ctx.fillText('N', tipx - 3 + nxs * 8, tipy + 4 + nys * 8);
+    }
+  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, showTrails, rings, selected, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont, playAlarm, recording]);
 
   // re-vincular cuando el canvas aparece tras login/lobby (auth y mode cambian el árbol)
   useEffect(() => {
@@ -989,10 +1042,11 @@ export default function SimuladorPage() {
     const nmPerDegLat = 60;
     const nmPerDegLng = 60 * Math.cos((clat * Math.PI) / 180);
     const pxPerNm = Math.min(cv.width, cv.height) / (rangeNm * 2);
-    setPan({
-      x: -(tr.lng - clng) * nmPerDegLng * pxPerNm,
-      y: (tr.lat - clat) * nmPerDegLat * pxPerNm,
-    });
+    const u = (tr.lng - clng) * nmPerDegLng * pxPerNm;
+    const v = -(tr.lat - clat) * nmPerDegLat * pxPerNm;
+    const R = (rot * Math.PI) / 180;
+    const cosR = Math.cos(R), sinR = Math.sin(R);
+    setPan({ x: -(u * cosR + v * sinR), y: -(-u * sinR + v * cosR) });
   };
   const centerSelected = () => {
     if (!selected) return;
@@ -1479,6 +1533,16 @@ export default function SimuladorPage() {
                   placeholder="C/S" style={{ ...bevelIn, background: '#000', color: GREEN, width: 96 }}
                   className="px-1 text-[10px] uppercase" />
                 <MB label="IR" onClick={doFinder} />
+              </div>
+              <div className="text-[#7aa] tracking-wider pt-1">ORIENTACIÓN</div>
+              <div className="flex items-center gap-1 flex-wrap">
+                <MB label="N-UP" active={rot === 0} onClick={() => setRot(0)} />
+                <MB label="−15" onClick={() => setRot((r) => (r + 345) % 360)} />
+                <MB label="+15" onClick={() => setRot((r) => (r + 15) % 360)} />
+                <input type="number" value={rot}
+                  onChange={(e) => setRot((((+e.target.value % 360) + 360) % 360))}
+                  style={{ ...bevelIn, background: '#000', color: GREEN, width: 50 }} className="px-1 text-[10px]" />
+                <span className="text-[#888]">° arriba</span>
               </div>
             </div>
           </Win>
