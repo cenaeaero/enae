@@ -126,6 +126,27 @@ function computeConflicts(tracks: ConflictTrack[], zones: ConflictZone[], horizo
       if (best) redLines.push({ from: [tr.lng, tr.lat], to: best });
     }
   }
+  // incursión en zonas prohibida / restringida / peligrosa
+  const restr = zones.filter((z) => z.kind === 'PROHIBITED' || z.kind === 'RESTRICTED' || z.kind === 'DANGER');
+  for (const tr of flying) {
+    for (const z of restr) {
+      if (pointInPoly([tr.lng, tr.lat], z.ring)) {
+        add(tr.callsign, `INCURSIÓN ${z.id ?? z.name}`);
+        continue;
+      }
+      let near = false; // prefiltro barato: sólo predecir si la zona está cerca (<10 NM)
+      for (const v of z.ring) { if (distMeters([tr.lng, tr.lat], v) < 18520) { near = true; break; } }
+      if (!near) continue;
+      for (let t = STEP; t <= H; t += STEP) {
+        const p = predictPos(tr, t, tr.crs);
+        if (pointInPoly(p, z.ring)) {
+          add(tr.callsign, `ENTRA ${z.id ?? z.name} ${t}s`);
+          redLines.push({ from: [tr.lng, tr.lat], to: p });
+          break;
+        }
+      }
+    }
+  }
   return { warnings, redLines };
 }
 
@@ -269,8 +290,8 @@ export default function SimuladorPage() {
   // instructor: alta manual de zona (dibujo de vértices o círculo)
   const [zoneDrawing, setZoneDrawing] = useState(false);
   const [zonePts, setZonePts] = useState<LL[]>([]);
-  const [zoneForm, setZoneForm] = useState<{ name: string; floor: number; ceiling: number; kind: Zone['kind']; radiusM: number }>(
-    { name: '', floor: 0, ceiling: 120, kind: 'SEGREGATED', radiusM: 1000 }
+  const [zoneForm, setZoneForm] = useState<{ name: string; floor: number; ceiling: number; kind: Zone['kind']; radiusNm: number }>(
+    { name: '', floor: 0, ceiling: 120, kind: 'SEGREGATED', radiusNm: 1 }
   );
   const [dms, setDms] = useState({ latD: 33, latM: 0, latS: 0, latH: 'S', lngD: 70, lngM: 0, lngS: 0, lngH: 'W' });
   const [paused, setPaused] = useState(true);
@@ -707,9 +728,8 @@ export default function SimuladorPage() {
       for (const z of eng.scenario.zones) {
         if (!zoneKinds[z.kind as keyof typeof zoneKinds]) continue; // capa de tipo de zona oculta
         const col = z.kind === 'PROHIBITED' ? RED : z.kind === 'DANGER' ? '#ff8c00' : z.kind === 'RESTRICTED' ? AMBER : CYAN;
-        const dash = z.kind === 'SEGREGATED' ? [] : z.kind === 'RESTRICTED' ? [2, 3] : z.kind === 'DANGER' ? [3, 3] : [6, 4];
         ctx.strokeStyle = col;
-        ctx.setLineDash(dash);
+        ctx.setLineDash([]); // línea continua para todas las zonas
         ctx.lineWidth = 1.2;
         ctx.beginPath();
         z.ring.forEach(([lng, lat], i) => {
@@ -1127,8 +1147,9 @@ export default function SimuladorPage() {
     const cv = canvasRef.current;
     if (!cv) return;
     const [clng, clat] = unproject(cv.width / 2, cv.height / 2, cv.width, cv.height);
-    const rDegLat = zoneForm.radiusM / 111320;
-    const rDegLng = zoneForm.radiusM / (111320 * Math.cos((clat * Math.PI) / 180));
+    const rM = zoneForm.radiusNm * 1852; // NM -> m
+    const rDegLat = rM / 111320;
+    const rDegLng = rM / (111320 * Math.cos((clat * Math.PI) / 180));
     const ring: LL[] = [];
     for (let i = 0; i < 24; i++) {
       const a = (i / 24) * 2 * Math.PI;
@@ -1142,9 +1163,11 @@ export default function SimuladorPage() {
   };
   // agrega un vértice ingresando coordenadas en Grados/Minutos/Segundos
   const addDmsVertex = () => {
-    const lat = (dms.latD + dms.latM / 60 + dms.latS / 3600) * (dms.latH === 'S' ? -1 : 1);
-    const lng = (dms.lngD + dms.lngM / 60 + dms.lngS / 3600) * (dms.lngH === 'W' ? -1 : 1);
-    setZonePts((p) => [...p, [lng, lat]]);
+    const lat = ((Number(dms.latD) || 0) + (Number(dms.latM) || 0) / 60 + (Number(dms.latS) || 0) / 3600) * (dms.latH === 'S' ? -1 : 1);
+    const lng = ((Number(dms.lngD) || 0) + (Number(dms.lngM) || 0) / 60 + (Number(dms.lngS) || 0) / 3600) * (dms.lngH === 'W' ? -1 : 1);
+    if (!isFinite(lat) || !isFinite(lng)) return;
+    setZonePts((p) => [...p, [lng, lat] as LL]);
+    centerOn({ lng, lat }); // recentra para ver el vértice ingresado
   };
   // importa las zonas reales publicadas por NOTAM (snapshot de uascontrol.io)
   const importRealZones = async () => {
@@ -1687,75 +1710,88 @@ export default function SimuladorPage() {
         )}
 
         {wins.zonemaker.open && (
-          <Win title="ALTA DE ZONA (INSTRUCTOR)" x={wins.zonemaker.x} y={wins.zonemaker.y} w={300}
+          <Win title="ALTA DE ZONA (INSTRUCTOR)" x={wins.zonemaker.x} y={wins.zonemaker.y} w={500}
             onClose={() => setWin('zonemaker', { open: false })}
             onDrag={(x, y) => setWin('zonemaker', { x, y })}>
-            <div style={{ background: '#000' }} className="font-mono text-[10px] p-1.5 space-y-1 text-[#cbd5e1]">
-              <div className="flex items-center gap-1">
-                <span className="text-[#888] w-10">NOMBRE</span>
-                <input value={zoneForm.name} onChange={(e) => setZoneForm((f) => ({ ...f, name: e.target.value.toUpperCase() }))}
-                  placeholder="SEGREGADA X" style={{ ...bevelIn, background: '#000', color: GREEN }} className="flex-1 px-1 text-[10px] uppercase" />
+            <div style={{ background: '#000' }} className="font-mono text-[10px] p-2 text-[#cbd5e1]">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                {/* ── columna izquierda ── */}
+                <div className="space-y-1">
+                  <div className="text-[#7aa] tracking-wider">DATOS DE LA ZONA</div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[#888] w-10">NOMBRE</span>
+                    <input value={zoneForm.name} onChange={(e) => setZoneForm((f) => ({ ...f, name: e.target.value.toUpperCase() }))}
+                      placeholder="SEGREGADA X" style={{ ...bevelIn, background: '#000', color: GREEN }} className="flex-1 px-1 text-[10px] uppercase" />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[#888] w-10">TIPO</span>
+                    <select value={zoneForm.kind} onChange={(e) => setZoneForm((f) => ({ ...f, kind: e.target.value as Zone['kind'] }))}
+                      style={{ ...bevelIn, background: '#000', color: GREEN }} className="flex-1 px-1 text-[10px]">
+                      <option value="SEGREGATED">SEGREGADA</option>
+                      <option value="PROHIBITED">PROHIBIDA</option>
+                      <option value="RESTRICTED">RESTRINGIDA</option>
+                      <option value="DANGER">PELIGROSA</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[#888] w-10">PISO</span>
+                    <input type="number" value={zoneForm.floor} onChange={(e) => setZoneForm((f) => ({ ...f, floor: +e.target.value }))}
+                      style={{ ...bevelIn, background: '#000', color: GREEN, width: 50 }} className="px-1 text-[10px]" />
+                    <span className="text-[#888]">TECHO</span>
+                    <input type="number" value={zoneForm.ceiling} onChange={(e) => setZoneForm((f) => ({ ...f, ceiling: +e.target.value }))}
+                      style={{ ...bevelIn, background: '#000', color: GREEN, width: 50 }} className="px-1 text-[10px]" />
+                    <span className="text-[#888]">M</span>
+                  </div>
+                  <div className="text-[#7aa] tracking-wider pt-1">DIBUJAR EN RADAR</div>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <MB label={zoneDrawing ? 'DIBUJANDO…' : '▶ DIBUJAR'} active={zoneDrawing} onClick={() => setZoneDrawing((v) => !v)} />
+                    <span className="text-[#888]">vért: {zonePts.length}</span>
+                    <MB label="DESHACER" onClick={() => setZonePts((p) => p.slice(0, -1))} />
+                    <MB label="LIMPIAR" onClick={() => setZonePts([])} />
+                  </div>
+                  <div className="text-[#7aa] tracking-wider pt-1">CÍRCULO (CENTRO PANTALLA)</div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[#888]">RADIO</span>
+                    <input type="number" step="0.1" value={zoneForm.radiusNm} onChange={(e) => setZoneForm((f) => ({ ...f, radiusNm: +e.target.value }))}
+                      style={{ ...bevelIn, background: '#000', color: GREEN, width: 56 }} className="px-1 text-[10px]" />
+                    <span className="text-[#888]">NM</span>
+                    <MB label="CREAR CÍRCULO" onClick={createCircleZone} />
+                  </div>
+                </div>
+                {/* ── columna derecha ── */}
+                <div className="space-y-1">
+                  <div className="text-[#7aa] tracking-wider">COORDENADAS GMS</div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[#888] w-7">LAT</span>
+                    <input type="number" value={dms.latD} onChange={(e) => setDms((s) => ({ ...s, latD: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 32 }} className="px-1 text-[10px]" />
+                    <input type="number" value={dms.latM} onChange={(e) => setDms((s) => ({ ...s, latM: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 28 }} className="px-1 text-[10px]" />
+                    <input type="number" value={dms.latS} onChange={(e) => setDms((s) => ({ ...s, latS: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 40 }} className="px-1 text-[10px]" />
+                    <select value={dms.latH} onChange={(e) => setDms((s) => ({ ...s, latH: e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN }} className="text-[10px]"><option>S</option><option>N</option></select>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[#888] w-7">LNG</span>
+                    <input type="number" value={dms.lngD} onChange={(e) => setDms((s) => ({ ...s, lngD: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 32 }} className="px-1 text-[10px]" />
+                    <input type="number" value={dms.lngM} onChange={(e) => setDms((s) => ({ ...s, lngM: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 28 }} className="px-1 text-[10px]" />
+                    <input type="number" value={dms.lngS} onChange={(e) => setDms((s) => ({ ...s, lngS: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 40 }} className="px-1 text-[10px]" />
+                    <select value={dms.lngH} onChange={(e) => setDms((s) => ({ ...s, lngH: e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN }} className="text-[10px]"><option>W</option><option>E</option></select>
+                  </div>
+                  <div><MB label="+ AGREGAR VÉRTICE" onClick={addDmsVertex} /></div>
+                  <div className="text-[9px] text-[#666]">Grados/min/seg + hemisferio. Suma vértices y luego CREAR ZONA.</div>
+                  <div className="pt-1"><MB label="IMPORTAR REALES (NOTAM)" onClick={importRealZones} /></div>
+                  <div className="text-[9px] text-[#666]">145 zonas DGAC reales con límites verticales del NOTAM.</div>
+                </div>
               </div>
-              <div className="flex items-center gap-1">
-                <span className="text-[#888] w-10">TIPO</span>
-                <select value={zoneForm.kind} onChange={(e) => setZoneForm((f) => ({ ...f, kind: e.target.value as Zone['kind'] }))}
-                  style={{ ...bevelIn, background: '#000', color: GREEN }} className="flex-1 px-1 text-[10px]">
-                  <option value="SEGREGATED">SEGREGADA</option>
-                  <option value="PROHIBITED">PROHIBIDA</option>
-                  <option value="RESTRICTED">RESTRINGIDA</option>
-                  <option value="DANGER">PELIGROSA</option>
-                </select>
+              {/* ── acción crear (ancho completo) ── */}
+              <div className="flex items-center gap-2 mt-2 pt-1 border-t border-[#333]">
+                <MB label="✚ CREAR ZONA" active={zonePts.length >= 3} onClick={() => commitZone(zonePts)} />
+                <span className="text-[9px] text-[#666]">Necesita ≥3 vértices (dibujo o GMS).</span>
               </div>
-              <div className="flex items-center gap-1">
-                <span className="text-[#888] w-10">PISO</span>
-                <input type="number" value={zoneForm.floor} onChange={(e) => setZoneForm((f) => ({ ...f, floor: +e.target.value }))}
-                  style={{ ...bevelIn, background: '#000', color: GREEN, width: 56 }} className="px-1 text-[10px]" />
-                <span className="text-[#888]">TECHO</span>
-                <input type="number" value={zoneForm.ceiling} onChange={(e) => setZoneForm((f) => ({ ...f, ceiling: +e.target.value }))}
-                  style={{ ...bevelIn, background: '#000', color: GREEN, width: 56 }} className="px-1 text-[10px]" />
-                <span className="text-[#888]">M</span>
-              </div>
-              <div className="text-[#7aa] tracking-wider pt-1">DIBUJAR POLÍGONO</div>
-              <div className="flex items-center gap-1 flex-wrap">
-                <MB label={zoneDrawing ? 'DIBUJANDO…' : '▶ DIBUJAR'} active={zoneDrawing} onClick={() => setZoneDrawing((v) => !v)} />
-                <span className="text-[#888]">vért: {zonePts.length}</span>
-                <MB label="DESHACER" onClick={() => setZonePts((p) => p.slice(0, -1))} />
-                <MB label="LIMPIAR" onClick={() => setZonePts([])} />
-                <MB label="CREAR" active={zonePts.length >= 3} onClick={() => commitZone(zonePts)} />
-              </div>
-              <div className="text-[9px] text-[#666]">Clic en el radar para agregar vértices (≥3) y luego CREAR.</div>
-              <div className="text-[#7aa] tracking-wider pt-1">CÍRCULO (CENTRO DE PANTALLA)</div>
-              <div className="flex items-center gap-1">
-                <span className="text-[#888]">RADIO</span>
-                <input type="number" value={zoneForm.radiusM} onChange={(e) => setZoneForm((f) => ({ ...f, radiusM: +e.target.value }))}
-                  style={{ ...bevelIn, background: '#000', color: GREEN, width: 64 }} className="px-1 text-[10px]" />
-                <span className="text-[#888]">m</span>
-                <MB label="CREAR CÍRCULO" onClick={createCircleZone} />
-              </div>
-              <div className="text-[#7aa] tracking-wider pt-1">COORDENADAS GMS (vértice)</div>
-              <div className="flex items-center gap-1">
-                <span className="text-[#888] w-7">LAT</span>
-                <input type="number" value={dms.latD} onChange={(e) => setDms((s) => ({ ...s, latD: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 34 }} className="px-1 text-[10px]" />
-                <input type="number" value={dms.latM} onChange={(e) => setDms((s) => ({ ...s, latM: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 30 }} className="px-1 text-[10px]" />
-                <input type="number" value={dms.latS} onChange={(e) => setDms((s) => ({ ...s, latS: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 42 }} className="px-1 text-[10px]" />
-                <select value={dms.latH} onChange={(e) => setDms((s) => ({ ...s, latH: e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN }} className="text-[10px]"><option>S</option><option>N</option></select>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-[#888] w-7">LNG</span>
-                <input type="number" value={dms.lngD} onChange={(e) => setDms((s) => ({ ...s, lngD: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 34 }} className="px-1 text-[10px]" />
-                <input type="number" value={dms.lngM} onChange={(e) => setDms((s) => ({ ...s, lngM: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 30 }} className="px-1 text-[10px]" />
-                <input type="number" value={dms.lngS} onChange={(e) => setDms((s) => ({ ...s, lngS: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 42 }} className="px-1 text-[10px]" />
-                <select value={dms.lngH} onChange={(e) => setDms((s) => ({ ...s, lngH: e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN }} className="text-[10px]"><option>W</option><option>E</option></select>
-                <MB label="+ VÉRT" onClick={addDmsVertex} />
-              </div>
-              <div className="text-[9px] text-[#666]">Grados/min/seg. Agregá vértices y luego CREAR (arriba).</div>
-              <div className="pt-1"><MB label="IMPORTAR REALES (NOTAM)" onClick={importRealZones} /></div>
-              <div className="text-[#7aa] tracking-wider pt-1">ZONAS ACTIVAS</div>
-              <div className="max-h-[90px] overflow-y-auto space-y-0.5">
+              <div className="text-[#7aa] tracking-wider pt-2">ZONAS ACTIVAS ({eng.scenario.zones.length})</div>
+              <div className="max-h-[110px] overflow-y-auto grid grid-cols-2 gap-x-3">
                 {eng.scenario.zones.map((z) => (
                   <div key={z.id} className="flex items-center justify-between gap-1">
-                    <span className="truncate">{z.name} <span className="text-[#666]">{z.floor}-{z.ceiling}M</span></span>
-                    <button onClick={() => deleteZone(z.id)} style={bevelOut} className="px-1 text-[9px]" >✕</button>
+                    <span className="truncate">{z.name} <span className="text-[#666]">{z.vlimit || `${z.floor}-${z.ceiling}M`}</span></span>
+                    <button onClick={() => deleteZone(z.id)} style={bevelOut} className="px-1 text-[9px]">✕</button>
                   </div>
                 ))}
               </div>
