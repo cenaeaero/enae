@@ -5,7 +5,7 @@
 // arrastrables estilo consola, barra superior de estado y botonera densa inferior.
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { SimEngine, type TrackState } from '@/lib/sim/engine';
+import { SimEngine, type TrackState, type Zone } from '@/lib/sim/engine';
 import { SCENARIOS } from '@/lib/sim/scenarios';
 import {
   simDb, createSession, joinSession, publishState, subscribeState,
@@ -235,7 +235,7 @@ function Win({
   );
 }
 
-type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone' | 'eval' | 'aftn' | 'layers';
+type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone' | 'eval' | 'aftn' | 'layers' | 'zonemaker';
 
 interface EvalRow {
   position_id: string | null;
@@ -265,6 +265,12 @@ export default function SimuladorPage() {
   const [labelMode, setLabelMode] = useState(1); // 0 compacta, 1 estándar, 2 completa
   const [labelFont, setLabelFont] = useState(11); // px etiqueta de pista
   const [finder, setFinder] = useState(''); // buscador de pista por C/S
+  // instructor: alta manual de zona (dibujo de vértices o círculo)
+  const [zoneDrawing, setZoneDrawing] = useState(false);
+  const [zonePts, setZonePts] = useState<LL[]>([]);
+  const [zoneForm, setZoneForm] = useState<{ name: string; floor: number; ceiling: number; kind: Zone['kind']; radiusM: number }>(
+    { name: '', floor: 0, ceiling: 120, kind: 'SEGREGATED', radiusM: 1000 }
+  );
   const [paused, setPaused] = useState(true);
   const [speed, setSpeed] = useState(1);
   const [showLabels, setShowLabels] = useState(true);
@@ -284,6 +290,7 @@ export default function SimuladorPage() {
     eval: { x: 380, y: 200, open: false },
     aftn: { x: 420, y: 120, open: false },
     layers: { x: 1120, y: 120, open: false },
+    zonemaker: { x: 80, y: 120, open: false },
   });
   const [evalRows, setEvalRows] = useState<EvalRow[]>([]);
   const [evalBusy, setEvalBusy] = useState(false);
@@ -487,7 +494,7 @@ export default function SimuladorPage() {
       clearInterval(iv);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeNm, pan, rot, showLabels, showZones, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont]);
+  }, [rangeNm, pan, rot, showLabels, showZones, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont, zonePts]);
 
   // alumno: recibir estado por Realtime
   useEffect(() => {
@@ -892,6 +899,30 @@ export default function SimuladorPage() {
     for (const r of rbls) drawRbl(r.a, r.b, false);
     if (rblPend.current && cursorLL) drawRbl(rblPend.current, { kind: 'pt', ll: cursorLL }, true);
 
+    // zona en curso (instructor dibujando vértices)
+    if (zonePts.length) {
+      ctx.strokeStyle = CYAN;
+      ctx.fillStyle = CYAN;
+      ctx.lineWidth = 1.3;
+      ctx.setLineDash([5, 3]);
+      ctx.beginPath();
+      zonePts.forEach((pt, i) => {
+        const [px, py] = project(pt[0], pt[1], w, h);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      if (zonePts.length > 2) ctx.closePath();
+      ctx.stroke();
+      ctx.setLineDash([]);
+      zonePts.forEach((pt, i) => {
+        const [px, py] = project(pt[0], pt[1], w, h);
+        ctx.beginPath();
+        ctx.arc(px, py, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillText(String(i + 1), px + 5, py - 4);
+      });
+    }
+
     // HUD inferior con la HORA UTC + escenario + orientación + indicador de grabación (queda en el video)
     ctx.font = 'bold 12px monospace';
     ctx.fillStyle = '#9fe3c0';
@@ -933,7 +964,7 @@ export default function SimuladorPage() {
       ctx.font = 'bold 11px monospace';
       ctx.fillText('N', tipx - 3 + nxs * 8, tipy + 4 + nys * 8);
     }
-  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, showTrails, rings, selected, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont, playAlarm, recording]);
+  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, showTrails, rings, selected, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont, playAlarm, recording, zonePts]);
 
   // re-vincular cuando el canvas aparece tras login/lobby (auth y mode cambian el árbol)
   useEffect(() => {
@@ -998,6 +1029,10 @@ export default function SimuladorPage() {
     const rect = cv.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
+    if (zoneDrawing) {
+      setZonePts((p) => [...p, unproject(mx, my, cv.width, cv.height)]);
+      return;
+    }
     if (rblMode) {
       const cs = findTrackAt(mx, my);
       const end: RblEnd = cs ? { kind: 'trk', cs } : { kind: 'pt', ll: unproject(mx, my, cv.width, cv.height) };
@@ -1065,6 +1100,41 @@ export default function SimuladorPage() {
     }
     setSelected(hit.callsign);
     centerOn(hit);
+  };
+
+  // ── instructor: alta manual de zona (vértices o círculo) ──
+  const commitZone = (ring: LL[]) => {
+    if (ring.length < 3) return;
+    const z: Zone = {
+      id: 'ZM' + (eng.scenario.zones.length + 1),
+      name: zoneForm.name.trim() || 'ZONA MANUAL',
+      ring: [...ring, ring[0]],
+      floor: zoneForm.floor,
+      ceiling: zoneForm.ceiling,
+      kind: zoneForm.kind,
+    };
+    eng.scenario.zones.push(z);
+    eng.addLog(`ZONA CREADA: ${z.name} (${z.kind}) ${z.floor}-${z.ceiling}M`, 'INFO');
+    setZonePts([]);
+    setZoneDrawing(false);
+    force((x) => x + 1);
+  };
+  const createCircleZone = () => {
+    const cv = canvasRef.current;
+    if (!cv) return;
+    const [clng, clat] = unproject(cv.width / 2, cv.height / 2, cv.width, cv.height);
+    const rDegLat = zoneForm.radiusM / 111320;
+    const rDegLng = zoneForm.radiusM / (111320 * Math.cos((clat * Math.PI) / 180));
+    const ring: LL[] = [];
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * 2 * Math.PI;
+      ring.push([clng + rDegLng * Math.cos(a), clat + rDegLat * Math.sin(a)]);
+    }
+    commitZone(ring);
+  };
+  const deleteZone = (id: string) => {
+    eng.scenario.zones = eng.scenario.zones.filter((z) => z.id !== id);
+    force((x) => x + 1);
   };
 
   // lobby
@@ -1586,6 +1656,65 @@ export default function SimuladorPage() {
           </Win>
         )}
 
+        {wins.zonemaker.open && (
+          <Win title="ALTA DE ZONA (INSTRUCTOR)" x={wins.zonemaker.x} y={wins.zonemaker.y} w={300}
+            onClose={() => setWin('zonemaker', { open: false })}
+            onDrag={(x, y) => setWin('zonemaker', { x, y })}>
+            <div style={{ background: '#000' }} className="font-mono text-[10px] p-1.5 space-y-1 text-[#cbd5e1]">
+              <div className="flex items-center gap-1">
+                <span className="text-[#888] w-10">NOMBRE</span>
+                <input value={zoneForm.name} onChange={(e) => setZoneForm((f) => ({ ...f, name: e.target.value.toUpperCase() }))}
+                  placeholder="SEGREGADA X" style={{ ...bevelIn, background: '#000', color: GREEN }} className="flex-1 px-1 text-[10px] uppercase" />
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-[#888] w-10">TIPO</span>
+                <select value={zoneForm.kind} onChange={(e) => setZoneForm((f) => ({ ...f, kind: e.target.value as Zone['kind'] }))}
+                  style={{ ...bevelIn, background: '#000', color: GREEN }} className="flex-1 px-1 text-[10px]">
+                  <option value="SEGREGATED">SEGREGADA</option>
+                  <option value="PROHIBITED">PROHIBIDA</option>
+                  <option value="RESTRICTED">RESTRINGIDA</option>
+                  <option value="DANGER">PELIGROSA</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-[#888] w-10">PISO</span>
+                <input type="number" value={zoneForm.floor} onChange={(e) => setZoneForm((f) => ({ ...f, floor: +e.target.value }))}
+                  style={{ ...bevelIn, background: '#000', color: GREEN, width: 56 }} className="px-1 text-[10px]" />
+                <span className="text-[#888]">TECHO</span>
+                <input type="number" value={zoneForm.ceiling} onChange={(e) => setZoneForm((f) => ({ ...f, ceiling: +e.target.value }))}
+                  style={{ ...bevelIn, background: '#000', color: GREEN, width: 56 }} className="px-1 text-[10px]" />
+                <span className="text-[#888]">M</span>
+              </div>
+              <div className="text-[#7aa] tracking-wider pt-1">DIBUJAR POLÍGONO</div>
+              <div className="flex items-center gap-1 flex-wrap">
+                <MB label={zoneDrawing ? 'DIBUJANDO…' : '▶ DIBUJAR'} active={zoneDrawing} onClick={() => setZoneDrawing((v) => !v)} />
+                <span className="text-[#888]">vért: {zonePts.length}</span>
+                <MB label="DESHACER" onClick={() => setZonePts((p) => p.slice(0, -1))} />
+                <MB label="LIMPIAR" onClick={() => setZonePts([])} />
+                <MB label="CREAR" active={zonePts.length >= 3} onClick={() => commitZone(zonePts)} />
+              </div>
+              <div className="text-[9px] text-[#666]">Clic en el radar para agregar vértices (≥3) y luego CREAR.</div>
+              <div className="text-[#7aa] tracking-wider pt-1">CÍRCULO (CENTRO DE PANTALLA)</div>
+              <div className="flex items-center gap-1">
+                <span className="text-[#888]">RADIO</span>
+                <input type="number" value={zoneForm.radiusM} onChange={(e) => setZoneForm((f) => ({ ...f, radiusM: +e.target.value }))}
+                  style={{ ...bevelIn, background: '#000', color: GREEN, width: 64 }} className="px-1 text-[10px]" />
+                <span className="text-[#888]">m</span>
+                <MB label="CREAR CÍRCULO" onClick={createCircleZone} />
+              </div>
+              <div className="text-[#7aa] tracking-wider pt-1">ZONAS ACTIVAS</div>
+              <div className="max-h-[90px] overflow-y-auto space-y-0.5">
+                {eng.scenario.zones.map((z) => (
+                  <div key={z.id} className="flex items-center justify-between gap-1">
+                    <span className="truncate">{z.name} <span className="text-[#666]">{z.floor}-{z.ceiling}M</span></span>
+                    <button onClick={() => deleteZone(z.id)} style={bevelOut} className="px-1 text-[9px]" >✕</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Win>
+        )}
+
         {wins.aftn.open && (
           <Win title="TERMINAL AFTN — EJERCICIO" x={wins.aftn.x} y={wins.aftn.y} w={460}
             onClose={() => setWin('aftn', { open: false })}
@@ -1784,6 +1913,9 @@ export default function SimuladorPage() {
           <MB label="SECTORS" active={wins.sectors.open} onClick={() => setWin('sectors', { open: !wins.sectors.open })} />
           <MB label="ZONE INFO" active={wins.zone.open} onClick={() => setWin('zone', { open: !wins.zone.open })} />
           <MB label={mode === 'student' ? 'ÓRDENES' : 'INSTRUCTOR'} active={wins.instructor.open} onClick={() => setWin('instructor', { open: !wins.instructor.open })} />
+          {(mode === 'instructor' || mode === 'local') && (
+            <MB label="ZONA+" active={wins.zonemaker.open} onClick={() => setWin('zonemaker', { open: !wins.zonemaker.open })} />
+          )}
           {mode === 'instructor' && <MB label="EVAL" active={wins.eval.open} onClick={runEval} />}
           <MB label="AFTN" active={wins.aftn.open} onClick={() => setWin('aftn', { open: !wins.aftn.open })}
             color={eng.msgs.some((m: SimMsg) => m.prio === 'FF' && !m.read) ? RED : undefined} />
