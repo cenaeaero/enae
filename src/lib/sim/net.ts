@@ -210,3 +210,40 @@ export async function countPositions(sessionId: string): Promise<number> {
     .eq('session_id', sessionId);
   return count ?? 0;
 }
+
+// ───────── Bases cartográficas y Ejercicios (persistencia) ─────────
+export interface SavedRow { id: string; name: string; created_at: string; base_name?: string | null }
+
+export async function saveBase(name: string, data: unknown): Promise<void> {
+  const { error } = await simDb().from('sim_bases').insert({ name, data });
+  if (error) throw error;
+}
+export async function listBases(): Promise<SavedRow[]> {
+  const { data } = await simDb().from('sim_bases').select('id,name,created_at').order('name');
+  return (data ?? []) as SavedRow[];
+}
+export async function loadBaseData(id: string): Promise<unknown> {
+  const { data, error } = await simDb().from('sim_bases').select('data').eq('id', id).single();
+  if (error) throw error;
+  return data?.data;
+}
+export async function deleteBase(id: string): Promise<void> {
+  await simDb().from('sim_bases').delete().eq('id', id);
+}
+
+export async function saveExercise(name: string, baseName: string | null, data: unknown): Promise<void> {
+  const { error } = await simDb().from('sim_exercises').insert({ name, base_name: baseName, data });
+  if (error) throw error;
+}
+export async function listExercises(): Promise<SavedRow[]> {
+  const { data } = await simDb().from('sim_exercises').select('id,name,base_name,created_at').order('name');
+  return (data ?? []) as SavedRow[];
+}
+export async function loadExerciseData(id: string): Promise<unknown> {
+  const { data, error } = await simDb().from('sim_exercises').select('data').eq('id', id).single();
+  if (error) throw error;
+  return data?.data;
+}
+export async function deleteExercise(id: string): Promise<void> {
+  await simDb().from('sim_exercises').delete().eq('id', id);
+}

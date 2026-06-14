@@ -119,3 +119,22 @@ create table if not exists sim_live_tracks (
 alter publication supabase_realtime add table sim_live_tracks;
 alter table sim_live_tracks enable row level security;
 create policy sim_live_tracks_all on sim_live_tracks for all using (true) with check (true);
+
+-- Bases cartográficas (Chile-2026, etc.) y Ejercicios (guion con horas) — persistencia
+create table if not exists sim_bases (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  data jsonb not null default '{}'::jsonb,   -- {center,rangeNm,coast,aerodromes,zones}
+  created_at timestamptz not null default now()
+);
+create table if not exists sim_exercises (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  base_name text,
+  data jsonb not null default '{}'::jsonb,   -- {zones(appearAt),flights,events}
+  created_at timestamptz not null default now()
+);
+alter table sim_bases enable row level security;
+alter table sim_exercises enable row level security;
+create policy sim_bases_all on sim_bases for all using (true) with check (true);
+create policy sim_exercises_all on sim_exercises for all using (true) with check (true);

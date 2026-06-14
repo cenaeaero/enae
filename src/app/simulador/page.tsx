@@ -5,12 +5,14 @@
 // arrastrables estilo consola, barra superior de estado y botonera densa inferior.
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { SimEngine, type TrackState, type Zone } from '@/lib/sim/engine';
+import { SimEngine, type TrackState, type Zone, type Scenario } from '@/lib/sim/engine';
 import { SCENARIOS } from '@/lib/sim/scenarios';
 import {
   simDb, createSession, joinSession, publishState, subscribeState,
   subscribeActions, logAction, logEvent, countPositions, fetchEvalData,
   subscribeLiveTracks,
+  saveBase, listBases, loadBaseData, saveExercise, listExercises, loadExerciseData,
+  type SavedRow,
 } from '@/lib/sim/net';
 import { certificadoPdf } from '@/lib/sim/certificado';
 import { supabase as enaeAuth } from '@/lib/supabase';
@@ -273,7 +275,15 @@ export default function SimuladorPage() {
   const borderRef = useRef<[number, number][][] | null>(null); // anillos [lng,lat] de Chile
   const [showAD, setShowAD] = useState(false); // aeródromos con protección de 3 NM
   const adRef = useRef<{ name: string; lng: number; lat: number }[] | null>(null);
-  const [baseSel, setBaseSel] = useState('chile-2026'); // base cartográfica seleccionada
+  const [baseSel, setBaseSel] = useState('chile-2026'); // base cartográfica incorporada
+  // persistencia de bases y ejercicios (Supabase)
+  const [basesList, setBasesList] = useState<SavedRow[]>([]);
+  const [exsList, setExsList] = useState<SavedRow[]>([]);
+  const [saveName, setSaveName] = useState('');
+  const [selBaseId, setSelBaseId] = useState('');
+  const [selExId, setSelExId] = useState('');
+  const [currentBaseName, setCurrentBaseName] = useState('');
+  const [persistMsg, setPersistMsg] = useState('');
   const [zoneKinds, setZoneKinds] = useState({ SEGREGATED: true, PROHIBITED: true, RESTRICTED: true, DANGER: true }); // visibilidad por tipo de zona
   const [showZoneLabels, setShowZoneLabels] = useState(true); // nombres/leyendas de zona
   const [altFilter, setAltFilter] = useState({ on: false, min: 0, max: 150 }); // filtro de banda de altitud (M AGL)
@@ -1065,6 +1075,13 @@ export default function SimuladorPage() {
       .catch(() => {});
   }, [showAD]);
 
+  // refrescar listas de bases/ejercicios guardados al abrir el hub (supervisor)
+  useEffect(() => {
+    if (mode === 'student' || !wins.exercise.open) return;
+    listBases().then(setBasesList).catch(() => {});
+    listExercises().then(setExsList).catch(() => {});
+  }, [mode, wins.exercise.open]);
+
   // pista más cercana al pixel (mx,my en coords de canvas) dentro de un radio
   const findTrackAt = (mx: number, my: number): string | null => {
     const cv = canvasRef.current;
@@ -1287,15 +1304,69 @@ export default function SimuladorPage() {
       eng.addLog('NO SE PUDO IMPORTAR ZONAS REALES', 'WARN');
     }
   };
-  // carga una base cartográfica completa (zonas + costa/frontera + aeródromos)
+  // carga una base cartográfica incorporada (zonas + costa/frontera + aeródromos)
   const loadBase = () => {
     if (baseSel === 'chile-2026') {
       importRealZones();
       setShowZones(true);
       setShowBorder(true);
       setShowAD(true);
+      setCurrentBaseName('CHILE-2026');
       eng.addLog('BASE CARTOGRÁFICA CARGADA: CHILE-2026', 'INFO');
     }
+  };
+
+  // ── persistencia en Supabase: bases (cartografía) y ejercicios (guion) ──
+  const refreshSaved = () => {
+    listBases().then(setBasesList).catch(() => {});
+    listExercises().then(setExsList).catch(() => {});
+  };
+  const isMan = (z: Zone) => z.id.startsWith('ZM'); // zonas creadas por el supervisor (ejercicio)
+  const saveBaseNow = async () => {
+    const nm = saveName.trim() || `BASE ${new Date().toISOString().slice(5, 16)}`;
+    try {
+      await saveBase(nm, {
+        center: eng.scenario.center, rangeNm,
+        coast: showBorder ? 'chile' : null, aerodromes: showAD,
+        zones: eng.scenario.zones.filter((z) => !isMan(z)),
+      });
+      setCurrentBaseName(nm); setPersistMsg(`Base guardada: ${nm}`); refreshSaved();
+    } catch { setPersistMsg('Error guardando base'); }
+  };
+  const loadBaseNow = async () => {
+    if (!selBaseId) return;
+    try {
+      const d = (await loadBaseData(selBaseId)) as { center?: [number, number]; rangeNm?: number; coast?: string | null; aerodromes?: boolean; zones?: Zone[] };
+      if (d.center) eng.scenario.center = d.center;
+      if (d.rangeNm) setRangeNm(d.rangeNm);
+      eng.scenario.zones = [...eng.scenario.zones.filter(isMan), ...(d.zones ?? [])];
+      setShowBorder(d.coast === 'chile'); setShowAD(!!d.aerodromes); setShowZones(true);
+      const nm = basesList.find((b) => b.id === selBaseId)?.name ?? '';
+      setCurrentBaseName(nm); setSelected(null); setPan({ x: 0, y: 0 }); setRot(0); force((x) => x + 1);
+      setPersistMsg(`Base cargada: ${nm}`);
+    } catch { setPersistMsg('Error cargando base'); }
+  };
+  const saveExerciseNow = async () => {
+    const nm = saveName.trim() || `EJ ${new Date().toISOString().slice(5, 16)}`;
+    try {
+      await saveExercise(nm, currentBaseName || null, {
+        zones: eng.scenario.zones.filter(isMan),
+        flights: eng.scenario.flights,
+        events: eng.scenario.events,
+      });
+      setPersistMsg(`Ejercicio guardado: ${nm}`); refreshSaved();
+    } catch { setPersistMsg('Error guardando ejercicio'); }
+  };
+  const loadExerciseNow = async () => {
+    if (!selExId) return;
+    try {
+      const d = (await loadExerciseData(selExId)) as { zones?: Zone[]; flights?: Scenario['flights']; events?: Scenario['events'] };
+      eng.scenario.flights = d.flights ?? [];
+      eng.scenario.events = d.events ?? [];
+      eng.scenario.zones = [...eng.scenario.zones.filter((z) => !isMan(z)), ...(d.zones ?? [])];
+      eng.reset(); setSelected(null); force((x) => x + 1);
+      setPersistMsg(`Ejercicio cargado: ${exsList.find((x) => x.id === selExId)?.name ?? ''}`);
+    } catch { setPersistMsg('Error cargando ejercicio'); }
   };
 
   // lobby
@@ -1908,7 +1979,33 @@ export default function SimuladorPage() {
                   <div className="text-[#666]">Sin elementos programados. Creá zonas con APARECE T+min o contingencias.</div>
                 )}
               </div>
-              <div className="text-[9px] text-[#666] pt-1">Próximo: editor de aeronaves (tripuladas/no) por hora y guardado de ejercicios en Supabase.</div>
+              <div className="text-[#7aa] tracking-wider pt-1">GUARDAR / CARGAR (SUPABASE)</div>
+              <div className="flex items-center gap-1">
+                <input value={saveName} onChange={(e) => setSaveName(e.target.value.toUpperCase())}
+                  placeholder="NOMBRE" style={{ ...bevelIn, background: '#000', color: GREEN }} className="flex-1 px-1 text-[10px] uppercase" />
+                <MB label="GUARDAR BASE" onClick={saveBaseNow} />
+                <MB label="GUARDAR EJ" onClick={saveExerciseNow} />
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-[#888] w-8">BASE</span>
+                <select value={selBaseId} onChange={(e) => setSelBaseId(e.target.value)}
+                  style={{ ...bevelIn, background: '#000', color: GREEN }} className="flex-1 px-1 text-[10px]">
+                  <option value="">— elegir base —</option>
+                  {basesList.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+                <MB label="CARGAR" onClick={loadBaseNow} />
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-[#888] w-8">EJER</span>
+                <select value={selExId} onChange={(e) => setSelExId(e.target.value)}
+                  style={{ ...bevelIn, background: '#000', color: GREEN }} className="flex-1 px-1 text-[10px]">
+                  <option value="">— elegir ejercicio —</option>
+                  {exsList.map((x) => <option key={x.id} value={x.id}>{x.name}{x.base_name ? ` · ${x.base_name}` : ''}</option>)}
+                </select>
+                <MB label="CARGAR" onClick={loadExerciseNow} />
+              </div>
+              {persistMsg && <div className="text-[9px]" style={{ color: GREEN }}>{persistMsg}</div>}
+              <div className="text-[9px] text-[#666]">Base actual: {currentBaseName || '—'}. Flujo: cargar base → cargar ejercicio → INICIAR.</div>
             </div>
           </Win>
         )}
