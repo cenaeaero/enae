@@ -298,6 +298,7 @@ export default function SimuladorPage() {
   const [finder, setFinder] = useState(''); // buscador de pista por C/S
   const [labelOffsets, setLabelOffsets] = useState<Record<string, { dx: number; dy: number }>>({}); // posición del data block por pista
   const [conflictCs, setConflictCs] = useState<string[]>([]); // C/S en alerta de conflicto (para colorear filas de VUELOS)
+  const [rblLabelOffsets, setRblLabelOffsets] = useState<Record<string, { dx: number; dy: number }>>({}); // posición de la etiqueta de cada RBL
   // instructor: alta manual de zona (dibujo de vértices o círculo)
   const [zoneDrawing, setZoneDrawing] = useState(false);
   const [zonePts, setZonePts] = useState<LL[]>([]);
@@ -542,7 +543,7 @@ export default function SimuladorPage() {
       clearInterval(iv);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, rbls, cursorLL, labelMode, labelFont, labelOffsets, zonePts, routePts]);
+  }, [rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, rbls, cursorLL, labelMode, labelFont, labelOffsets, rblLabelOffsets, zonePts, routePts]);
 
   // alumno: recibir estado por Realtime
   useEffect(() => {
@@ -845,6 +846,7 @@ export default function SimuladorPage() {
     ctx.restore();
 
     // auto-RBL entre aeronaves en conflicto: línea roja + etiqueta B/R/X (acercamiento mínimo)
+    rblHitsRef.current = []; // se rellena con las cajas de etiquetas RBL (auto y manuales) de este frame
     ctx.save();
     for (const [csa, csb] of cfPairs) {
       const a = eng.tracks.get(csa);
@@ -868,12 +870,24 @@ export default function SimuladorPage() {
       ctx.lineTo(bx, by);
       ctx.stroke();
       ctx.setLineDash([]);
-      const mx = (ax + bx) / 2;
-      const my = (ay + by) / 2;
+      const id = `conf-${csa}-${csb}`;
+      const off = rblLabelOffsets[id] ?? { dx: 6, dy: -4 };
+      const cmx = (ax + bx) / 2;
+      const cmy = (ay + by) / 2;
+      const lx = cmx + off.dx;
+      const ly = cmy + off.dy;
+      if (off.dx !== 6 || off.dy !== -4) { // leader si la etiqueta se movió
+        ctx.strokeStyle = 'rgba(255,90,90,.4)';
+        ctx.beginPath();
+        ctx.moveTo(cmx, cmy);
+        ctx.lineTo(lx, ly);
+        ctx.stroke();
+      }
       ctx.fillStyle = RED;
       ctx.font = 'bold 10px monospace';
-      [`B ${String(Math.round(brg)).padStart(3, '0')}°`, `R ${nm.toFixed(1)} NM`, `X ${(minD / 1852).toFixed(1)} NM`]
-        .forEach((ln, i) => ctx.fillText(ln, mx + 6, my - 4 + i * 11));
+      const lines = [`B ${String(Math.round(brg)).padStart(3, '0')}°`, `R ${nm.toFixed(1)} NM`, `X ${(minD / 1852).toFixed(1)} NM`];
+      lines.forEach((ln, i) => ctx.fillText(ln, lx, ly + i * 11));
+      rblHitsRef.current.push({ id, x0: lx - 2, y0: ly - 10, x1: lx + 72, y1: ly + lines.length * 11 });
     }
     ctx.restore();
 
@@ -982,7 +996,7 @@ export default function SimuladorPage() {
       const t = eng.tracks.get(e.cs);
       return t ? { ll: [t.lng, t.lat], trk: t } : { ll: [0, 0] };
     };
-    const drawRbl = (ea: RblEnd, eb: RblEnd, live: boolean) => {
+    const drawRbl = (ea: RblEnd, eb: RblEnd, live: boolean, id: string) => {
       const ra = resolveEnd(ea);
       const rb = resolveEnd(eb);
       const [ax, ay] = project(ra.ll[0], ra.ll[1], w, h);
@@ -1020,14 +1034,25 @@ export default function SimuladorPage() {
         }
         lines.push(`X ${(minD / 1852).toFixed(1)} NM`);
       }
-      const mx = (ax + bx) / 2;
-      const my = (ay + by) / 2;
+      const cmx = (ax + bx) / 2;
+      const cmy = (ay + by) / 2;
+      const off = live ? { dx: 6, dy: -4 } : (rblLabelOffsets[id] ?? { dx: 6, dy: -4 });
+      const lx = cmx + off.dx;
+      const ly = cmy + off.dy;
+      if (!live && (off.dx !== 6 || off.dy !== -4)) { // leader si la etiqueta se movió
+        ctx.strokeStyle = 'rgba(200,180,90,.4)';
+        ctx.beginPath();
+        ctx.moveTo(cmx, cmy);
+        ctx.lineTo(lx, ly);
+        ctx.stroke();
+      }
       ctx.font = 'bold 10px monospace';
       ctx.fillStyle = col;
-      lines.forEach((ln, i) => ctx.fillText(ln, mx + 6, my - 4 + i * 11));
+      lines.forEach((ln, i) => ctx.fillText(ln, lx, ly + i * 11));
+      if (!live) rblHitsRef.current.push({ id, x0: lx - 2, y0: ly - 10, x1: lx + 72, y1: ly + lines.length * 11 });
     };
-    for (const r of rbls) drawRbl(r.a, r.b, false);
-    if (rblPend.current && cursorLL) drawRbl(rblPend.current, { kind: 'pt', ll: cursorLL }, true);
+    rbls.forEach((r, i) => drawRbl(r.a, r.b, false, `rbl-${i}`));
+    if (rblPend.current && cursorLL) drawRbl(rblPend.current, { kind: 'pt', ll: cursorLL }, true, 'rbl-pend');
 
     // ruta de aeronave en curso (supervisor dibujando waypoints)
     if (routePts.length) {
@@ -1117,7 +1142,7 @@ export default function SimuladorPage() {
       ctx.font = 'bold 11px monospace';
       ctx.fillText('N', tipx - 3 + nxs * 8, tipy + 4 + nys * 8);
     }
-  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, rbls, cursorLL, labelMode, labelFont, labelOffsets, playAlarm, recording, zonePts, routePts]);
+  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, rbls, cursorLL, labelMode, labelFont, labelOffsets, rblLabelOffsets, playAlarm, recording, zonePts, routePts]);
 
   // re-vincular cuando el canvas aparece tras login/lobby (auth y mode cambian el árbol)
   useEffect(() => {
@@ -1195,22 +1220,46 @@ export default function SimuladorPage() {
   // arrastre del mapa (descentrado/pan) y arrastre del data block (etiqueta).
   const panDrag = useRef<{ sx: number; sy: number; ox: number; oy: number; moved: boolean } | null>(null);
   const labelDrag = useRef<{ cs: string; sx: number; sy: number; ox: number; oy: number } | null>(null);
+  const rblLabelDrag = useRef<{ id: string; sx: number; sy: number; ox: number; oy: number } | null>(null);
+  const rblHitsRef = useRef<{ id: string; x0: number; y0: number; x1: number; y1: number }[]>([]); // cajas de etiquetas RBL (recalculadas cada frame)
+  const rblOffOf = (id: string) => rblLabelOffsets[id] ?? { dx: 6, dy: -4 };
+  const findRblLabelAt = (mx: number, my: number): string | null => {
+    for (const h of rblHitsRef.current) if (mx >= h.x0 && mx <= h.x1 && my >= h.y0 && my <= h.y1) return h.id;
+    return null;
+  };
   const onCanvasPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
     const cv = canvasRef.current;
-    if (cv && !zoneDrawing && !rblMode) {
+    if (cv) {
       const rect = cv.getBoundingClientRect();
-      const cs = findLabelAt(e.clientX - rect.left, e.clientY - rect.top);
-      if (cs) {
-        const off = labelOffOf(cs);
-        labelDrag.current = { cs, sx: e.clientX, sy: e.clientY, ox: off.dx, oy: off.dy };
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      // 1) etiqueta de RBL (manual o auto-conflicto) — arrastrable en cualquier modo
+      const rid = findRblLabelAt(mx, my);
+      if (rid) {
+        const off = rblOffOf(rid);
+        rblLabelDrag.current = { id: rid, sx: e.clientX, sy: e.clientY, ox: off.dx, oy: off.dy };
         return;
+      }
+      // 2) data block de pista (si no se está dibujando)
+      if (!zoneDrawing && !routeDrawing && !rblMode) {
+        const cs = findLabelAt(mx, my);
+        if (cs) {
+          const off = labelOffOf(cs);
+          labelDrag.current = { cs, sx: e.clientX, sy: e.clientY, ox: off.dx, oy: off.dy };
+          return;
+        }
       }
     }
     panDrag.current = { sx: e.clientX, sy: e.clientY, ox: pan.x, oy: pan.y, moved: false };
   };
   const onCanvasPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const cv = canvasRef.current;
+    const rld = rblLabelDrag.current;
+    if (rld) {
+      setRblLabelOffsets((o) => ({ ...o, [rld.id]: { dx: rld.ox + (e.clientX - rld.sx), dy: rld.oy + (e.clientY - rld.sy) } }));
+      return;
+    }
     const ld = labelDrag.current;
     if (ld) {
       setLabelOffsets((o) => ({ ...o, [ld.cs]: { dx: ld.ox + (e.clientX - ld.sx), dy: ld.oy + (e.clientY - ld.sy) } }));
@@ -1231,6 +1280,7 @@ export default function SimuladorPage() {
     }
   };
   const onCanvasPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (rblLabelDrag.current) { rblLabelDrag.current = null; return; } // soltó etiqueta RBL
     if (labelDrag.current) { labelDrag.current = null; return; } // soltó el data block
     const d = panDrag.current;
     panDrag.current = null;
@@ -1882,7 +1932,7 @@ export default function SimuladorPage() {
           onPointerDown={onCanvasPointerDown}
           onPointerMove={onCanvasPointerMove}
           onPointerUp={onCanvasPointerUp}
-          onPointerCancel={() => { panDrag.current = null; labelDrag.current = null; }}
+          onPointerCancel={() => { panDrag.current = null; labelDrag.current = null; rblLabelDrag.current = null; }}
           onWheel={onCanvasWheel}
         />
 
