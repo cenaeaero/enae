@@ -269,6 +269,8 @@ export default function SimuladorPage() {
   const [showVectors, setShowVectors] = useState(true); // vector de predicción de velocidad
   const [vectorMin, setVectorMin] = useState(1); // minutos del vector de predicción
   const [showGrid, setShowGrid] = useState(false); // grilla geográfica (graticula)
+  const [showBorder, setShowBorder] = useState(false); // línea de frontera/costa de Chile
+  const borderRef = useRef<[number, number][][] | null>(null); // anillos [lng,lat] de Chile
   const [zoneKinds, setZoneKinds] = useState({ SEGREGATED: true, PROHIBITED: true, RESTRICTED: true, DANGER: true }); // visibilidad por tipo de zona
   const [showZoneLabels, setShowZoneLabels] = useState(true); // nombres/leyendas de zona
   const [altFilter, setAltFilter] = useState({ on: false, min: 0, max: 150 }); // filtro de banda de altitud (M AGL)
@@ -514,7 +516,7 @@ export default function SimuladorPage() {
       clearInterval(iv);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont, labelOffsets, zonePts]);
+  }, [rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, showBorder, altFilter, rbls, cursorLL, labelMode, labelFont, labelOffsets, zonePts]);
 
   // alumno: recibir estado por Realtime
   useEffect(() => {
@@ -701,6 +703,20 @@ export default function SimuladorPage() {
         ctx.lineTo(bx, by);
         ctx.stroke();
         ctx.fillText(`${lat.toFixed(2)}°`, ax + 2, ay - 2);
+      }
+    }
+
+    if (showBorder && borderRef.current) {
+      ctx.strokeStyle = 'rgba(90,150,170,.55)';
+      ctx.lineWidth = 1;
+      for (const ring of borderRef.current) {
+        ctx.beginPath();
+        for (let i = 0; i < ring.length; i++) {
+          const [px, py] = project(ring[i][0], ring[i][1], w, h);
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
       }
     }
 
@@ -993,7 +1009,7 @@ export default function SimuladorPage() {
       ctx.font = 'bold 11px monospace';
       ctx.fillText('N', tipx - 3 + nxs * 8, tipy + 4 + nys * 8);
     }
-  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont, labelOffsets, playAlarm, recording, zonePts]);
+  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, showVectors, vectorMin, showGrid, showBorder, altFilter, rbls, cursorLL, labelMode, labelFont, labelOffsets, playAlarm, recording, zonePts]);
 
   // re-vincular cuando el canvas aparece tras login/lobby (auth y mode cambian el árbol)
   useEffect(() => {
@@ -1008,6 +1024,15 @@ export default function SimuladorPage() {
     ro.observe(cv);
     return () => ro.disconnect();
   }, [auth, mode]);
+
+  // carga diferida de la frontera/costa de Chile la primera vez que se activa
+  useEffect(() => {
+    if (!showBorder || borderRef.current) return;
+    fetch('/sim/chile-borde.json')
+      .then((r) => r.json())
+      .then((rings: [number, number][][]) => { borderRef.current = rings; force((x) => x + 1); })
+      .catch(() => {});
+  }, [showBorder]);
 
   // pista más cercana al pixel (mx,my en coords de canvas) dentro de un radio
   const findTrackAt = (mx: number, my: number): string | null => {
@@ -1696,6 +1721,7 @@ export default function SimuladorPage() {
                   <div className="text-[#7aa] tracking-wider">CARTOGRAFÍA</div>
                   <div className="flex flex-wrap gap-1">
                     <MB label="GRILLA" active={showGrid} onClick={() => setShowGrid(!showGrid)} />
+                    <MB label="COSTA CL" active={showBorder} onClick={() => setShowBorder(!showBorder)} />
                     <MB label="ZONAS" active={showZones} onClick={() => setShowZones(!showZones)} />
                     <MB label="NOMBRES" active={showZoneLabels} onClick={() => setShowZoneLabels(!showZoneLabels)} />
                     <MB label="ANILLOS" active={rings} onClick={() => setRings(!rings)} />
