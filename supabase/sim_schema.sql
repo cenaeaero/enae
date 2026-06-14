@@ -37,6 +37,9 @@ create table if not exists sim_state (
   log jsonb not null default '[]'::jsonb,     -- últimos 50 mensajes
   updated_at timestamptz not null default now()
 );
+-- columnas agregadas (mensajes AFTN y zonas creadas por el instructor) — idempotente
+alter table sim_state add column if not exists msgs jsonb not null default '[]'::jsonb;
+alter table sim_state add column if not exists zones jsonb not null default '[]'::jsonb;
 
 -- 4) Eventos inyectados por el instructor (audit trail del guion)
 create table if not exists sim_events (

@@ -499,6 +499,7 @@ export default function SimuladorPage() {
           tracks: Array.from(eng.tracks.values()),
           log: eng.log,
           msgs: eng.msgs,
+          zones: eng.scenario.zones,
         }).catch(() => {});
       }
     }, 100);
@@ -524,6 +525,7 @@ export default function SimuladorPage() {
       eng.speed = st.speed;
       eng.log = st.log ?? [];
       eng.msgs = st.msgs ?? [];
+      if (st.zones) eng.scenario.zones = st.zones; // zonas creadas por el instructor
       for (const tr of st.tracks ?? []) eng.tracks.set(tr.callsign, tr);
       setPaused(st.paused);
       setSpeed(st.speed);

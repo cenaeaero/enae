@@ -4,7 +4,7 @@
 // en sim_actions y el puesto instructor las aplica al motor.
 
 import { createClient, type SupabaseClient, type RealtimeChannel } from '@supabase/supabase-js';
-import type { TrackState, SimMsg } from './engine';
+import type { TrackState, SimMsg, Zone } from './engine';
 
 let _client: SupabaseClient | null = null;
 
@@ -26,6 +26,7 @@ export interface NetState {
   tracks: TrackState[];
   log: { t: number; msg: string; level: 'INFO' | 'WARN' | 'ALARM' }[];
   msgs?: SimMsg[];
+  zones?: Zone[];
 }
 
 export async function createSession(scenarioId: string, instructorName: string) {
@@ -65,6 +66,7 @@ export async function joinSession(code: string, studentName: string, role: 'cont
 }
 
 let msgsColumnOk = true;
+let zonesColumnOk = true;
 
 export async function publishState(sessionId: string, st: NetState) {
   const base = {
@@ -77,14 +79,19 @@ export async function publishState(sessionId: string, st: NetState) {
     updated_at: new Date().toISOString(),
   };
   const db = simDb();
-  if (msgsColumnOk) {
-    const { error } = await db.from('sim_state').upsert({ ...base, msgs: st.msgs ?? [] });
-    if (!error) return;
-    // columna msgs aún no migrada: degradar sin perder el resto del estado
-    if (/msgs/.test(error.message)) msgsColumnOk = false;
-    else return;
-  }
-  await db.from('sim_state').upsert(base);
+  const build = (): Record<string, unknown> => {
+    const p: Record<string, unknown> = { ...base };
+    if (msgsColumnOk) p.msgs = st.msgs ?? [];
+    if (zonesColumnOk && st.zones) p.zones = st.zones;
+    return p;
+  };
+  const { error } = await db.from('sim_state').upsert(build());
+  if (!error) return;
+  // columna aún no migrada: degradar sin perder el resto del estado
+  let degraded = false;
+  if (/msgs/.test(error.message)) { msgsColumnOk = false; degraded = true; }
+  if (/zones/.test(error.message)) { zonesColumnOk = false; degraded = true; }
+  if (degraded) await db.from('sim_state').upsert(build());
 }
 
 export function subscribeState(sessionId: string, cb: (st: NetState) => void): RealtimeChannel {
