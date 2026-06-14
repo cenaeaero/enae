@@ -271,6 +271,9 @@ export default function SimuladorPage() {
   const [showGrid, setShowGrid] = useState(false); // grilla geográfica (graticula)
   const [showBorder, setShowBorder] = useState(false); // línea de frontera/costa de Chile
   const borderRef = useRef<[number, number][][] | null>(null); // anillos [lng,lat] de Chile
+  const [showAD, setShowAD] = useState(false); // aeródromos con protección de 3 NM
+  const adRef = useRef<{ name: string; lng: number; lat: number }[] | null>(null);
+  const [baseSel, setBaseSel] = useState('chile-2026'); // base cartográfica seleccionada
   const [zoneKinds, setZoneKinds] = useState({ SEGREGATED: true, PROHIBITED: true, RESTRICTED: true, DANGER: true }); // visibilidad por tipo de zona
   const [showZoneLabels, setShowZoneLabels] = useState(true); // nombres/leyendas de zona
   const [altFilter, setAltFilter] = useState({ on: false, min: 0, max: 150 }); // filtro de banda de altitud (M AGL)
@@ -516,7 +519,7 @@ export default function SimuladorPage() {
       clearInterval(iv);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, showBorder, altFilter, rbls, cursorLL, labelMode, labelFont, labelOffsets, zonePts]);
+  }, [rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, rbls, cursorLL, labelMode, labelFont, labelOffsets, zonePts]);
 
   // alumno: recibir estado por Realtime
   useEffect(() => {
@@ -717,6 +720,23 @@ export default function SimuladorPage() {
           else ctx.lineTo(px, py);
         }
         ctx.stroke();
+      }
+    }
+
+    if (showAD && adRef.current) {
+      const rpx = 3 * pxPerNm; // 3 NM
+      ctx.strokeStyle = 'rgba(120,180,120,.5)';
+      ctx.fillStyle = 'rgba(150,200,150,.75)';
+      ctx.lineWidth = 1;
+      ctx.font = '9px monospace';
+      for (const a of adRef.current) {
+        const [px, py] = project(a.lng, a.lat, w, h);
+        if (px < -rpx || px > w + rpx || py < -rpx || py > h + rpx) continue; // cull fuera de pantalla
+        ctx.beginPath();
+        ctx.arc(px, py, rpx, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillRect(px - 2, py - 2, 4, 4);
+        ctx.fillText(a.name, px + rpx + 2, py - 2);
       }
     }
 
@@ -1009,7 +1029,7 @@ export default function SimuladorPage() {
       ctx.font = 'bold 11px monospace';
       ctx.fillText('N', tipx - 3 + nxs * 8, tipy + 4 + nys * 8);
     }
-  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, showVectors, vectorMin, showGrid, showBorder, altFilter, rbls, cursorLL, labelMode, labelFont, labelOffsets, playAlarm, recording, zonePts]);
+  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, rbls, cursorLL, labelMode, labelFont, labelOffsets, playAlarm, recording, zonePts]);
 
   // re-vincular cuando el canvas aparece tras login/lobby (auth y mode cambian el árbol)
   useEffect(() => {
@@ -1033,6 +1053,15 @@ export default function SimuladorPage() {
       .then((rings: [number, number][][]) => { borderRef.current = rings; force((x) => x + 1); })
       .catch(() => {});
   }, [showBorder]);
+
+  // carga diferida de los aeródromos
+  useEffect(() => {
+    if (!showAD || adRef.current) return;
+    fetch('/sim/aerodromos.json')
+      .then((r) => r.json())
+      .then((a: { name: string; lng: number; lat: number }[]) => { adRef.current = a; force((x) => x + 1); })
+      .catch(() => {});
+  }, [showAD]);
 
   // pista más cercana al pixel (mx,my en coords de canvas) dentro de un radio
   const findTrackAt = (mx: number, my: number): string | null => {
@@ -1253,6 +1282,16 @@ export default function SimuladorPage() {
       force((x) => x + 1);
     } catch {
       eng.addLog('NO SE PUDO IMPORTAR ZONAS REALES', 'WARN');
+    }
+  };
+  // carga una base cartográfica completa (zonas + costa/frontera + aeródromos)
+  const loadBase = () => {
+    if (baseSel === 'chile-2026') {
+      importRealZones();
+      setShowZones(true);
+      setShowBorder(true);
+      setShowAD(true);
+      eng.addLog('BASE CARTOGRÁFICA CARGADA: CHILE-2026', 'INFO');
     }
   };
 
@@ -1732,6 +1771,7 @@ export default function SimuladorPage() {
                   <div className="flex flex-wrap gap-1">
                     <MB label="GRILLA" active={showGrid} onClick={() => setShowGrid(!showGrid)} />
                     <MB label="COSTA CL" active={showBorder} onClick={() => setShowBorder(!showBorder)} />
+                    <MB label="AD 3NM" active={showAD} onClick={() => setShowAD(!showAD)} />
                     <MB label="ZONAS" active={showZones} onClick={() => setShowZones(!showZones)} />
                     <MB label="NOMBRES" active={showZoneLabels} onClick={() => setShowZoneLabels(!showZoneLabels)} />
                     <MB label="ANILLOS" active={rings} onClick={() => setRings(!rings)} />
@@ -1878,6 +1918,15 @@ export default function SimuladorPage() {
                   <div className="text-[9px] text-[#666]">Grados/min/seg + hemisferio. Suma vértices y luego CREAR ZONA.</div>
                   <div className="pt-1"><MB label="IMPORTAR REALES (NOTAM)" onClick={importRealZones} /></div>
                   <div className="text-[9px] text-[#666]">145 zonas DGAC reales con límites verticales del NOTAM.</div>
+                  <div className="text-[#7aa] tracking-wider pt-1">BASE CARTOGRÁFICA</div>
+                  <div className="flex items-center gap-1">
+                    <select value={baseSel} onChange={(e) => setBaseSel(e.target.value)}
+                      style={{ ...bevelIn, background: '#000', color: GREEN }} className="flex-1 px-1 text-[10px]">
+                      <option value="chile-2026">CHILE-2026</option>
+                    </select>
+                    <MB label="CARGAR BASE" onClick={loadBase} />
+                  </div>
+                  <div className="text-[9px] text-[#666]">Zonas prohibidas/restringidas/peligrosas + costa/frontera + aeródromos (3 NM).</div>
                 </div>
               </div>
               {/* ── acción crear (ancho completo) ── */}
