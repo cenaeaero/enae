@@ -1741,11 +1741,25 @@ export default function SimuladorPage() {
     if (!recording) startRec();
     eng.addLog('EJERCICIO INICIADO — GRABANDO', 'INFO');
   };
+  // PAUSA / REANUDAR: congela la situación para analizar (sin reiniciar ni cerrar);
+  // las trazas quedan en su lugar y la grabación se pausa/continúa.
+  const pauseToggle = () => {
+    if (mode === 'student') return;
+    if (paused) {
+      setSpd(speed || 1);
+      try { if (recRef.current?.rec.state === 'paused') recRef.current.rec.resume(); } catch { /* noop */ }
+      eng.addLog('EJERCICIO REANUDADO', 'INFO');
+    } else {
+      setSpd(0);
+      try { if (recRef.current?.rec.state === 'recording') recRef.current.rec.pause(); } catch { /* noop */ }
+      eng.addLog('EJERCICIO EN PAUSA — ANÁLISIS', 'INFO');
+    }
+  };
   const stopExercise = () => {
     if (mode === 'student') return;
     setSpd(0);
     if (recording) stopRec();
-    eng.addLog('EJERCICIO DETENIDO', 'INFO');
+    eng.addLog('EJERCICIO FINALIZADO', 'INFO');
   };
 
   const tracks: TrackState[] = Array.from(eng.tracks.values());
@@ -2142,11 +2156,12 @@ export default function SimuladorPage() {
             onClose={() => setWin('exercise', { open: false })}
             onDrag={(x, y) => setWin('exercise', { x, y })}>
             <div style={{ background: '#000' }} className="font-mono text-[10px] p-2 space-y-1 text-[#cbd5e1]">
-              <div className="flex items-center gap-1">
-                <MB label="▶ INICIAR EJERCICIO" active={!paused} onClick={startExercise} />
-                <MB label="■ DETENER" onClick={stopExercise} />
+              <div className="flex items-center gap-1 flex-wrap">
+                <MB label="▶ INICIAR" active={!paused} onClick={startExercise} />
+                <MB label={paused ? '▶ REANUDAR' : '⏸ PAUSA'} active={paused} onClick={pauseToggle} />
+                <MB label="■ FINALIZAR" onClick={stopExercise} />
               </div>
-              <div className="text-[9px] text-[#666]">Reloj a 0, corre y graba. Zonas/aeronaves programadas aparecen a su hora.</div>
+              <div className="text-[9px] text-[#666]">INICIAR: reloj a 0, corre y graba. PAUSA: congela para analizar (sigue donde quedó). FINALIZAR: cierra y descarga la grabación.</div>
               <div className="text-[#7aa] tracking-wider pt-1">CREAR DATOS DEL EJERCICIO</div>
               <div className="flex items-center gap-1 flex-wrap">
                 <MB label="ZONAS / POLÍGONOS" active={wins.zonemaker.open} onClick={() => setWin('zonemaker', { open: !wins.zonemaker.open })} />
