@@ -31,6 +31,8 @@ function fmtT(t: number) {
 
 // ---------- predicción / detección de conflictos (STCA + salida de zona) ----------
 type LL = [number, number];
+// extremo de una RBL: punto geográfico fijo o pista (se resuelve a su posición actual)
+type RblEnd = { kind: 'pt'; ll: LL } | { kind: 'trk'; cs: string };
 // posición extrapolada a t segundos asumiendo rumbo y velocidad actuales
 function predictPos(tr: { lng: number; lat: number; hdg: number; speedKt: number }, tSec: number): LL {
   const distNm = tr.speedKt * (tSec / 3600);
@@ -230,8 +232,8 @@ export default function SimuladorPage() {
   const [showGrid, setShowGrid] = useState(false); // grilla geográfica (graticula)
   const [altFilter, setAltFilter] = useState({ on: false, min: 0, max: 150 }); // filtro de banda de altitud (M AGL)
   const [rblMode, setRblMode] = useState(false); // modo medición rango/marcación (clic-clic)
-  const [rbls, setRbls] = useState<{ a: [number, number]; b: [number, number] }[]>([]); // mediciones [lng,lat]
-  const rblPend = useRef<[number, number] | null>(null); // primer punto pendiente
+  const [rbls, setRbls] = useState<{ a: RblEnd; b: RblEnd }[]>([]); // mediciones (punto o pista)
+  const rblPend = useRef<RblEnd | null>(null); // primer extremo pendiente
   const [cursorLL, setCursorLL] = useState<[number, number] | null>(null); // cursor para línea viva
   const [bright, setBright] = useState(0); // 0=día 1=crepúsculo 2=noche
   const [labelMode, setLabelMode] = useState(1); // 0 compacta, 1 estándar, 2 completa
@@ -691,12 +693,23 @@ export default function SimuladorPage() {
       }
     }
 
-    // RBL — líneas rango/marcación (medición distancia/rumbo)
-    const drawRbl = (a: [number, number], b: [number, number], live: boolean) => {
-      const [ax, ay] = project(a[0], a[1], w, h);
-      const [bx, by] = project(b[0], b[1], w, h);
-      const { nm, brg } = distBearing(a, b);
-      ctx.strokeStyle = live ? 'rgba(255,209,102,.7)' : AMBER;
+    // RBL — líneas rango/marcación. Extremos: punto o pista (se resuelve a posición actual).
+    // Etiqueta: Azimut (B), Distancia (R), y si hay pista: Tiempo (E)+ETA y Xmin (acercamiento).
+    const nowUTC = new Date();
+    const resolveEnd = (e: RblEnd): { ll: LL; trk?: TrackState } => {
+      if (e.kind === 'pt') return { ll: e.ll };
+      const t = eng.tracks.get(e.cs);
+      return t ? { ll: [t.lng, t.lat], trk: t } : { ll: [0, 0] };
+    };
+    const drawRbl = (ea: RblEnd, eb: RblEnd, live: boolean) => {
+      const ra = resolveEnd(ea);
+      const rb = resolveEnd(eb);
+      const [ax, ay] = project(ra.ll[0], ra.ll[1], w, h);
+      const [bx, by] = project(rb.ll[0], rb.ll[1], w, h);
+      const { nm, brg } = distBearing(ra.ll, rb.ll);
+      const hasAlert = (ra.trk?.alerts.length ?? 0) > 0 || (rb.trk?.alerts.length ?? 0) > 0;
+      const col = hasAlert ? RED : AMBER;
+      ctx.strokeStyle = live ? 'rgba(255,209,102,.7)' : col;
       ctx.setLineDash(live ? [4, 3] : []);
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -709,14 +722,29 @@ export default function SimuladorPage() {
       ctx.moveTo(bx + 3, by);
       ctx.arc(bx, by, 3, 0, Math.PI * 2);
       ctx.stroke();
+      const lines = [`B ${String(Math.round(brg)).padStart(3, '0')}°`, `R ${nm.toFixed(1)} NM`];
+      if (ra.trk && ra.trk.speedKt > 0) {
+        const eMin = nm / (ra.trk.speedKt / 60);
+        const eta = new Date(nowUTC.getTime() + eMin * 60000);
+        lines.push(`E ${eMin.toFixed(1)} min`);
+        lines.push(`ETA ${eta.toISOString().slice(11, 19)}`);
+      }
+      if (ra.trk && rb.trk) {
+        let minD = Infinity;
+        for (let t = 0; t <= vectorMin * 60; t += 6) {
+          const d = distMeters(predictPos(ra.trk, t), predictPos(rb.trk, t));
+          if (d < minD) minD = d;
+        }
+        lines.push(`X ${(minD / 1852).toFixed(1)} NM`);
+      }
       const mx = (ax + bx) / 2;
       const my = (ay + by) / 2;
-      ctx.fillStyle = AMBER;
-      ctx.font = 'bold 11px monospace';
-      ctx.fillText(`${nm.toFixed(1)}NM / ${String(Math.round(brg)).padStart(3, '0')}°`, mx + 6, my - 4);
+      ctx.font = 'bold 10px monospace';
+      ctx.fillStyle = col;
+      lines.forEach((ln, i) => ctx.fillText(ln, mx + 6, my - 4 + i * 11));
     };
     for (const r of rbls) drawRbl(r.a, r.b, false);
-    if (rblPend.current && cursorLL) drawRbl(rblPend.current, cursorLL, true);
+    if (rblPend.current && cursorLL) drawRbl(rblPend.current, { kind: 'pt', ll: cursorLL }, true);
   }, [eng, project, rangeNm, pan, showLabels, showZones, showTrails, rings, selected, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont]);
 
   // re-vincular cuando el canvas aparece tras login/lobby (auth y mode cambian el árbol)
@@ -733,10 +761,10 @@ export default function SimuladorPage() {
     return () => ro.disconnect();
   }, [auth, mode]);
 
-  // selección de pista por cercanía al pixel (mx,my en coords de canvas)
-  const selectAt = (mx: number, my: number) => {
+  // pista más cercana al pixel (mx,my en coords de canvas) dentro de un radio
+  const findTrackAt = (mx: number, my: number): string | null => {
     const cv = canvasRef.current;
-    if (!cv) return;
+    if (!cv) return null;
     let best: string | null = null;
     let bestD = 18;
     for (const tr of eng.tracks.values()) {
@@ -747,8 +775,9 @@ export default function SimuladorPage() {
         best = tr.callsign;
       }
     }
-    setSelected(best);
+    return best;
   };
+  const selectAt = (mx: number, my: number) => setSelected(findTrackAt(mx, my));
 
   // arrastre del mapa (descentrado/pan). Distingue click (seleccionar) de arrastre.
   const panDrag = useRef<{ sx: number; sy: number; ox: number; oy: number; moved: boolean } | null>(null);
@@ -782,13 +811,14 @@ export default function SimuladorPage() {
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
     if (rblMode) {
-      const ll = unproject(mx, my, cv.width, cv.height);
+      const cs = findTrackAt(mx, my);
+      const end: RblEnd = cs ? { kind: 'trk', cs } : { kind: 'pt', ll: unproject(mx, my, cv.width, cv.height) };
       if (!rblPend.current) {
-        rblPend.current = ll;
-        setCursorLL(ll);
+        rblPend.current = end;
+        setCursorLL(unproject(mx, my, cv.width, cv.height));
       } else {
         const a = rblPend.current;
-        setRbls((rs) => [...rs, { a, b: ll }]);
+        setRbls((rs) => [...rs, { a, b: end }]);
         rblPend.current = null;
         setCursorLL(null);
       }
