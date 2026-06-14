@@ -77,6 +77,7 @@ interface ConflictZone { id?: string; name: string; kind: string; ring: LL[]; }
 function computeConflicts(tracks: ConflictTrack[], zones: ConflictZone[], horizonMin: number) {
   const warnings = new Map<string, string[]>();
   const redLines: { from: LL; to: LL }[] = [];
+  const conflictPairs: [string, string][] = []; // pares aeronave-aeronave en conflicto (auto-RBL)
   const add = (cs: string, m: string) => {
     const a = warnings.get(cs) ?? [];
     a.push(m);
@@ -97,7 +98,7 @@ function computeConflicts(tracks: ConflictTrack[], zones: ConflictZone[], horizo
       if (minD < SEP_H_M) {
         add(a.callsign, `CONF ${b.callsign} ${tC}s`);
         add(b.callsign, `CONF ${a.callsign} ${tC}s`);
-        redLines.push({ from: [a.lng, a.lat], to: [b.lng, b.lat] });
+        conflictPairs.push([a.callsign, b.callsign]); // se dibuja como auto-RBL
       }
     }
   }
@@ -141,7 +142,7 @@ function computeConflicts(tracks: ConflictTrack[], zones: ConflictZone[], horizo
       }
     }
   }
-  return { warnings, redLines };
+  return { warnings, redLines, conflictPairs };
 }
 
 // ---------- chrome Motif ----------
@@ -250,7 +251,7 @@ function Win({
   );
 }
 
-type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone' | 'eval' | 'aftn' | 'layers' | 'zonemaker' | 'exercise';
+type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone' | 'eval' | 'aftn' | 'layers' | 'zonemaker' | 'exercise' | 'fpl';
 
 interface EvalRow {
   position_id: string | null;
@@ -309,6 +310,11 @@ export default function SimuladorPage() {
   const [routePts, setRoutePts] = useState<LL[]>([]);
   const [acForm, setAcForm] = useState({ callsign: '', acType: 'M350', manned: false, speedKt: 35, startMin: 0, cruiseAlt: 100 });
   const [evForm, setEvForm] = useState<{ flight: string; type: SimEvent['type']; startMin: number; durMin: number }>({ flight: '', type: 'C2LOSS', startMin: 1, durMin: 1 });
+  // plan de vuelo (FPL) — campos EPP/ICAO
+  const [fplForm, setFplForm] = useState({
+    acid: '', rules: 'V', fType: 'N', type: 'M350', wake: 'L', equip: 'C', ssr: '',
+    dep: '', dest: '', rfl: '', speed: 35, alt: 100, startMin: 0, manned: false,
+  });
   const [paused, setPaused] = useState(true);
   const [speed, setSpeed] = useState(1);
   const [showLabels, setShowLabels] = useState(true);
@@ -330,6 +336,7 @@ export default function SimuladorPage() {
     layers: { x: 1120, y: 120, open: false },
     zonemaker: { x: 80, y: 120, open: false },
     exercise: { x: 80, y: 60, open: false },
+    fpl: { x: 120, y: 90, open: false },
   });
   const [evalRows, setEvalRows] = useState<EvalRow[]>([]);
   const [evalBusy, setEvalBusy] = useState(false);
@@ -804,7 +811,7 @@ export default function SimuladorPage() {
       callsign: t.callsign, lng: t.lng, lat: t.lat, hdg: t.hdg, speedKt: t.speedKt,
       alt: t.alt, airborne: t.airborne, crs: courseFromHist(t.history, t.lng, t.lat, t.hdg),
     }));
-    const { warnings: cfWarn, redLines: cfLines } = computeConflicts(
+    const { warnings: cfWarn, redLines: cfLines, conflictPairs: cfPairs } = computeConflicts(
       cTracks,
       eng.scenario.zones.filter((z) => z.appearAt == null || eng.t >= z.appearAt) as unknown as ConflictZone[],
       vectorMin
@@ -835,6 +842,39 @@ export default function SimuladorPage() {
       ctx.stroke();
     }
     ctx.setLineDash([]);
+    ctx.restore();
+
+    // auto-RBL entre aeronaves en conflicto: línea roja + etiqueta B/R/X (acercamiento mínimo)
+    ctx.save();
+    for (const [csa, csb] of cfPairs) {
+      const a = eng.tracks.get(csa);
+      const b = eng.tracks.get(csb);
+      if (!a || !b) continue;
+      const [ax, ay] = project(a.lng, a.lat, w, h);
+      const [bx, by] = project(b.lng, b.lat, w, h);
+      const { nm, brg } = distBearing([a.lng, a.lat], [b.lng, b.lat]);
+      const ca = courseFromHist(a.history, a.lng, a.lat, a.hdg);
+      const cb = courseFromHist(b.history, b.lng, b.lat, b.hdg);
+      let minD = Infinity;
+      for (let t = 0; t <= vectorMin * 60; t += 6) {
+        const d = distMeters(predictPos(a, t, ca), predictPos(b, t, cb));
+        if (d < minD) minD = d;
+      }
+      ctx.strokeStyle = RED;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const mx = (ax + bx) / 2;
+      const my = (ay + by) / 2;
+      ctx.fillStyle = RED;
+      ctx.font = 'bold 10px monospace';
+      [`B ${String(Math.round(brg)).padStart(3, '0')}°`, `R ${nm.toFixed(1)} NM`, `X ${(minD / 1852).toFixed(1)} NM`]
+        .forEach((ln, i) => ctx.fillText(ln, mx + 6, my - 4 + i * 11));
+    }
     ctx.restore();
 
     for (const tr of eng.tracks.values()) {
@@ -1347,6 +1387,31 @@ export default function SimuladorPage() {
     eng.scenario.flights = eng.scenario.flights.filter((f) => f.callsign !== cs);
     eng.tracks.delete(cs);
     force((x) => x + 1);
+  };
+  // supervisor: crear un PLAN DE VUELO completo (campos EPP/ICAO) + ruta dibujada
+  const createFlightPlan = () => {
+    if (routePts.length < 2) { setPersistMsg('El plan necesita una ruta (≥2 waypoints)'); return; }
+    const cs = (fplForm.acid.trim() || `AC${eng.scenario.flights.length + 1}`).toUpperCase();
+    eng.scenario.flights.push({
+      callsign: cs,
+      acType: (fplForm.type.trim() || 'UAS').toUpperCase(),
+      route: routePts.map(([lng, lat]) => ({ lng, lat, alt: fplForm.alt })),
+      speedKt: fplForm.speed || 30,
+      batteryMin: 60,
+      startT: fplForm.startMin * 60,
+      authRef: `EJ-${cs}`,
+      zoneId: '',
+      manned: fplForm.manned,
+      fpl: {
+        rules: fplForm.rules, fType: fplForm.fType, wake: fplForm.wake, equip: fplForm.equip,
+        ssr: fplForm.ssr, dep: fplForm.dep.toUpperCase(), dest: fplForm.dest.toUpperCase(), rfl: fplForm.rfl.toUpperCase(),
+        eobt: `T+${fplForm.startMin}m`,
+      },
+    });
+    eng.reset();
+    eng.addLog(`PLAN DE VUELO CREADO: ${cs} ${fplForm.dep || '----'}→${fplForm.dest || '----'} T+${fplForm.startMin}m`, 'INFO');
+    setRoutePts([]); setRouteDrawing(false); force((x) => x + 1);
+    setPersistMsg(`FPL creado: ${cs}`);
   };
   // supervisor: programar una contingencia/evento a T+min (Entradas de Supervisor del EPP)
   const addEvent = () => {
@@ -2035,6 +2100,7 @@ export default function SimuladorPage() {
               <div className="text-[#7aa] tracking-wider pt-1">CREAR DATOS DEL EJERCICIO</div>
               <div className="flex items-center gap-1 flex-wrap">
                 <MB label="ZONAS / POLÍGONOS" active={wins.zonemaker.open} onClick={() => setWin('zonemaker', { open: !wins.zonemaker.open })} />
+                <MB label="PLAN DE VUELO" active={wins.fpl.open} onClick={() => setWin('fpl', { open: !wins.fpl.open })} />
                 <MB label="CONTINGENCIAS" active={wins.instructor.open} onClick={() => setWin('instructor', { open: !wins.instructor.open })} />
               </div>
               <div className="text-[#7aa] tracking-wider pt-1">AERONAVES DEL EJERCICIO</div>
@@ -2144,6 +2210,83 @@ export default function SimuladorPage() {
               </div>
               {persistMsg && <div className="text-[9px]" style={{ color: GREEN }}>{persistMsg}</div>}
               <div className="text-[9px] text-[#666]">Base actual: {currentBaseName || '—'}. Flujo: cargar base → cargar ejercicio → INICIAR.</div>
+            </div>
+          </Win>
+        )}
+
+        {wins.fpl.open && mode !== 'student' && (
+          <Win title="PLAN DE VUELO (SUPERVISOR)" x={wins.fpl.x} y={wins.fpl.y} w={520}
+            onClose={() => setWin('fpl', { open: false })}
+            onDrag={(x, y) => setWin('fpl', { x, y })}>
+            <div style={{ background: '#000' }} className="font-mono text-[10px] p-2 text-[#cbd5e1]">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                <div className="space-y-1">
+                  <div className="text-[#7aa] tracking-wider">IDENTIFICACIÓN</div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[#888] w-12">ACID</span>
+                    <input value={fplForm.acid} onChange={(e) => setFplForm((f) => ({ ...f, acid: e.target.value.toUpperCase() }))}
+                      placeholder="C/S" style={{ ...bevelIn, background: '#000', color: GREEN }} className="flex-1 px-1 text-[10px] uppercase" />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[#888] w-12">REGLAS</span>
+                    <select value={fplForm.rules} onChange={(e) => setFplForm((f) => ({ ...f, rules: e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN }} className="px-1 text-[10px]">
+                      {['I', 'V', 'Y', 'Z'].map((v) => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                    <span className="text-[#888]">TIPO V</span>
+                    <select value={fplForm.fType} onChange={(e) => setFplForm((f) => ({ ...f, fType: e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN }} className="px-1 text-[10px]">
+                      {['S', 'N', 'G', 'M', 'X'].map((v) => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[#888] w-12">AERON.</span>
+                    <input value={fplForm.type} onChange={(e) => setFplForm((f) => ({ ...f, type: e.target.value.toUpperCase() }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 64 }} className="px-1 text-[10px] uppercase" />
+                    <span className="text-[#888]">ESTELA</span>
+                    <select value={fplForm.wake} onChange={(e) => setFplForm((f) => ({ ...f, wake: e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN }} className="px-1 text-[10px]">
+                      {['L', 'M', 'H', 'J'].map((v) => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[#888] w-12">EQUIP</span>
+                    <input value={fplForm.equip} onChange={(e) => setFplForm((f) => ({ ...f, equip: e.target.value.toUpperCase() }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 50 }} className="px-1 text-[10px] uppercase" />
+                    <span className="text-[#888]">SSR</span>
+                    <input value={fplForm.ssr} onChange={(e) => setFplForm((f) => ({ ...f, ssr: e.target.value.replace(/[^0-7]/g, '').slice(0, 4) }))} placeholder="0000" style={{ ...bevelIn, background: '#000', color: GREEN, width: 48 }} className="px-1 text-[10px]" />
+                  </div>
+                  <div><MB label={fplForm.manned ? 'TRIPULADA' : 'NO TRIP (UAS)'} active={fplForm.manned} onClick={() => setFplForm((f) => ({ ...f, manned: !f.manned }))} /></div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-[#7aa] tracking-wider">RUTA / NIVELES</div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[#888] w-10">DEP</span>
+                    <input value={fplForm.dep} onChange={(e) => setFplForm((f) => ({ ...f, dep: e.target.value.toUpperCase() }))} placeholder="SCEL" style={{ ...bevelIn, background: '#000', color: GREEN, width: 56 }} className="px-1 text-[10px] uppercase" />
+                    <span className="text-[#888]">DEST</span>
+                    <input value={fplForm.dest} onChange={(e) => setFplForm((f) => ({ ...f, dest: e.target.value.toUpperCase() }))} placeholder="SCEL" style={{ ...bevelIn, background: '#000', color: GREEN, width: 56 }} className="px-1 text-[10px] uppercase" />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[#888] w-10">RFL</span>
+                    <input value={fplForm.rfl} onChange={(e) => setFplForm((f) => ({ ...f, rfl: e.target.value.toUpperCase() }))} placeholder="A050" style={{ ...bevelIn, background: '#000', color: GREEN, width: 56 }} className="px-1 text-[10px] uppercase" />
+                    <span className="text-[#888]">VEL</span>
+                    <input type="number" value={fplForm.speed} onChange={(e) => setFplForm((f) => ({ ...f, speed: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 40 }} className="px-1 text-[10px]" />
+                    <span className="text-[#888]">kt</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[#888] w-10">ALT</span>
+                    <input type="number" value={fplForm.alt} onChange={(e) => setFplForm((f) => ({ ...f, alt: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 50 }} className="px-1 text-[10px]" />
+                    <span className="text-[#888]">M · EOBT T+</span>
+                    <input type="number" value={fplForm.startMin} onChange={(e) => setFplForm((f) => ({ ...f, startMin: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 36 }} className="px-1 text-[10px]" />
+                    <span className="text-[#888]">min</span>
+                  </div>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <MB label={routeDrawing ? 'DIBUJANDO RUTA…' : '▶ DIBUJAR RUTA'} active={routeDrawing} onClick={() => setRouteDrawing((v) => !v)} />
+                    <span className="text-[#888]">wp: {routePts.length}</span>
+                    <MB label="DESHACER" onClick={() => setRoutePts((p) => p.slice(0, -1))} />
+                    <MB label="LIMPIAR" onClick={() => setRoutePts([])} />
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 mt-2 pt-1 border-t border-[#333]">
+                <MB label="✚ CREAR PLAN DE VUELO" active={routePts.length >= 2} onClick={createFlightPlan} />
+                <span className="text-[9px] text-[#666]">Clic en el radar para la ruta; aparece a EOBT (T+min).</span>
+              </div>
             </div>
           </Win>
         )}

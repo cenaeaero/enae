@@ -26,6 +26,8 @@ export interface SimFlight {
   authRef: string; // n° autorización
   zoneId: string; // zona segregada asignada
   manned?: boolean; // aeronave tripulada (símbolo distinto)
+  // plan de vuelo (campos ICAO/EPP, informativos para el ejercicio y AFTN)
+  fpl?: { rules?: string; fType?: string; wake?: string; equip?: string; ssr?: string; dep?: string; dest?: string; rfl?: string; eobt?: string };
 }
 
 export interface Zone {
