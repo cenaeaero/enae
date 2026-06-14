@@ -304,6 +304,10 @@ export default function SimuladorPage() {
     { name: '', floor: 0, ceiling: 120, kind: 'SEGREGATED', radiusNm: 1, appearMin: 0 }
   );
   const [dms, setDms] = useState({ latD: 33, latM: 0, latS: 0, latH: 'S', lngD: 70, lngM: 0, lngS: 0, lngH: 'W' });
+  // supervisor: editor de aeronaves del ejercicio (ruta dibujada + hora de aparición)
+  const [routeDrawing, setRouteDrawing] = useState(false);
+  const [routePts, setRoutePts] = useState<LL[]>([]);
+  const [acForm, setAcForm] = useState({ callsign: '', acType: 'M350', manned: false, speedKt: 35, startMin: 0, cruiseAlt: 100 });
   const [paused, setPaused] = useState(true);
   const [speed, setSpeed] = useState(1);
   const [showLabels, setShowLabels] = useState(true);
@@ -530,7 +534,7 @@ export default function SimuladorPage() {
       clearInterval(iv);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, rbls, cursorLL, labelMode, labelFont, labelOffsets, zonePts]);
+  }, [rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, rbls, cursorLL, labelMode, labelFont, labelOffsets, zonePts, routePts]);
 
   // alumno: recibir estado por Realtime
   useEffect(() => {
@@ -855,11 +859,20 @@ export default function SimuladorPage() {
       ctx.strokeStyle = col;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.moveTo(x, y - 6);
-      ctx.lineTo(x - 6, y + 5);
-      ctx.lineTo(x + 6, y + 5);
-      ctx.closePath();
-      ctx.stroke();
+      if (tr.manned) {
+        // aeronave tripulada: círculo con punto central
+        ctx.arc(x, y, 6, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = col;
+        ctx.fillRect(x - 1, y - 1, 2, 2);
+      } else {
+        // no tripulada (UAS): triángulo
+        ctx.moveTo(x, y - 6);
+        ctx.lineTo(x - 6, y + 5);
+        ctx.lineTo(x + 6, y + 5);
+        ctx.closePath();
+        ctx.stroke();
+      }
       if (selected === tr.callsign) {
         ctx.strokeStyle = AMBER;
         ctx.strokeRect(x - 10, y - 10, 20, 20);
@@ -976,6 +989,29 @@ export default function SimuladorPage() {
     for (const r of rbls) drawRbl(r.a, r.b, false);
     if (rblPend.current && cursorLL) drawRbl(rblPend.current, { kind: 'pt', ll: cursorLL }, true);
 
+    // ruta de aeronave en curso (supervisor dibujando waypoints)
+    if (routePts.length) {
+      ctx.strokeStyle = '#d06bd0';
+      ctx.fillStyle = '#e090e0';
+      ctx.lineWidth = 1.3;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      routePts.forEach((pt, i) => {
+        const [px, py] = project(pt[0], pt[1], w, h);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+      ctx.setLineDash([]);
+      routePts.forEach((pt, i) => {
+        const [px, py] = project(pt[0], pt[1], w, h);
+        ctx.beginPath();
+        ctx.arc(px, py, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillText(String(i + 1), px + 5, py - 4);
+      });
+    }
+
     // zona en curso (instructor dibujando vértices)
     if (zonePts.length) {
       ctx.strokeStyle = CYAN;
@@ -1041,7 +1077,7 @@ export default function SimuladorPage() {
       ctx.font = 'bold 11px monospace';
       ctx.fillText('N', tipx - 3 + nxs * 8, tipy + 4 + nys * 8);
     }
-  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, rbls, cursorLL, labelMode, labelFont, labelOffsets, playAlarm, recording, zonePts]);
+  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, rbls, cursorLL, labelMode, labelFont, labelOffsets, playAlarm, recording, zonePts, routePts]);
 
   // re-vincular cuando el canvas aparece tras login/lobby (auth y mode cambian el árbol)
   useEffect(() => {
@@ -1168,6 +1204,10 @@ export default function SimuladorPage() {
       setZonePts((p) => [...p, unproject(mx, my, cv.width, cv.height)]);
       return;
     }
+    if (routeDrawing) {
+      setRoutePts((p) => [...p, unproject(mx, my, cv.width, cv.height)]);
+      return;
+    }
     if (rblMode) {
       const cs = findTrackAt(mx, my);
       const end: RblEnd = cs ? { kind: 'trk', cs } : { kind: 'pt', ll: unproject(mx, my, cv.width, cv.height) };
@@ -1279,6 +1319,33 @@ export default function SimuladorPage() {
   const deleteLastZone = () => {
     if (!eng.scenario.zones.length) return;
     eng.scenario.zones = eng.scenario.zones.slice(0, -1);
+    force((x) => x + 1);
+  };
+  // supervisor: agrega una aeronave del ejercicio con su ruta y hora de aparición
+  const addAircraft = () => {
+    if (routePts.length < 2) return;
+    const cs = (acForm.callsign.trim() || `AC${eng.scenario.flights.length + 1}`).toUpperCase();
+    const route = routePts.map(([lng, lat]) => ({ lng, lat, alt: acForm.cruiseAlt }));
+    eng.scenario.flights.push({
+      callsign: cs,
+      acType: acForm.acType || (acForm.manned ? 'GA' : 'UAS'),
+      route,
+      speedKt: acForm.speedKt || 30,
+      batteryMin: 60,
+      startT: acForm.startMin * 60,
+      authRef: `EJ-${cs}`,
+      zoneId: '',
+      manned: acForm.manned,
+    });
+    eng.reset();
+    eng.addLog(`AERONAVE AGREGADA: ${cs} ${acForm.manned ? 'TRIP' : 'UAS'} T+${acForm.startMin}m`, 'INFO');
+    setRoutePts([]);
+    setRouteDrawing(false);
+    force((x) => x + 1);
+  };
+  const removeFlight = (cs: string) => {
+    eng.scenario.flights = eng.scenario.flights.filter((f) => f.callsign !== cs);
+    eng.tracks.delete(cs);
     force((x) => x + 1);
   };
   // agrega un vértice ingresando coordenadas en Grados/Minutos/Segundos
@@ -1953,6 +2020,31 @@ export default function SimuladorPage() {
                 <MB label="ZONAS / POLÍGONOS" active={wins.zonemaker.open} onClick={() => setWin('zonemaker', { open: !wins.zonemaker.open })} />
                 <MB label="CONTINGENCIAS" active={wins.instructor.open} onClick={() => setWin('instructor', { open: !wins.instructor.open })} />
               </div>
+              <div className="text-[#7aa] tracking-wider pt-1">AERONAVES DEL EJERCICIO</div>
+              <div className="flex items-center gap-1 flex-wrap">
+                <input value={acForm.callsign} onChange={(e) => setAcForm((f) => ({ ...f, callsign: e.target.value.toUpperCase() }))}
+                  placeholder="C/S" style={{ ...bevelIn, background: '#000', color: GREEN, width: 64 }} className="px-1 text-[10px] uppercase" />
+                <input value={acForm.acType} onChange={(e) => setAcForm((f) => ({ ...f, acType: e.target.value.toUpperCase() }))}
+                  placeholder="TIPO" style={{ ...bevelIn, background: '#000', color: GREEN, width: 56 }} className="px-1 text-[10px] uppercase" />
+                <MB label={acForm.manned ? 'TRIPULADA' : 'NO TRIP'} active={acForm.manned} onClick={() => setAcForm((f) => ({ ...f, manned: !f.manned }))} />
+              </div>
+              <div className="flex items-center gap-1 flex-wrap">
+                <span className="text-[#888]">VEL</span>
+                <input type="number" value={acForm.speedKt} onChange={(e) => setAcForm((f) => ({ ...f, speedKt: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 40 }} className="px-1 text-[10px]" />
+                <span className="text-[#888]">kt · ALT</span>
+                <input type="number" value={acForm.cruiseAlt} onChange={(e) => setAcForm((f) => ({ ...f, cruiseAlt: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 46 }} className="px-1 text-[10px]" />
+                <span className="text-[#888]">M · T+</span>
+                <input type="number" value={acForm.startMin} onChange={(e) => setAcForm((f) => ({ ...f, startMin: +e.target.value }))} style={{ ...bevelIn, background: '#000', color: GREEN, width: 36 }} className="px-1 text-[10px]" />
+                <span className="text-[#888]">min</span>
+              </div>
+              <div className="flex items-center gap-1 flex-wrap">
+                <MB label={routeDrawing ? 'DIBUJANDO RUTA…' : '▶ DIBUJAR RUTA'} active={routeDrawing} onClick={() => setRouteDrawing((v) => !v)} />
+                <span className="text-[#888]">wp: {routePts.length}</span>
+                <MB label="DESHACER" onClick={() => setRoutePts((p) => p.slice(0, -1))} />
+                <MB label="LIMPIAR" onClick={() => setRoutePts([])} />
+                <MB label="✚ AGREGAR AERONAVE" active={routePts.length >= 2} onClick={addAircraft} />
+              </div>
+              <div className="text-[9px] text-[#666]">Clic en el radar para la ruta (≥2 wp). Tripulada = círculo; UAS = triángulo.</div>
               <div className="text-[#7aa] tracking-wider pt-1">CRONOLOGÍA</div>
               <div className="max-h-[160px] overflow-y-auto text-[10px] space-y-0.5">
                 {eng.scenario.zones.filter((z) => z.appearAt != null).map((z) => (
@@ -1964,9 +2056,12 @@ export default function SimuladorPage() {
                   </div>
                 ))}
                 {eng.scenario.flights.map((f) => (
-                  <div key={f.callsign} className="flex justify-between">
-                    <span>✈ {f.callsign} <span className="text-[#666]">{f.acType}</span></span>
-                    <span style={{ color: eng.t >= f.startT ? GREEN : AMBER }}>T+{Math.round(f.startT / 60)}m</span>
+                  <div key={f.callsign} className="flex justify-between items-center gap-1">
+                    <span>{f.manned ? '✈' : '🛩'} {f.callsign} <span className="text-[#666]">{f.acType}</span></span>
+                    <span className="flex items-center gap-1">
+                      <span style={{ color: eng.t >= f.startT ? GREEN : AMBER }}>T+{Math.round(f.startT / 60)}m</span>
+                      <button onClick={() => removeFlight(f.callsign)} style={bevelOut} className="px-1 text-[9px]">✕</button>
+                    </span>
                   </div>
                 ))}
                 {eng.scenario.events.map((ev, i) => (

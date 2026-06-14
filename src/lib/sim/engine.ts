@@ -25,6 +25,7 @@ export interface SimFlight {
   startT: number; // segundos de sim en que despega
   authRef: string; // n° autorización
   zoneId: string; // zona segregada asignada
+  manned?: boolean; // aeronave tripulada (símbolo distinto)
 }
 
 export interface Zone {
@@ -52,6 +53,7 @@ export interface TrackState {
   inside: boolean;
   wpIdx: number;
   airborne: boolean;
+  manned?: boolean; // aeronave tripulada (símbolo distinto)
   authRef: string;
   history: [number, number][]; // trail [lng,lat]
 }
@@ -169,6 +171,7 @@ export class SimEngine {
         wpIdx: 0,
         airborne: false,
         authRef: f.authRef,
+        manned: f.manned,
         history: [],
       });
     }
