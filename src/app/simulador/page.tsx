@@ -306,6 +306,7 @@ export default function SimuladorPage() {
   const [positionId, setPositionId] = useState<string | null>(null);
   const [userName, setUserName] = useState('');
   const [joinCode, setJoinCode] = useState('');
+  const [selScenarioId, setSelScenarioId] = useState(SCENARIOS[0].id); // escenario elegido en el lobby
   const [lobbyErr, setLobbyErr] = useState('');
   const [lobbyBusy, setLobbyBusy] = useState(false);
   const [peers, setPeers] = useState(1);
@@ -1067,11 +1068,27 @@ export default function SimuladorPage() {
   };
 
   // lobby
-  const startLocal = () => setMode('local');
+  // carga el escenario elegido en el motor (clon para no mutar la definición canónica)
+  const applyScenario = () => {
+    const s = SCENARIOS.find((x) => x.id === selScenarioId) ?? SCENARIOS[0];
+    eng.scenario = JSON.parse(JSON.stringify(s));
+    eng.reset();
+    setSelected(null);
+    setPan({ x: 0, y: 0 });
+    setRot(0);
+    setRangeNm(s.rangeNm || 12);
+    setRbls([]);
+    force((x) => x + 1);
+  };
+  const startLocal = () => {
+    applyScenario();
+    setMode('local');
+  };
   const startInstructor = async () => {
     setLobbyBusy(true);
     setLobbyErr('');
     try {
+      applyScenario();
       const r = await createSession(eng.scenario.id, userName || 'INSTRUCTOR');
       setSessionId(r.sessionId);
       setSessionCode(r.code);
@@ -1089,6 +1106,14 @@ export default function SimuladorPage() {
     setLobbyErr('');
     try {
       const r = await joinSession(joinCode, userName || 'ALUMNO', posRole);
+      // cargar el escenario de la sesión para ver zonas/centro correctos (las pistas llegan por Realtime)
+      const s = SCENARIOS.find((x) => x.id === r.scenarioId);
+      if (s) {
+        eng.scenario = JSON.parse(JSON.stringify(s));
+        eng.reset();
+        setRangeNm(s.rangeNm || 12);
+        force((x) => x + 1);
+      }
       setSessionId(r.sessionId);
       setSessionCode(r.code);
       setPositionId(r.positionId);
@@ -1278,6 +1303,19 @@ export default function SimuladorPage() {
           <div className="p-3 space-y-3" style={{ background: '#c9c9c9' }}>
             <div className="text-[10px] text-black">
               USUARIO: <b>{userName}</b> · ROL: <b>{authRole.toUpperCase()}</b>
+            </div>
+            <div style={bevelIn} className="p-2">
+              <div className="text-[10px] font-bold text-black mb-1">EJERCICIO / ESCENARIO</div>
+              <select value={selScenarioId} onChange={(e) => setSelScenarioId(e.target.value)}
+                style={{ ...bevelIn, background: '#fff' }}
+                className="w-full px-2 py-1 text-[11px] font-mono text-black outline-none">
+                {SCENARIOS.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+              <div className="text-[9px] text-[#333] mt-1 leading-snug max-h-[60px] overflow-y-auto">
+                {SCENARIOS.find((s) => s.id === selScenarioId)?.briefing}
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
               {isInstructor && (
