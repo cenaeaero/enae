@@ -256,6 +256,7 @@ export default function SimuladorPage() {
   const [showVectors, setShowVectors] = useState(true); // vector de predicción de velocidad
   const [vectorMin, setVectorMin] = useState(1); // minutos del vector de predicción
   const [showGrid, setShowGrid] = useState(false); // grilla geográfica (graticula)
+  const [zoneKinds, setZoneKinds] = useState({ SEGREGATED: true, PROHIBITED: true, RESTRICTED: true, DANGER: true }); // visibilidad por tipo de zona
   const [altFilter, setAltFilter] = useState({ on: false, min: 0, max: 150 }); // filtro de banda de altitud (M AGL)
   const [rblMode, setRblMode] = useState(false); // modo medición rango/marcación (clic-clic)
   const [rbls, setRbls] = useState<{ a: RblEnd; b: RblEnd }[]>([]); // mediciones (punto o pista)
@@ -494,7 +495,7 @@ export default function SimuladorPage() {
       clearInterval(iv);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeNm, pan, rot, showLabels, showZones, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont, zonePts]);
+  }, [rangeNm, pan, rot, showLabels, showZones, zoneKinds, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont, zonePts]);
 
   // alumno: recibir estado por Realtime
   useEffect(() => {
@@ -703,9 +704,11 @@ export default function SimuladorPage() {
 
     if (showZones) {
       for (const z of eng.scenario.zones) {
-        const col = z.kind === 'PROHIBITED' ? RED : z.kind === 'SEGREGATED' ? CYAN : AMBER;
+        if (!zoneKinds[z.kind as keyof typeof zoneKinds]) continue; // capa de tipo de zona oculta
+        const col = z.kind === 'PROHIBITED' ? RED : z.kind === 'DANGER' ? '#ff8c00' : z.kind === 'RESTRICTED' ? AMBER : CYAN;
+        const dash = z.kind === 'SEGREGATED' ? [] : z.kind === 'RESTRICTED' ? [2, 3] : z.kind === 'DANGER' ? [3, 3] : [6, 4];
         ctx.strokeStyle = col;
-        ctx.setLineDash(z.kind === 'SEGREGATED' ? [] : [6, 4]);
+        ctx.setLineDash(dash);
         ctx.lineWidth = 1.2;
         ctx.beginPath();
         z.ring.forEach(([lng, lat], i) => {
@@ -964,7 +967,7 @@ export default function SimuladorPage() {
       ctx.font = 'bold 11px monospace';
       ctx.fillText('N', tipx - 3 + nxs * 8, tipy + 4 + nys * 8);
     }
-  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, showTrails, rings, selected, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont, playAlarm, recording, zonePts]);
+  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, zoneKinds, showTrails, rings, selected, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont, playAlarm, recording, zonePts]);
 
   // re-vincular cuando el canvas aparece tras login/lobby (auth y mode cambian el árbol)
   useEffect(() => {
@@ -1596,6 +1599,12 @@ export default function SimuladorPage() {
                 <MB label="GRILLA" active={showGrid} onClick={() => setShowGrid(!showGrid)} />
                 <MB label="ZONAS" active={showZones} onClick={() => setShowZones(!showZones)} />
                 <MB label="ANILLOS" active={rings} onClick={() => setRings(!rings)} />
+              </div>
+              <div className="flex flex-wrap gap-1">
+                <MB label="SEG" active={zoneKinds.SEGREGATED} onClick={() => setZoneKinds((k) => ({ ...k, SEGREGATED: !k.SEGREGATED }))} />
+                <MB label="PROH" active={zoneKinds.PROHIBITED} onClick={() => setZoneKinds((k) => ({ ...k, PROHIBITED: !k.PROHIBITED }))} />
+                <MB label="REST" active={zoneKinds.RESTRICTED} onClick={() => setZoneKinds((k) => ({ ...k, RESTRICTED: !k.RESTRICTED }))} />
+                <MB label="PELIG" active={zoneKinds.DANGER} onClick={() => setZoneKinds((k) => ({ ...k, DANGER: !k.DANGER }))} />
               </div>
               <div className="text-[#7aa] tracking-wider pt-1">PISTAS</div>
               <div className="flex flex-wrap gap-1 items-center">
