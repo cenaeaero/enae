@@ -33,11 +33,22 @@ function fmtT(t: number) {
 type LL = [number, number];
 // extremo de una RBL: punto geográfico fijo o pista (se resuelve a su posición actual)
 type RblEnd = { kind: 'pt'; ll: LL } | { kind: 'trk'; cs: string };
-// posición extrapolada a t segundos asumiendo rumbo y velocidad actuales
-function predictPos(tr: { lng: number; lat: number; hdg: number; speedKt: number }, tSec: number): LL {
+// curso sobre el terreno (dirección real de vuelo) desde las dos últimas posiciones;
+// si no hay histórico suficiente, cae al rumbo de nariz (hdg)
+function courseFromHist(hist: LL[], lng: number, lat: number, hdg: number): number {
+  if (hist.length >= 2) {
+    const [plng, plat] = hist[hist.length - 2];
+    const dN = lat - plat;
+    const dE = (lng - plng) * Math.cos((lat * Math.PI) / 180);
+    if (Math.abs(dN) + Math.abs(dE) > 1e-7) return ((Math.atan2(dE, dN) * 180) / Math.PI + 360) % 360;
+  }
+  return hdg;
+}
+// posición extrapolada a t segundos según el curso indicado y la velocidad actual
+function predictPos(tr: { lng: number; lat: number; speedKt: number }, tSec: number, courseDeg: number): LL {
   const distNm = tr.speedKt * (tSec / 3600);
-  const dLat = (distNm * Math.cos((tr.hdg * Math.PI) / 180)) / 60;
-  const dLng = (distNm * Math.sin((tr.hdg * Math.PI) / 180)) / (60 * Math.cos((tr.lat * Math.PI) / 180));
+  const dLat = (distNm * Math.cos((courseDeg * Math.PI) / 180)) / 60;
+  const dLng = (distNm * Math.sin((courseDeg * Math.PI) / 180)) / (60 * Math.cos((tr.lat * Math.PI) / 180));
   return [tr.lng + dLng, tr.lat + dLat];
 }
 function distMeters(a: LL, b: LL): number {
@@ -56,7 +67,7 @@ function pointInPoly(p: LL, ring: LL[]): boolean {
 }
 const SEP_H_M = 150; // separación horizontal mínima (m)
 const SEP_V_M = 30; // separación vertical mínima (m)
-interface ConflictTrack { callsign: string; lng: number; lat: number; hdg: number; speedKt: number; alt: number; airborne: boolean; }
+interface ConflictTrack { callsign: string; lng: number; lat: number; hdg: number; speedKt: number; alt: number; airborne: boolean; crs: number; }
 interface ConflictZone { id?: string; name: string; kind: string; ring: LL[]; }
 // Monitoriza todos los pares de aeronaves (STCA) y la salida de zonas segregadas
 // dentro del horizonte del vector de predicción (minutos). Devuelve warnings por C/S
@@ -78,7 +89,7 @@ function computeConflicts(tracks: ConflictTrack[], zones: ConflictZone[], horizo
       if (Math.abs(a.alt - b.alt) > SEP_V_M) continue;
       let minD = Infinity, tC = -1;
       for (let t = 0; t <= H; t += STEP) {
-        const d = distMeters(predictPos(a, t), predictPos(b, t));
+        const d = distMeters(predictPos(a, t, a.crs), predictPos(b, t, b.crs));
         if (d < minD) { minD = d; tC = t; }
       }
       if (minD < SEP_H_M) {
@@ -92,7 +103,7 @@ function computeConflicts(tracks: ConflictTrack[], zones: ConflictZone[], horizo
     for (const z of zones) {
       if (z.kind !== 'SEGREGATED' || !pointInPoly([tr.lng, tr.lat], z.ring)) continue;
       for (let t = STEP; t <= H; t += STEP) {
-        const p = predictPos(tr, t);
+        const p = predictPos(tr, t, tr.crs);
         if (!pointInPoly(p, z.ring)) {
           add(tr.callsign, `SALE ${z.id ?? z.name} ${t}s`);
           redLines.push({ from: [tr.lng, tr.lat], to: p });
@@ -287,6 +298,39 @@ export default function SimuladorPage() {
 
   if (!engineRef.current) engineRef.current = new SimEngine(SCENARIOS[0]);
   const eng = engineRef.current;
+
+  // alarma sonora: pitidos por 3 s al aparecer un conflicto/alerta nuevo
+  const audioRef = useRef<AudioContext | null>(null);
+  const alarmedRef = useRef<Set<string>>(new Set());
+  const lastAlarmRef = useRef(0);
+  const playAlarm = useCallback(() => {
+    try {
+      if (!audioRef.current && typeof window !== 'undefined' && window.AudioContext) {
+        audioRef.current = new window.AudioContext();
+      }
+      const ac = audioRef.current;
+      if (!ac) return;
+      if (ac.state === 'suspended') ac.resume();
+      let t = ac.currentTime;
+      const end = t + 3; // 3 segundos
+      while (t < end) {
+        const osc = ac.createOscillator();
+        const g = ac.createGain();
+        osc.type = 'square';
+        osc.frequency.value = 880;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.18, t + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+        osc.connect(g);
+        g.connect(ac.destination);
+        osc.start(t);
+        osc.stop(t + 0.18);
+        t += 0.5;
+      }
+    } catch {
+      /* audio no disponible */
+    }
+  }, []);
 
   const setWin = (id: WinId, p: Partial<{ x: number; y: number; open: boolean }>) =>
     setWins((w) => ({ ...w, [id]: { ...w[id], ...p } }));
@@ -590,11 +634,25 @@ export default function SimuladorPage() {
     }
 
     // detección de conflictos (STCA + salida de zona) en el horizonte del vector
+    const cTracks: ConflictTrack[] = Array.from(eng.tracks.values()).map((t) => ({
+      callsign: t.callsign, lng: t.lng, lat: t.lat, hdg: t.hdg, speedKt: t.speedKt,
+      alt: t.alt, airborne: t.airborne, crs: courseFromHist(t.history, t.lng, t.lat, t.hdg),
+    }));
     const { warnings: cfWarn, redLines: cfLines } = computeConflicts(
-      Array.from(eng.tracks.values()),
+      cTracks,
       eng.scenario.zones as unknown as ConflictZone[],
       vectorMin
     );
+    // alarma sonora al aparecer un conflicto/alerta nuevo (3 s)
+    const nowAlarmed = new Set<string>(cfWarn.keys());
+    for (const t of eng.tracks.values()) if (t.alerts.length) nowAlarmed.add(t.callsign);
+    let freshAlarm = false;
+    for (const cs of nowAlarmed) if (!alarmedRef.current.has(cs)) { freshAlarm = true; break; }
+    alarmedRef.current = nowAlarmed;
+    if (freshAlarm && performance.now() - lastAlarmRef.current > 3000) {
+      lastAlarmRef.current = performance.now();
+      playAlarm();
+    }
     ctx.save();
     ctx.strokeStyle = RED;
     ctx.lineWidth = 1.5;
@@ -644,9 +702,10 @@ export default function SimuladorPage() {
       }
 
       if (showVectors && tr.speedKt > 0) {
-        // vector segmentado: un trazo por minuto (contar trazos = minutos de predicción)
-        const dirx = Math.sin((tr.hdg * Math.PI) / 180);
-        const diry = -Math.cos((tr.hdg * Math.PI) / 180);
+        // vector segmentado: un trazo por minuto, orientado al curso real (dirección de vuelo)
+        const course = courseFromHist(tr.history, tr.lng, tr.lat, tr.hdg);
+        const dirx = Math.sin((course * Math.PI) / 180);
+        const diry = -Math.cos((course * Math.PI) / 180);
         const minPx = (tr.speedKt / 60) * pxPerNm; // px por minuto
         ctx.strokeStyle = col;
         ctx.lineWidth = 1.4;
@@ -730,9 +789,11 @@ export default function SimuladorPage() {
         lines.push(`ETA ${eta.toISOString().slice(11, 19)}`);
       }
       if (ra.trk && rb.trk) {
+        const ca = courseFromHist(ra.trk.history, ra.trk.lng, ra.trk.lat, ra.trk.hdg);
+        const cb = courseFromHist(rb.trk.history, rb.trk.lng, rb.trk.lat, rb.trk.hdg);
         let minD = Infinity;
         for (let t = 0; t <= vectorMin * 60; t += 6) {
-          const d = distMeters(predictPos(ra.trk, t), predictPos(rb.trk, t));
+          const d = distMeters(predictPos(ra.trk, t, ca), predictPos(rb.trk, t, cb));
           if (d < minD) minD = d;
         }
         lines.push(`X ${(minD / 1852).toFixed(1)} NM`);
@@ -745,7 +806,7 @@ export default function SimuladorPage() {
     };
     for (const r of rbls) drawRbl(r.a, r.b, false);
     if (rblPend.current && cursorLL) drawRbl(rblPend.current, { kind: 'pt', ll: cursorLL }, true);
-  }, [eng, project, rangeNm, pan, showLabels, showZones, showTrails, rings, selected, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont]);
+  }, [eng, project, rangeNm, pan, showLabels, showZones, showTrails, rings, selected, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont, playAlarm]);
 
   // re-vincular cuando el canvas aparece tras login/lobby (auth y mode cambian el árbol)
   useEffect(() => {
