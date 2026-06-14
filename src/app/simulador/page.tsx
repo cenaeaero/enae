@@ -1422,9 +1422,12 @@ export default function SimuladorPage() {
 
   const tracks: TrackState[] = Array.from(eng.tracks.values());
   const anyAlarm = tracks.some((t) => t.alerts.length > 0);
-  const selZone = eng.scenario.zones.find(
-    (z) => z.id === eng.scenario.flights.find((f) => f.callsign === selected)?.zoneId
-  );
+  // zona a mostrar en ZONE INFO: la zona donde está la pista seleccionada
+  // (cualquier zona, incluidas creadas/importadas); si no, la zona asignada al vuelo
+  const selTrack = selected ? eng.tracks.get(selected) : undefined;
+  const selZone =
+    (selTrack && eng.scenario.zones.find((z) => pointInPoly([selTrack.lng, selTrack.lat], z.ring as [number, number][]))) ||
+    eng.scenario.zones.find((z) => z.id === eng.scenario.flights.find((f) => f.callsign === selected)?.zoneId);
 
   const TSeg = ({ label, color, bg }: { label: string; color?: string; bg?: string }) => (
     <span
@@ -1694,18 +1697,25 @@ export default function SimuladorPage() {
           </Win>
         )}
 
-        {wins.zone.open && selZone && (
-          <Win title={`ZONA ${selZone.id}`} x={wins.zone.x} y={wins.zone.y} w={300}
+        {wins.zone.open && (
+          <Win title={selZone ? `ZONA ${selZone.id}` : 'ZONE INFO'} x={wins.zone.x} y={wins.zone.y} w={300}
             onClose={() => setWin('zone', { open: false })}
             onDrag={(x, y) => setWin('zone', { x, y })}>
             <div style={{ background: '#000' }} className="font-mono text-[10px] p-1">
-              <div><span style={{ color: AMBER }}>Status: </span><span style={{ color: GREEN }}>ACTIVA</span></div>
-              <div><span style={{ color: AMBER }}>Lower limit: </span><span style={{ color: GREEN }}>{selZone.floor}M AGL</span></div>
-              <div><span style={{ color: AMBER }}>Upper limit: </span><span style={{ color: GREEN }}>{selZone.ceiling}M AGL</span></div>
-              <div><span style={{ color: AMBER }}>Nombre: </span><span style={{ color: GREEN }}>{selZone.name}</span></div>
-              <div className="flex gap-1 mt-1">
-                <MB label="MSAW" /><MB label="APW" active /><MB label="CONF" active />
-              </div>
+              {selZone ? (
+                <>
+                  <div><span style={{ color: AMBER }}>Tipo: </span><span style={{ color: GREEN }}>{selZone.kind}</span></div>
+                  <div><span style={{ color: AMBER }}>Nombre: </span><span style={{ color: GREEN }}>{selZone.name}</span></div>
+                  <div><span style={{ color: AMBER }}>Límites: </span><span style={{ color: GREEN }}>{selZone.vlimit || `${selZone.floor}-${selZone.ceiling}M AGL`}</span></div>
+                  <div><span style={{ color: AMBER }}>Status: </span><span style={{ color: GREEN }}>ACTIVA</span></div>
+                  {selTrack && <div><span style={{ color: AMBER }}>Pista: </span><span style={{ color: GREEN }}>{selTrack.callsign} dentro</span></div>}
+                  <div className="flex gap-1 mt-1">
+                    <MB label="MSAW" /><MB label="APW" active /><MB label="CONF" active />
+                  </div>
+                </>
+              ) : (
+                <div className="text-[#888] py-2">Seleccioná una pista que esté dentro de una zona para ver su información.</div>
+              )}
             </div>
           </Win>
         )}
