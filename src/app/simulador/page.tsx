@@ -1670,76 +1670,86 @@ export default function SimuladorPage() {
         )}
 
         {wins.layers.open && (
-          <Win title="CAPAS / PRESENTACIÓN" x={wins.layers.x} y={wins.layers.y} w={252}
+          <Win title="CAPAS / PRESENTACIÓN" x={wins.layers.x} y={wins.layers.y} w={500}
             onClose={() => setWin('layers', { open: false })}
             onDrag={(x, y) => setWin('layers', { x, y })}>
-            <div style={{ background: '#000' }} className="font-mono text-[10px] p-1.5 space-y-1">
-              <div className="text-[#7aa] tracking-wider">CARTOGRAFÍA</div>
-              <div className="flex flex-wrap gap-1">
-                <MB label="GRILLA" active={showGrid} onClick={() => setShowGrid(!showGrid)} />
-                <MB label="ZONAS" active={showZones} onClick={() => setShowZones(!showZones)} />
-                <MB label="ANILLOS" active={rings} onClick={() => setRings(!rings)} />
-              </div>
-              <div className="flex flex-wrap gap-1">
-                <MB label="SEG" active={zoneKinds.SEGREGATED} onClick={() => setZoneKinds((k) => ({ ...k, SEGREGATED: !k.SEGREGATED }))} />
-                <MB label="PROH" active={zoneKinds.PROHIBITED} onClick={() => setZoneKinds((k) => ({ ...k, PROHIBITED: !k.PROHIBITED }))} />
-                <MB label="REST" active={zoneKinds.RESTRICTED} onClick={() => setZoneKinds((k) => ({ ...k, RESTRICTED: !k.RESTRICTED }))} />
-                <MB label="PELIG" active={zoneKinds.DANGER} onClick={() => setZoneKinds((k) => ({ ...k, DANGER: !k.DANGER }))} />
-              </div>
-              <div className="text-[#7aa] tracking-wider pt-1">PISTAS</div>
-              <div className="flex flex-wrap gap-1 items-center">
-                <MB label="ETIQUETA" active={showLabels} onClick={() => setShowLabels(!showLabels)} />
-                <MB label="ESTELA" active={showTrails} onClick={() => setShowTrails(!showTrails)} />
-                <MB label="VECTOR" active={showVectors} onClick={() => setShowVectors(!showVectors)} />
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-[#888]">VEC PRED:</span>
-                {[1, 2, 4].map((m) => (
-                  <MB key={m} label={`${m}m`} active={showVectors && vectorMin === m}
-                    onClick={() => { setShowVectors(true); setVectorMin(m); }} />
-                ))}
-              </div>
-              <div className="text-[#7aa] tracking-wider pt-1">FILTRO ALTITUD (M AGL)</div>
-              <div className="flex items-center gap-1">
-                <MB label={altFilter.on ? 'ON' : 'OFF'} active={altFilter.on}
-                  onClick={() => setAltFilter((f) => ({ ...f, on: !f.on }))} />
-                <span className="text-[#888]">MIN</span>
-                <input type="number" value={altFilter.min}
-                  onChange={(e) => setAltFilter((f) => ({ ...f, min: +e.target.value }))}
-                  style={{ ...bevelIn, background: '#000', color: GREEN, width: 46 }} className="px-1 text-[10px]" />
-                <span className="text-[#888]">MAX</span>
-                <input type="number" value={altFilter.max}
-                  onChange={(e) => setAltFilter((f) => ({ ...f, max: +e.target.value }))}
-                  style={{ ...bevelIn, background: '#000', color: GREEN, width: 46 }} className="px-1 text-[10px]" />
-              </div>
-              <div className="text-[#7aa] tracking-wider pt-1">ETIQUETA PISTA</div>
-              <div className="flex items-center gap-1 flex-wrap">
-                {['COMPACTA', 'STD', 'FULL'].map((l, i) => (
-                  <MB key={l} label={l} active={labelMode === i} onClick={() => setLabelMode(i)} />
-                ))}
-                <span className="text-[#888] ml-1">FUENTE</span>
-                {([[10, 'S'], [11, 'M'], [13, 'L']] as [number, string][]).map(([px, l]) => (
-                  <MB key={l} label={l} active={labelFont === px} onClick={() => setLabelFont(px)} />
-                ))}
-              </div>
-              <div className="text-[#7aa] tracking-wider pt-1">BUSCAR PISTA</div>
-              <div className="flex items-center gap-1">
-                <input value={finder}
-                  onChange={(e) => setFinder(e.target.value.toUpperCase())}
-                  onKeyDown={(e) => { if (e.key === 'Enter') doFinder(); }}
-                  placeholder="C/S" style={{ ...bevelIn, background: '#000', color: GREEN, width: 96 }}
-                  className="px-1 text-[10px] uppercase" />
-                <MB label="IR" onClick={doFinder} />
-              </div>
-              <div className="text-[#7aa] tracking-wider pt-1">ORIENTACIÓN</div>
-              <div className="flex items-center gap-1 flex-wrap">
-                <MB label="N-UP" active={rot === 0} onClick={() => setRot(0)} />
-                <MB label="−15" onClick={() => setRot((r) => (r + 345) % 360)} />
-                <MB label="+15" onClick={() => setRot((r) => (r + 15) % 360)} />
-                <input type="number" value={rot}
-                  onChange={(e) => setRot((((+e.target.value % 360) + 360) % 360))}
-                  style={{ ...bevelIn, background: '#000', color: GREEN, width: 50 }} className="px-1 text-[10px]" />
-                <span className="text-[#888]">° arriba</span>
+            <div style={{ background: '#000' }} className="font-mono text-[10px] p-2 text-[#cbd5e1]">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                {/* ── columna izquierda: cartografía / zonas / orientación / filtro ── */}
+                <div className="space-y-1">
+                  <div className="text-[#7aa] tracking-wider">CARTOGRAFÍA</div>
+                  <div className="flex flex-wrap gap-1">
+                    <MB label="GRILLA" active={showGrid} onClick={() => setShowGrid(!showGrid)} />
+                    <MB label="ZONAS" active={showZones} onClick={() => setShowZones(!showZones)} />
+                    <MB label="ANILLOS" active={rings} onClick={() => setRings(!rings)} />
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    <MB label="SEG" active={zoneKinds.SEGREGATED} onClick={() => setZoneKinds((k) => ({ ...k, SEGREGATED: !k.SEGREGATED }))} />
+                    <MB label="PROH" active={zoneKinds.PROHIBITED} onClick={() => setZoneKinds((k) => ({ ...k, PROHIBITED: !k.PROHIBITED }))} />
+                    <MB label="REST" active={zoneKinds.RESTRICTED} onClick={() => setZoneKinds((k) => ({ ...k, RESTRICTED: !k.RESTRICTED }))} />
+                    <MB label="PELIG" active={zoneKinds.DANGER} onClick={() => setZoneKinds((k) => ({ ...k, DANGER: !k.DANGER }))} />
+                  </div>
+                  <div className="text-[#7aa] tracking-wider pt-1">ORIENTACIÓN</div>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <MB label="N-UP" active={rot === 0} onClick={() => setRot(0)} />
+                    <MB label="−15" onClick={() => setRot((r) => (r + 345) % 360)} />
+                    <MB label="+15" onClick={() => setRot((r) => (r + 15) % 360)} />
+                    <input type="number" value={rot}
+                      onChange={(e) => setRot((((+e.target.value % 360) + 360) % 360))}
+                      style={{ ...bevelIn, background: '#000', color: GREEN, width: 46 }} className="px-1 text-[10px]" />
+                    <span className="text-[#888]">°↑</span>
+                  </div>
+                  <div className="text-[#7aa] tracking-wider pt-1">FILTRO ALTITUD (M AGL)</div>
+                  <div className="flex items-center gap-1">
+                    <MB label={altFilter.on ? 'ON' : 'OFF'} active={altFilter.on}
+                      onClick={() => setAltFilter((f) => ({ ...f, on: !f.on }))} />
+                    <span className="text-[#888]">MIN</span>
+                    <input type="number" value={altFilter.min}
+                      onChange={(e) => setAltFilter((f) => ({ ...f, min: +e.target.value }))}
+                      style={{ ...bevelIn, background: '#000', color: GREEN, width: 44 }} className="px-1 text-[10px]" />
+                    <span className="text-[#888]">MAX</span>
+                    <input type="number" value={altFilter.max}
+                      onChange={(e) => setAltFilter((f) => ({ ...f, max: +e.target.value }))}
+                      style={{ ...bevelIn, background: '#000', color: GREEN, width: 44 }} className="px-1 text-[10px]" />
+                  </div>
+                </div>
+                {/* ── columna derecha: pistas / etiqueta / buscar ── */}
+                <div className="space-y-1">
+                  <div className="text-[#7aa] tracking-wider">PISTAS</div>
+                  <div className="flex flex-wrap gap-1 items-center">
+                    <MB label="ETIQUETA" active={showLabels} onClick={() => setShowLabels(!showLabels)} />
+                    <MB label="ESTELA" active={showTrails} onClick={() => setShowTrails(!showTrails)} />
+                    <MB label="VECTOR" active={showVectors} onClick={() => setShowVectors(!showVectors)} />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[#888]">VEC PRED:</span>
+                    {[1, 2, 4].map((m) => (
+                      <MB key={m} label={`${m}m`} active={showVectors && vectorMin === m}
+                        onClick={() => { setShowVectors(true); setVectorMin(m); }} />
+                    ))}
+                  </div>
+                  <div className="text-[#7aa] tracking-wider pt-1">ETIQUETA PISTA</div>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {['COMPACTA', 'STD', 'FULL'].map((l, i) => (
+                      <MB key={l} label={l} active={labelMode === i} onClick={() => setLabelMode(i)} />
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[#888]">FUENTE</span>
+                    {([[10, 'S'], [11, 'M'], [13, 'L']] as [number, string][]).map(([px, l]) => (
+                      <MB key={l} label={l} active={labelFont === px} onClick={() => setLabelFont(px)} />
+                    ))}
+                  </div>
+                  <div className="text-[#7aa] tracking-wider pt-1">BUSCAR PISTA</div>
+                  <div className="flex items-center gap-1">
+                    <input value={finder}
+                      onChange={(e) => setFinder(e.target.value.toUpperCase())}
+                      onKeyDown={(e) => { if (e.key === 'Enter') doFinder(); }}
+                      placeholder="C/S" style={{ ...bevelIn, background: '#000', color: GREEN, width: 110 }}
+                      className="px-1 text-[10px] uppercase" />
+                    <MB label="IR" onClick={doFinder} />
+                  </div>
+                </div>
               </div>
             </div>
           </Win>
