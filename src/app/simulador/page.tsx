@@ -278,6 +278,7 @@ export default function SimuladorPage() {
   const [vectorMin, setVectorMin] = useState(1); // minutos del vector de predicción
   const [showGrid, setShowGrid] = useState(false); // grilla geográfica (graticula)
   const [zoneKinds, setZoneKinds] = useState({ SEGREGATED: true, PROHIBITED: true, RESTRICTED: true, DANGER: true }); // visibilidad por tipo de zona
+  const [showZoneLabels, setShowZoneLabels] = useState(true); // nombres/leyendas de zona
   const [altFilter, setAltFilter] = useState({ on: false, min: 0, max: 150 }); // filtro de banda de altitud (M AGL)
   const [rblMode, setRblMode] = useState(false); // modo medición rango/marcación (clic-clic)
   const [rbls, setRbls] = useState<{ a: RblEnd; b: RblEnd }[]>([]); // mediciones (punto o pista)
@@ -518,7 +519,7 @@ export default function SimuladorPage() {
       clearInterval(iv);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeNm, pan, rot, showLabels, showZones, zoneKinds, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont, labelOffsets, zonePts]);
+  }, [rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont, labelOffsets, zonePts]);
 
   // alumno: recibir estado por Realtime
   useEffect(() => {
@@ -740,10 +741,12 @@ export default function SimuladorPage() {
         });
         ctx.stroke();
         ctx.setLineDash([]);
-        const [lx, ly] = project(z.ring[0][0], z.ring[0][1], w, h);
-        ctx.fillStyle = col;
-        ctx.font = '10px monospace';
-        ctx.fillText(`${z.name} ${z.vlimit ? z.vlimit : `${z.floor}-${z.ceiling}M`}`, lx + 4, ly - 4);
+        if (showZoneLabels) {
+          const [lx, ly] = project(z.ring[0][0], z.ring[0][1], w, h);
+          ctx.fillStyle = col;
+          ctx.font = '10px monospace';
+          ctx.fillText(`${z.name} ${z.vlimit ? z.vlimit : `${z.floor}-${z.ceiling}M`}`, lx + 4, ly - 4);
+        }
       }
     }
 
@@ -991,7 +994,7 @@ export default function SimuladorPage() {
       ctx.font = 'bold 11px monospace';
       ctx.fillText('N', tipx - 3 + nxs * 8, tipy + 4 + nys * 8);
     }
-  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, zoneKinds, showTrails, rings, selected, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont, labelOffsets, playAlarm, recording, zonePts]);
+  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont, labelOffsets, playAlarm, recording, zonePts]);
 
   // re-vincular cuando el canvas aparece tras login/lobby (auth y mode cambian el árbol)
   useEffect(() => {
@@ -1202,8 +1205,9 @@ export default function SimuladorPage() {
     const lat = ((Number(dms.latD) || 0) + (Number(dms.latM) || 0) / 60 + (Number(dms.latS) || 0) / 3600) * (dms.latH === 'S' ? -1 : 1);
     const lng = ((Number(dms.lngD) || 0) + (Number(dms.lngM) || 0) / 60 + (Number(dms.lngS) || 0) / 3600) * (dms.lngH === 'W' ? -1 : 1);
     if (!isFinite(lat) || !isFinite(lng)) return;
+    const isFirst = zonePts.length === 0;
     setZonePts((p) => [...p, [lng, lat] as LL]);
-    centerOn({ lng, lat }); // recentra para ver el vértice ingresado
+    if (isFirst) centerOn({ lng, lat }); // sólo el primer vértice recentra; los siguientes mantienen la vista
   };
   // importa las zonas reales publicadas por NOTAM (snapshot de uascontrol.io)
   const importRealZones = async () => {
@@ -1509,6 +1513,11 @@ export default function SimuladorPage() {
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden select-none" style={{ background: '#9c9c9c' }}>
+      <style>{`
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+      `}</style>
       {/* ===== barra superior de estado ===== */}
       <div className="flex items-center justify-between" style={{ background: '#2b2b2b', borderBottom: '2px solid #5a5a5a' }}>
         <div className="flex items-center">
@@ -1681,6 +1690,7 @@ export default function SimuladorPage() {
                   <div className="flex flex-wrap gap-1">
                     <MB label="GRILLA" active={showGrid} onClick={() => setShowGrid(!showGrid)} />
                     <MB label="ZONAS" active={showZones} onClick={() => setShowZones(!showZones)} />
+                    <MB label="NOMBRES" active={showZoneLabels} onClick={() => setShowZoneLabels(!showZoneLabels)} />
                     <MB label="ANILLOS" active={rings} onClick={() => setRings(!rings)} />
                   </div>
                   <div className="flex flex-wrap gap-1">
