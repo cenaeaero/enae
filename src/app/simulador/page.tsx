@@ -1168,8 +1168,11 @@ export default function SimuladorPage() {
   // ── instructor: alta manual de zona (vértices o círculo) ──
   const commitZone = (ring: LL[]) => {
     if (ring.length < 3) return;
+    const have = new Set(eng.scenario.zones.map((z) => z.id));
+    let i = eng.scenario.zones.length + 1;
+    while (have.has('ZM' + i)) i++; // id único garantizado (evita colisiones tras borrar/importar)
     const z: Zone = {
-      id: 'ZM' + (eng.scenario.zones.length + 1),
+      id: 'ZM' + i,
       name: zoneForm.name.trim() || 'ZONA MANUAL',
       ring: [...ring, ring[0]],
       floor: zoneForm.floor,
@@ -1198,6 +1201,11 @@ export default function SimuladorPage() {
   };
   const deleteZone = (id: string) => {
     eng.scenario.zones = eng.scenario.zones.filter((z) => z.id !== id);
+    force((x) => x + 1);
+  };
+  const deleteLastZone = () => {
+    if (!eng.scenario.zones.length) return;
+    eng.scenario.zones = eng.scenario.zones.slice(0, -1);
     force((x) => x + 1);
   };
   // agrega un vértice ingresando coordenadas en Grados/Minutos/Segundos
@@ -1840,6 +1848,7 @@ export default function SimuladorPage() {
               {/* ── acción crear (ancho completo) ── */}
               <div className="flex items-center gap-2 mt-2 pt-1 border-t border-[#333]">
                 <MB label="✚ CREAR ZONA" active={zonePts.length >= 3} onClick={() => commitZone(zonePts)} />
+                <MB label="BORRAR ÚLTIMA" onClick={deleteLastZone} />
                 <span className="text-[9px] text-[#666]">Necesita ≥3 vértices (dibujo o GMS).</span>
               </div>
               <div className="text-[#7aa] tracking-wider pt-2">ZONAS ACTIVAS ({eng.scenario.zones.length})</div>
