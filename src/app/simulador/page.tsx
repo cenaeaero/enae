@@ -99,17 +99,31 @@ function computeConflicts(tracks: ConflictTrack[], zones: ConflictZone[], horizo
       }
     }
   }
+  const segs = zones.filter((z) => z.kind === 'SEGREGATED');
   for (const tr of flying) {
-    for (const z of zones) {
-      if (z.kind !== 'SEGREGATED' || !pointInPoly([tr.lng, tr.lat], z.ring)) continue;
+    if (segs.length === 0) continue;
+    const insideZone = segs.find((z) => pointInPoly([tr.lng, tr.lat], z.ring));
+    if (insideZone) {
+      // dentro de la zona: predicción de salida (aviso anticipado)
       for (let t = STEP; t <= H; t += STEP) {
         const p = predictPos(tr, t, tr.crs);
-        if (!pointInPoly(p, z.ring)) {
-          add(tr.callsign, `SALE ${z.id ?? z.name} ${t}s`);
+        if (!pointInPoly(p, insideZone.ring)) {
+          add(tr.callsign, `SALE ${insideZone.id ?? insideZone.name} ${t}s`);
           redLines.push({ from: [tr.lng, tr.lat], to: p });
           break;
         }
       }
+    } else {
+      // ya está FUERA de la zona segregada -> violación persistente (rojo)
+      add(tr.callsign, 'FUERA DE ZONA');
+      let best: LL | null = null;
+      let bestD = Infinity;
+      for (const z of segs)
+        for (const v of z.ring) {
+          const d = distMeters([tr.lng, tr.lat], v);
+          if (d < bestD) { bestD = d; best = v; }
+        }
+      if (best) redLines.push({ from: [tr.lng, tr.lat], to: best });
     }
   }
   return { warnings, redLines };
@@ -301,6 +315,7 @@ export default function SimuladorPage() {
 
   // alarma sonora: pitidos por 3 s al aparecer un conflicto/alerta nuevo
   const audioRef = useRef<AudioContext | null>(null);
+  const audioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null); // mezcla de audio para la grabación
   const alarmedRef = useRef<Set<string>>(new Set());
   const lastAlarmRef = useRef(0);
   const playAlarm = useCallback(() => {
@@ -323,6 +338,7 @@ export default function SimuladorPage() {
         g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
         osc.connect(g);
         g.connect(ac.destination);
+        if (audioDestRef.current) g.connect(audioDestRef.current); // también al archivo de grabación
         osc.start(t);
         osc.stop(t + 0.18);
         t += 0.5;
@@ -330,6 +346,51 @@ export default function SimuladorPage() {
     } catch {
       /* audio no disponible */
     }
+  }, []);
+
+  // grabación del vuelo: video del radar (canvas) + audio (alarmas) -> archivo .webm
+  const [recording, setRecording] = useState(false);
+  const recRef = useRef<{ rec: MediaRecorder; chunks: Blob[] } | null>(null);
+  const startRec = useCallback(() => {
+    const cv = canvasRef.current;
+    if (!cv || typeof cv.captureStream !== 'function' || typeof MediaRecorder === 'undefined') return;
+    try {
+      const stream = cv.captureStream(15);
+      if (!audioRef.current && typeof window !== 'undefined' && window.AudioContext) {
+        audioRef.current = new window.AudioContext();
+      }
+      const ac = audioRef.current;
+      if (ac) {
+        if (ac.state === 'suspended') ac.resume();
+        if (!audioDestRef.current) audioDestRef.current = ac.createMediaStreamDestination();
+        audioDestRef.current.stream.getAudioTracks().forEach((t) => stream.addTrack(t));
+      }
+      const rec = new MediaRecorder(stream, { mimeType: 'video/webm' });
+      const chunks: Blob[] = [];
+      rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+      rec.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        a.href = url;
+        a.download = `CONDOR_SIM_${eng.scenario.id}_${ts}.webm`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      };
+      rec.start(1000);
+      recRef.current = { rec, chunks };
+      setRecording(true);
+    } catch {
+      /* grabación no soportada */
+    }
+  }, [eng]);
+  const stopRec = useCallback(() => {
+    recRef.current?.rec.stop();
+    recRef.current = null;
+    setRecording(false);
   }, []);
 
   const setWin = (id: WinId, p: Partial<{ x: number; y: number; open: boolean }>) =>
@@ -806,7 +867,19 @@ export default function SimuladorPage() {
     };
     for (const r of rbls) drawRbl(r.a, r.b, false);
     if (rblPend.current && cursorLL) drawRbl(rblPend.current, { kind: 'pt', ll: cursorLL }, true);
-  }, [eng, project, rangeNm, pan, showLabels, showZones, showTrails, rings, selected, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont, playAlarm]);
+
+    // HUD inferior con la HORA UTC + escenario + indicador de grabación (queda en el video)
+    ctx.font = 'bold 12px monospace';
+    ctx.fillStyle = '#9fe3c0';
+    ctx.fillText(`${new Date().toISOString().slice(11, 19)}Z   ${eng.scenario.name}`, 12, h - 12);
+    if (recording) {
+      ctx.fillStyle = RED;
+      ctx.beginPath();
+      ctx.arc(18, h - 30, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillText('REC', 28, h - 26);
+    }
+  }, [eng, project, rangeNm, pan, showLabels, showZones, showTrails, rings, selected, showVectors, vectorMin, showGrid, altFilter, rbls, cursorLL, labelMode, labelFont, playAlarm, recording]);
 
   // re-vincular cuando el canvas aparece tras login/lobby (auth y mode cambian el árbol)
   useEffect(() => {
@@ -1618,6 +1691,8 @@ export default function SimuladorPage() {
           ))}
           <MB label="DEF" onClick={() => { setRangeNm(12); centerView(); }} />
           <span className="flex-1" />
+          <MB label={recording ? 'STOP REC' : 'REC ●'} active={recording} color={recording ? RED : undefined}
+            onClick={() => (recording ? stopRec() : startRec())} />
           <MB label="ACC" />
           <MB label="ATMCSUP" />
           <MB label="LOGOUT" />
