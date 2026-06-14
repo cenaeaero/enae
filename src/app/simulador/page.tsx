@@ -860,9 +860,8 @@ export default function SimuladorPage() {
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       if (tr.manned) {
-        // aeronave tripulada: círculo con punto central
-        ctx.arc(x, y, 6, 0, Math.PI * 2);
-        ctx.stroke();
+        // aeronave tripulada: cuadrado con punto central
+        ctx.strokeRect(x - 5, y - 5, 10, 10);
         ctx.fillStyle = col;
         ctx.fillRect(x - 1, y - 1, 2, 2);
       } else {
@@ -2044,7 +2043,7 @@ export default function SimuladorPage() {
                 <MB label="LIMPIAR" onClick={() => setRoutePts([])} />
                 <MB label="✚ AGREGAR AERONAVE" active={routePts.length >= 2} onClick={addAircraft} />
               </div>
-              <div className="text-[9px] text-[#666]">Clic en el radar para la ruta (≥2 wp). Tripulada = círculo; UAS = triángulo.</div>
+              <div className="text-[9px] text-[#666]">Clic en el radar para la ruta (≥2 wp). Tripulada = cuadrado; UAS = triángulo.</div>
               <div className="text-[#7aa] tracking-wider pt-1">CRONOLOGÍA</div>
               <div className="max-h-[160px] overflow-y-auto text-[10px] space-y-0.5">
                 {eng.scenario.zones.filter((z) => z.appearAt != null).map((z) => (
