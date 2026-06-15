@@ -384,6 +384,7 @@ export default function SimuladorPage() {
   const [showTrails, setShowTrails] = useState(true);
   const [rings, setRings] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
+  const [csMenu, setCsMenu] = useState<{ cs: string; x: number; y: number } | null>(null); // menú de campo callsign
   const [clock, setClock] = useState('--:--:--');
   const [wins, setWins] = useState<Record<WinId, { x: number; y: number; open: boolean }>>({
     flights: { x: 150, y: 60, open: true },
@@ -1576,7 +1577,8 @@ export default function SimuladorPage() {
 
   // arrastre del mapa (descentrado/pan) y arrastre del data block (etiqueta).
   const panDrag = useRef<{ sx: number; sy: number; ox: number; oy: number; moved: boolean } | null>(null);
-  const labelDrag = useRef<{ cs: string; sx: number; sy: number; ox: number; oy: number } | null>(null);
+  const labelDrag = useRef<{ cs: string; sx: number; sy: number; ox: number; oy: number; moved: boolean } | null>(null);
+  const leaderClick = useRef<string | null>(null); // C/S cuya línea guía se pulsó (para rotar 45°)
   const rblLabelDrag = useRef<{ id: string; sx: number; sy: number; ox: number; oy: number } | null>(null);
   const rblHitsRef = useRef<{ id: string; x0: number; y0: number; x1: number; y1: number }[]>([]); // cajas de etiquetas RBL (recalculadas cada frame)
   const rblOffOf = (id: string) => rblLabelOffsets[id] ?? { dx: 6, dy: -4 };
@@ -1584,8 +1586,35 @@ export default function SimuladorPage() {
     for (const h of rblHitsRef.current) if (mx >= h.x0 && mx <= h.x1 && my >= h.y0 && my <= h.y1) return h.id;
     return null;
   };
+  // distancia punto-segmento (para detectar clic sobre la línea guía)
+  const distToSeg = (px: number, py: number, ax: number, ay: number, bx: number, by: number): number => {
+    const dx = bx - ax, dy = by - ay;
+    const L2 = dx * dx + dy * dy || 1;
+    let t = ((px - ax) * dx + (py - ay) * dy) / L2;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+  };
+  const findLeaderAt = (mx: number, my: number): string | null => {
+    const cv = canvasRef.current;
+    if (!cv || !showLabels) return null;
+    for (const tr of eng.tracks.values()) {
+      if (!tr.airborne || tr.status === 'LANDED') continue;
+      const [x, y] = project(tr.lng, tr.lat, cv.width, cv.height);
+      const off = labelOffOf(tr.callsign);
+      if (distToSeg(mx, my, x, y, x + off.dx, y + off.dy) < 5) return tr.callsign;
+    }
+    return null;
+  };
+  // rotar la etiqueta 45° (cicla por las 8 posiciones estándar) — como la línea guía del manual
+  const rotateLabel = (cs: string) => {
+    const off = labelOffOf(cs);
+    const r = Math.max(22, Math.hypot(off.dx, off.dy));
+    const na = (Math.round(Math.atan2(off.dy, off.dx) / (Math.PI / 4)) + 1) * (Math.PI / 4);
+    setLabelOffsets((o) => ({ ...o, [cs]: { dx: Math.round(r * Math.cos(na)), dy: Math.round(r * Math.sin(na)) } }));
+  };
   const onCanvasPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    if (csMenu) setCsMenu(null); // un clic en el radar cierra el menú de callsign
     const cv = canvasRef.current;
     if (cv) {
       const rect = cv.getBoundingClientRect();
@@ -1598,14 +1627,17 @@ export default function SimuladorPage() {
         rblLabelDrag.current = { id: rid, sx: e.clientX, sy: e.clientY, ox: off.dx, oy: off.dy };
         return;
       }
-      // 2) data block de pista (si no se está dibujando)
+      // 2) data block de pista (si no se está dibujando): clic = menú, arrastre = mover
       if (!zoneDrawing && !routeDrawing && !rblMode) {
         const cs = findLabelAt(mx, my);
         if (cs) {
           const off = labelOffOf(cs);
-          labelDrag.current = { cs, sx: e.clientX, sy: e.clientY, ox: off.dx, oy: off.dy };
+          labelDrag.current = { cs, sx: e.clientX, sy: e.clientY, ox: off.dx, oy: off.dy, moved: false };
           return;
         }
+        // 3) línea guía: clic (sin arrastre) rota la etiqueta 45°
+        const lcs = findLeaderAt(mx, my);
+        if (lcs) leaderClick.current = lcs;
       }
     }
     panDrag.current = { sx: e.clientX, sy: e.clientY, ox: pan.x, oy: pan.y, moved: false };
@@ -1619,7 +1651,8 @@ export default function SimuladorPage() {
     }
     const ld = labelDrag.current;
     if (ld) {
-      setLabelOffsets((o) => ({ ...o, [ld.cs]: { dx: ld.ox + (e.clientX - ld.sx), dy: ld.oy + (e.clientY - ld.sy) } }));
+      if (!ld.moved && Math.abs(e.clientX - ld.sx) + Math.abs(e.clientY - ld.sy) > 3) ld.moved = true;
+      if (ld.moved) setLabelOffsets((o) => ({ ...o, [ld.cs]: { dx: ld.ox + (e.clientX - ld.sx), dy: ld.oy + (e.clientY - ld.sy) } }));
       return;
     }
     const d = panDrag.current;
@@ -1638,7 +1671,15 @@ export default function SimuladorPage() {
   };
   const onCanvasPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (rblLabelDrag.current) { rblLabelDrag.current = null; return; } // soltó etiqueta RBL
-    if (labelDrag.current) { labelDrag.current = null; return; } // soltó el data block
+    if (labelDrag.current) {
+      const ld = labelDrag.current; labelDrag.current = null;
+      if (!ld.moved) { setSelected(ld.cs); setCsMenu({ cs: ld.cs, x: e.clientX, y: e.clientY }); } // clic = menú de callsign
+      return; // si se movió, fue arrastre del data block
+    }
+    if (leaderClick.current) { // clic en la línea guía sin arrastre = rotar 45°
+      const lc = leaderClick.current; leaderClick.current = null;
+      if (!panDrag.current || !panDrag.current.moved) { rotateLabel(lc); panDrag.current = null; return; }
+    }
     const d = panDrag.current;
     panDrag.current = null;
     if (!d || d.moved) return; // fue arrastre = pan
@@ -2086,10 +2127,10 @@ export default function SimuladorPage() {
   };
 
   // alumno-controlador: órdenes registradas para evaluación
-  const studentAction = (action: string) => {
-    if (!selected || !sessionId) return;
-    logAction(sessionId, positionId, eng.t, action, { flight: selected }).catch(() => {});
-    eng.addLog(`${selected} ${action} TRANSMITIDA`, 'INFO');
+  const studentAction = (action: string, flight: string | null = selected) => {
+    if (!flight || !sessionId) return;
+    logAction(sessionId, positionId, eng.t, action, { flight }).catch(() => {});
+    eng.addLog(`${flight} ${action} TRANSMITIDA`, 'INFO');
   };
 
   // CPDLC: enviar mensaje al piloto del vuelo seleccionado (uplink datalink)
@@ -2478,7 +2519,7 @@ export default function SimuladorPage() {
           onPointerDown={onCanvasPointerDown}
           onPointerMove={onCanvasPointerMove}
           onPointerUp={onCanvasPointerUp}
-          onPointerCancel={() => { panDrag.current = null; labelDrag.current = null; rblLabelDrag.current = null; }}
+          onPointerCancel={() => { panDrag.current = null; labelDrag.current = null; rblLabelDrag.current = null; leaderClick.current = null; }}
           onWheel={onCanvasWheel}
         />
         {/* alumno: aviso claro si se cortó el enlace de datos (evita pantalla congelada en silencio) */}
@@ -2612,6 +2653,35 @@ export default function SimuladorPage() {
             </div>
           </Win>
         )}
+        {csMenu && (() => {
+          const close = () => setCsMenu(null);
+          const item = (label: string, fn: () => void, color?: string) => (
+            <button onClick={() => { fn(); close(); }} style={{ color: color ?? '#d6d6d6' }}
+              className="block w-full text-left px-2 py-0.5 text-[11px] font-mono hover:bg-[#3a3a3a]">{label}</button>
+          );
+          const isStudent = mode === 'student';
+          return (
+            <div className="fixed z-40" style={{ left: Math.min(csMenu.x, 1700), top: Math.min(csMenu.y, 900), ...bevelOut, background: '#2b2b2b', minWidth: 150 }}>
+              <div className="px-2 py-0.5 text-[11px] font-bold font-mono text-black" style={{ background: '#a8a8a8' }}>{csMenu.cs}</div>
+              <div className="py-1">
+                {item('CENTRAR (CSEL)', () => { setSelected(csMenu.cs); centerSelected(); })}
+                {item('CPDLC ▸', () => { setSelected(csMenu.cs); setWin('cpdlc', { open: true }); })}
+                {!isStudent && <>
+                  {item('ORDENAR RTH', () => inject(csMenu.cs, 'RTH'), AMBER)}
+                  {item('PÉRDIDA C2', () => inject(csMenu.cs, 'C2LOSS'), RED)}
+                  {item('EMERGENCIA', () => inject(csMenu.cs, 'EMERG'), RED)}
+                  {item('BATERÍA BAJA', () => inject(csMenu.cs, 'LOWBAT'), AMBER)}
+                </>}
+                {isStudent && <>
+                  {item('RECONOCER ALARMA', () => studentAction('ACK_ALARM', csMenu.cs))}
+                  {item('ORDENAR RTH', () => studentAction('ORDER_RTH', csMenu.cs), AMBER)}
+                  {item('DECLARAR CONTINGENCIA', () => studentAction('DECLARE_CONTINGENCY', csMenu.cs), RED)}
+                </>}
+                {item('CERRAR', () => {}, '#888')}
+              </div>
+            </div>
+          );
+        })()}
         {wins.hfs.open && (
           <Win title="SITUACIÓN FUTURA (HFS)" x={wins.hfs.x} y={wins.hfs.y} w={376}
             onClose={() => setWin('hfs', { open: false })}
