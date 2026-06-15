@@ -346,6 +346,7 @@ export default function SimuladorPage() {
   const [mtcd, setMtcd] = useState(true); // detección de conflictos a medio plazo (STCA) activa
   const [alarmMute, setAlarmMute] = useState(false); // silenciar alarma acústica
   const [showExt, setShowExt] = useState(true); // mostrar tráfico externo ADS-B / Mission Planner
+  const [quickLook, setQuickLook] = useState(false); // QL: revela todo el tráfico filtrado con etiqueta expandida, sin cambiar el zoom
   const [freetextMode, setFreetextMode] = useState(false); // modo colocar texto libre en pantalla
   const [freetexts, setFreetexts] = useState<{ id: string; ll: LL; txt: string }[]>([]); // anotaciones de texto libre
   const [cpdlcText, setCpdlcText] = useState(''); // mensaje CPDLC libre al piloto
@@ -620,7 +621,7 @@ export default function SimuladorPage() {
       clearInterval(iv);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, sep, mtcd, alarmMute, showExt, freetexts, rbls, cursorLL, labelMode, labelFont, labelOffsets, rblLabelOffsets, zonePts, routePts]);
+  }, [rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, sep, mtcd, alarmMute, showExt, quickLook, freetexts, rbls, cursorLL, labelMode, labelFont, labelOffsets, rblLabelOffsets, zonePts, routePts]);
 
   // alumno: recibir estado por Realtime
   useEffect(() => {
@@ -982,12 +983,16 @@ export default function SimuladorPage() {
 
     for (const tr of eng.tracks.values()) {
       if (!tr.airborne || tr.status === 'LANDED') continue; // aterrizadas salen del radar (van a lista ARR)
-      if (!showExt && tr.authRef === 'EXT-MP') continue; // ADS AIR off: oculta tráfico externo (Mission Planner)
-      if (altFilter.on && (tr.alt < altFilter.min || tr.alt > altFilter.max)) continue; // filtro de banda de altitud
+      // ¿este track estaría oculto por un filtro? (ADS AIR off / banda de altitud)
+      const hiddenByFilter = (!showExt && tr.authRef === 'EXT-MP') ||
+        (altFilter.on && (tr.alt < altFilter.min || tr.alt > altFilter.max));
+      if (hiddenByFilter && !quickLook) continue; // QL revela lo filtrado sin tocar el zoom
+      const peeked = hiddenByFilter && quickLook; // mostrado sólo por Quick-Look
       const [x, y] = project(tr.lng, tr.lat, w, h);
       const conflict = cfWarn.has(tr.callsign);
       const alarm = tr.alerts.length > 0 || conflict;
       const col = alarm ? RED : GREEN;
+      if (peeked) { ctx.strokeStyle = AMBER; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2); ctx.stroke(); } // anillo ámbar = revelado por QL
 
       if (showTrails && tr.history.length > 1) {
         ctx.strokeStyle = alarm ? 'rgba(255,59,48,.35)' : 'rgba(39,224,122,.3)';
@@ -1055,7 +1060,8 @@ export default function SimuladorPage() {
         }
       }
 
-      if (showLabels) {
+      if (showLabels || quickLook) {
+        const lblMode = quickLook ? 2 : labelMode; // QL expande la etiqueta al máximo
         const fp = labelFont;
         const lh = fp + 1;
         const off = labelOffsets[tr.callsign] ?? { dx: 14, dy: -22 };
@@ -1078,11 +1084,11 @@ export default function SimuladorPage() {
         }
         ctx.fillStyle = alarm ? RED : GREEN;
         ctx.fillText(`${tr.callsign}  ${String(Math.round(tr.alt)).padStart(3, '0')}M`, lx, yy);
-        if (labelMode >= 1) {
+        if (lblMode >= 1) {
           yy += lh;
           ctx.fillText(`${Math.round(tr.speedKt)}KT ${Math.round(tr.batteryPct)}%`, lx, yy);
         }
-        if (labelMode >= 2) {
+        if (lblMode >= 2) {
           yy += lh;
           ctx.fillStyle = alarm ? RED : '#1f9e5d';
           ctx.fillText(`${tr.acType} ${tr.authRef.slice(-4)} HDG${String(Math.round(tr.hdg)).padStart(3, '0')}`, lx, yy);
@@ -1266,7 +1272,7 @@ export default function SimuladorPage() {
       ctx.font = 'bold 11px monospace';
       ctx.fillText('N', tipx - 3 + nxs * 8, tipy + 4 + nys * 8);
     }
-  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, sep, mtcd, alarmMute, showExt, freetexts, rbls, cursorLL, labelMode, labelFont, labelOffsets, rblLabelOffsets, playAlarm, recording, zonePts, routePts]);
+  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, sep, mtcd, alarmMute, showExt, quickLook, freetexts, rbls, cursorLL, labelMode, labelFont, labelOffsets, rblLabelOffsets, playAlarm, recording, zonePts, routePts]);
 
   // ── ventana secundaria: radar independiente (norte arriba, con zoom y pan propios) ──
   // El controlador trabaja con la principal en zoom y ésta como segunda posición.
@@ -2487,6 +2493,7 @@ export default function SimuladorPage() {
           {mode === 'instructor' && liveCount > 0 && (
             <TSeg label={`RID ${liveCount}`} color={CYAN} />
           )}
+          {quickLook && <TSeg label="QUICK-LOOK" color={AMBER} />}
           <TSeg label={`Wx: CAVOK`} />
         </div>
         <div className="text-[11px] font-bold font-mono" style={{ color: GREEN }}>
@@ -3380,6 +3387,7 @@ export default function SimuladorPage() {
         <div className="flex items-center gap-0.5 flex-wrap">
           <MB label="EXECUTIVE" wide active />
           <MB label="TWR" active={altFilter.on} onClick={() => setAltFilter((a) => ({ ...a, on: !a.on, min: 0, max: 150 }))} />
+          <MB label="QL" active={quickLook} onClick={() => setQuickLook((v) => !v)} />
           <MB label="CPDLC" active={wins.cpdlc.open} onClick={() => setWin('cpdlc', { open: !wins.cpdlc.open })} />
           <MB label="VIEW1" active={hasPreset} onClick={viewPresetToggle} />
           <MB label="VIEW2" active={wins.aux.open} onClick={() => setWin('aux', { open: !wins.aux.open })} />
