@@ -230,6 +230,10 @@ export async function loadBaseData(id: string): Promise<unknown> {
 export async function deleteBase(id: string): Promise<void> {
   await simDb().from('sim_bases').delete().eq('id', id);
 }
+export async function updateBase(id: string, name: string, data: unknown): Promise<void> {
+  const { error } = await simDb().from('sim_bases').update({ name, data }).eq('id', id);
+  if (error) throw error;
+}
 
 export async function saveExercise(name: string, baseName: string | null, data: unknown): Promise<void> {
   const { error } = await simDb().from('sim_exercises').insert({ name, base_name: baseName, data });
@@ -246,4 +250,8 @@ export async function loadExerciseData(id: string): Promise<unknown> {
 }
 export async function deleteExercise(id: string): Promise<void> {
   await simDb().from('sim_exercises').delete().eq('id', id);
+}
+export async function updateExercise(id: string, name: string, baseName: string | null, data: unknown): Promise<void> {
+  const { error } = await simDb().from('sim_exercises').update({ name, base_name: baseName, data }).eq('id', id);
+  if (error) throw error;
 }

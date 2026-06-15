@@ -11,7 +11,7 @@ import {
   simDb, createSession, joinSession, publishState, subscribeState,
   subscribeActions, logAction, logEvent, countPositions, fetchEvalData,
   subscribeLiveTracks,
-  saveBase, listBases, loadBaseData, deleteBase, saveExercise, listExercises, loadExerciseData, deleteExercise,
+  saveBase, listBases, loadBaseData, deleteBase, updateBase, saveExercise, listExercises, loadExerciseData, deleteExercise, updateExercise,
   type SavedRow,
 } from '@/lib/sim/net';
 import { certificadoPdf } from '@/lib/sim/certificado';
@@ -1628,6 +1628,20 @@ export default function SimuladorPage() {
     try { await deleteBase(selBaseId); setSelBaseId(''); setPersistMsg(`Base borrada: ${nm}`); refreshSaved(); }
     catch { setPersistMsg('Error borrando base'); }
   };
+  // ACTUALIZAR: sobrescribe la base elegida con el estado actual (corregir sin duplicar)
+  const updateBaseNow = async () => {
+    if (!selBaseId) { setPersistMsg('Elegí una base en la lista para actualizar'); return; }
+    const nm = basesList.find((b) => b.id === selBaseId)?.name ?? '';
+    try {
+      await updateBase(selBaseId, nm, {
+        center: eng.scenario.center, rangeNm,
+        coast: showBorder ? 'chile' : null, aerodromes: showAD,
+        zones: eng.scenario.zones.filter((z) => !isMan(z)),
+        sep, meteo,
+      });
+      setCurrentBaseName(nm); setPersistMsg(`Base actualizada: ${nm}`); refreshSaved();
+    } catch { setPersistMsg('Error actualizando base'); }
+  };
   const saveExerciseNow = async () => {
     const nm = saveName.trim() || `EJ ${new Date().toISOString().slice(5, 16)}`;
     try {
@@ -1670,6 +1684,20 @@ export default function SimuladorPage() {
     if (typeof window !== 'undefined' && !window.confirm(`¿Borrar el ejercicio "${nm}"?`)) return;
     try { await deleteExercise(selExId); setSelExId(''); setPersistMsg(`Ejercicio borrado: ${nm}`); refreshSaved(); }
     catch { setPersistMsg('Error borrando ejercicio'); }
+  };
+  // ACTUALIZAR: sobrescribe el ejercicio elegido con el estado actual (corregir sin duplicar)
+  const updateExerciseNow = async () => {
+    if (!selExId) { setPersistMsg('Elegí un ejercicio en la lista para actualizar'); return; }
+    const nm = exsList.find((x) => x.id === selExId)?.name ?? '';
+    try {
+      await updateExercise(selExId, nm, currentBaseName || null, {
+        zones: eng.scenario.zones.filter(isMan),
+        flights: eng.scenario.flights,
+        events: eng.scenario.events,
+        sep,
+      });
+      setPersistMsg(`Ejercicio actualizado: ${nm}`); refreshSaved();
+    } catch { setPersistMsg('Error actualizando ejercicio'); }
   };
 
   // lobby
@@ -2499,6 +2527,7 @@ export default function SimuladorPage() {
                   {basesList.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
                 <MB label="CARGAR" onClick={loadBaseNow} />
+                <MB label="ACTUALIZAR" onClick={updateBaseNow} />
                 <MB label="🗑" onClick={deleteBaseNow} />
               </div>
               <div className="flex items-center gap-1">
@@ -2509,10 +2538,11 @@ export default function SimuladorPage() {
                   {exsList.map((x) => <option key={x.id} value={x.id}>{x.name}{x.base_name ? ` · ${x.base_name}` : ''}</option>)}
                 </select>
                 <MB label="CARGAR" onClick={loadExerciseNow} />
+                <MB label="ACTUALIZAR" onClick={updateExerciseNow} />
                 <MB label="🗑" onClick={deleteExerciseNow} />
               </div>
               {persistMsg && <div className="text-[9px]" style={{ color: GREEN }}>{persistMsg}</div>}
-              <div className="text-[9px] text-[#666]">Base actual: {currentBaseName || '—'}. Flujo: 1) GUARDAR BASE (geografía/zonas) · 2) GUARDAR EJ (aeronaves/contingencias). Para correr: CARGAR ejercicio (trae su base) → ▶ INICIAR.</div>
+              <div className="text-[9px] text-[#666]">Base actual: {currentBaseName || '—'}. Flujo: GUARDAR = crea nuevo · CARGAR (trae su base) → corregir → ACTUALIZAR sobrescribe el mismo · ▶ INICIAR para correr.</div>
             </div>
           </Win>
         )}
