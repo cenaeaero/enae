@@ -36,7 +36,8 @@ export interface Zone {
   ring: [number, number][]; // [lng, lat] cerrado
   floor: number;
   ceiling: number; // m AGL
-  kind: 'SEGREGATED' | 'PROHIBITED' | 'RESTRICTED' | 'DANGER';
+  kind: 'SEGREGATED' | 'PROHIBITED' | 'RESTRICTED' | 'DANGER' | 'MSA';
+  minAlt?: number; // sólo MSA: altura mínima de operación del sector (m AGL) — bajo ella → MSAW
   vlimit?: string; // límites verticales según publicación NOTAM (texto, p.ej. "FL 90 / 3000 FT")
   appearAt?: number; // s de simulación en que la zona aparece (programada en el ejercicio); null = desde el inicio
 }

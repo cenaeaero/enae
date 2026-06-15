@@ -68,7 +68,11 @@ function pointInPoly(p: LL, ring: LL[]): boolean {
   return inside;
 }
 interface ConflictTrack { callsign: string; lng: number; lat: number; hdg: number; speedKt: number; alt: number; airborne: boolean; crs: number; zoneId?: string; }
-interface ConflictZone { id?: string; name: string; kind: string; ring: LL[]; }
+interface ConflictZone { id?: string; name: string; kind: string; ring: LL[]; floor?: number; ceiling?: number; minAlt?: number; }
+// ¿la altura está dentro de la banda vertical de la zona (piso..techo)?
+function inBand(z: ConflictZone, alt: number): boolean {
+  return (z.floor == null || alt >= z.floor) && (z.ceiling == null || alt <= z.ceiling);
+}
 // Monitoriza todos los pares de aeronaves (STCA) y la salida de zonas segregadas
 // dentro del horizonte del vector de predicción (minutos). Devuelve warnings por C/S
 // y las líneas rojas a dibujar entre la aeronave y el conflicto.
@@ -100,16 +104,20 @@ function computeConflicts(tracks: ConflictTrack[], zones: ConflictZone[], horizo
       }
     }
   }
-  // conformance POR ASIGNACIÓN: cada operación conforma sólo a SU zona segregada.
-  // Salir de la propia zona = FUERA DE ZONA. Entrar a una zona segregada AJENA, o a
-  // una prohibida/restringida/peligrosa = INCURSIÓN (con aviso anticipado).
+  // conformance POR ASIGNACIÓN y en 3D: cada operación conforma sólo a SU zona segregada,
+  // considerando la banda vertical (piso..techo). Salir horizontal = FUERA DE ZONA; salir
+  // por arriba/abajo = FUERA DE ZONA (VERT). Entrar a una segregada AJENA o a una
+  // prohibida/restringida/peligrosa (dentro de su banda) = INCURSIÓN. Sector MSA: bajo el
+  // mínimo de operación = MSAW (mínima de seguridad por obstáculos).
   const segs = zones.filter((z) => z.kind === 'SEGREGATED');
   const hardRestr = zones.filter((z) => z.kind === 'PROHIBITED' || z.kind === 'RESTRICTED' || z.kind === 'DANGER');
+  const msaZones = zones.filter((z) => z.kind === 'MSA');
   for (const tr of flying) {
     const own = tr.zoneId ? segs.find((z) => z.id === tr.zoneId) : undefined;
-    // 1) conformance respecto de la zona propia (segregada asignada)
+    // 1) conformance respecto de la zona propia (segregada asignada), en 3D
     if (own) {
-      if (pointInPoly([tr.lng, tr.lat], own.ring)) {
+      const insideH = pointInPoly([tr.lng, tr.lat], own.ring);
+      if (insideH && inBand(own, tr.alt)) {
         for (let t = STEP; t <= H; t += STEP) {
           const p = predictPos(tr, t, tr.crs);
           if (!pointInPoly(p, own.ring)) {
@@ -118,14 +126,16 @@ function computeConflicts(tracks: ConflictTrack[], zones: ConflictZone[], horizo
             break;
           }
         }
+      } else if (insideH) {
+        add(tr.callsign, 'FUERA DE ZONA (VERT)'); // dentro de la huella pero fuera de su banda vertical
       } else {
         add(tr.callsign, 'FUERA DE ZONA');
       }
     }
-    // 2) incursión: zonas restrictivas + zonas segregadas que NO son la propia
+    // 2) incursión: zonas restrictivas + zonas segregadas que NO son la propia (dentro de banda)
     const intrude = [...hardRestr, ...segs.filter((z) => !own || z.id !== own.id)];
     for (const z of intrude) {
-      if (pointInPoly([tr.lng, tr.lat], z.ring)) {
+      if (pointInPoly([tr.lng, tr.lat], z.ring) && inBand(z, tr.alt)) {
         add(tr.callsign, `INCURSIÓN ${z.id ?? z.name}`);
         continue;
       }
@@ -134,11 +144,17 @@ function computeConflicts(tracks: ConflictTrack[], zones: ConflictZone[], horizo
       if (!near) continue;
       for (let t = STEP; t <= H; t += STEP) {
         const p = predictPos(tr, t, tr.crs);
-        if (pointInPoly(p, z.ring)) {
+        if (pointInPoly(p, z.ring) && inBand(z, tr.alt)) {
           add(tr.callsign, `ENTRA ${z.id ?? z.name} ${t}s`);
           redLines.push({ from: [tr.lng, tr.lat], to: p });
           break;
         }
+      }
+    }
+    // 3) MSAW: dentro de un sector MSA por debajo de su mínimo de operación
+    for (const z of msaZones) {
+      if (z.minAlt != null && tr.alt < z.minAlt && pointInPoly([tr.lng, tr.lat], z.ring)) {
+        add(tr.callsign, `MSAW ${z.id ?? z.name} <${z.minAlt}M`);
       }
     }
   }
@@ -285,7 +301,7 @@ export default function SimuladorPage() {
   const [selExId, setSelExId] = useState('');
   const [currentBaseName, setCurrentBaseName] = useState('');
   const [persistMsg, setPersistMsg] = useState('');
-  const [zoneKinds, setZoneKinds] = useState({ SEGREGATED: true, PROHIBITED: true, RESTRICTED: true, DANGER: true }); // visibilidad por tipo de zona
+  const [zoneKinds, setZoneKinds] = useState({ SEGREGATED: true, PROHIBITED: true, RESTRICTED: true, DANGER: true, MSA: true }); // visibilidad por tipo de zona
   const [showZoneLabels, setShowZoneLabels] = useState(true); // nombres/leyendas de zona
   const [altFilter, setAltFilter] = useState({ on: false, min: 0, max: 150 }); // filtro de banda de altitud (M AGL)
   const [sep, setSep] = useState({ h: 500, v: 30 }); // separación mínima de conflicto (m): horizontal / vertical
@@ -313,8 +329,8 @@ export default function SimuladorPage() {
   // instructor: alta manual de zona (dibujo de vértices o círculo)
   const [zoneDrawing, setZoneDrawing] = useState(false);
   const [zonePts, setZonePts] = useState<LL[]>([]);
-  const [zoneForm, setZoneForm] = useState<{ name: string; floor: number; ceiling: number; kind: Zone['kind']; radiusNm: number; appearMin: number }>(
-    { name: '', floor: 0, ceiling: 120, kind: 'SEGREGATED', radiusNm: 1, appearMin: 0 }
+  const [zoneForm, setZoneForm] = useState<{ name: string; floor: number; ceiling: number; kind: Zone['kind']; minAlt: number; radiusNm: number; appearMin: number }>(
+    { name: '', floor: 0, ceiling: 120, kind: 'SEGREGATED', minAlt: 50, radiusNm: 1, appearMin: 0 }
   );
   const [dms, setDms] = useState({ latD: 33, latM: 0, latS: 0, latH: 'S', lngD: 70, lngM: 0, lngS: 0, lngH: 'W' });
   // supervisor: editor de aeronaves del ejercicio (ruta dibujada + hora de aparición)
@@ -817,9 +833,9 @@ export default function SimuladorPage() {
       for (const z of eng.scenario.zones) {
         if (z.appearAt != null && eng.t < z.appearAt) continue; // zona programada aún no aparece
         if (!zoneKinds[z.kind as keyof typeof zoneKinds]) continue; // capa de tipo de zona oculta
-        const col = z.kind === 'PROHIBITED' ? RED : z.kind === 'DANGER' ? '#ff8c00' : z.kind === 'RESTRICTED' ? AMBER : CYAN;
+        const col = z.kind === 'PROHIBITED' ? RED : z.kind === 'DANGER' ? '#ff8c00' : z.kind === 'RESTRICTED' ? AMBER : z.kind === 'MSA' ? '#b06bff' : CYAN;
         ctx.strokeStyle = col;
-        ctx.setLineDash([]); // línea continua para todas las zonas
+        ctx.setLineDash(z.kind === 'MSA' ? [4, 3] : []); // MSA punteada; el resto continua
         ctx.lineWidth = 1.2;
         ctx.beginPath();
         z.ring.forEach(([lng, lat], i) => {
@@ -833,7 +849,8 @@ export default function SimuladorPage() {
           const [lx, ly] = project(z.ring[0][0], z.ring[0][1], w, h);
           ctx.fillStyle = col;
           ctx.font = '10px monospace';
-          ctx.fillText(`${z.name} ${z.vlimit ? z.vlimit : `${z.floor}-${z.ceiling}M`}`, lx + 4, ly - 4);
+          const vtxt = z.kind === 'MSA' ? `MÍN ${z.minAlt}M` : z.vlimit ? z.vlimit : `${z.floor}-${z.ceiling}M`;
+          ctx.fillText(`${z.name} ${vtxt}`, lx + 4, ly - 4);
         }
       }
     }
@@ -1476,10 +1493,15 @@ export default function SimuladorPage() {
       floor: zoneForm.floor,
       ceiling: zoneForm.ceiling,
       kind: zoneForm.kind,
+      minAlt: zoneForm.kind === 'MSA' ? zoneForm.minAlt : undefined,
       appearAt: zoneForm.appearMin > 0 ? zoneForm.appearMin * 60 : undefined,
     };
     eng.scenario.zones.push(z);
-    eng.addLog(`ZONA CREADA: ${z.name} (${z.kind}) ${z.floor}-${z.ceiling}M`, 'INFO');
+    eng.addLog(
+      z.kind === 'MSA'
+        ? `SECTOR MSA CREADO: ${z.name} — MÍN ${z.minAlt}M`
+        : `ZONA CREADA: ${z.name} (${z.kind}) ${z.floor}-${z.ceiling}M`,
+      'INFO');
     setZonePts([]);
     setZoneDrawing(false);
     force((x) => x + 1);
@@ -1966,6 +1988,10 @@ export default function SimuladorPage() {
   const netAgeS = lastNetRef.current ? Math.round((Date.now() - lastNetRef.current) / 1000) : 0;
   const netStale = mode === 'student' && (!lastNetRef.current || netAgeS > 4);
   const liveCount = tracks.filter((t) => t.live).length;
+  // MSAW activo: alguna aeronave en vuelo bajo el mínimo de un sector MSA
+  const msawActive = tracks.some((t) => t.airborne && t.status !== 'LANDED' &&
+    eng.scenario.zones.some((z) => z.kind === 'MSA' && z.minAlt != null && t.alt < z.minAlt &&
+      (z.appearAt == null || eng.t >= z.appearAt) && pointInPoly([t.lng, t.lat], z.ring as LL[])));
   // zona a mostrar en ZONE INFO: la zona donde está la pista seleccionada
   // (cualquier zona, incluidas creadas/importadas); si no, la zona asignada al vuelo
   const selTrack = selected ? eng.tracks.get(selected) : undefined;
@@ -2126,7 +2152,7 @@ export default function SimuladorPage() {
       <div className="flex items-center justify-between" style={{ background: '#2b2b2b', borderBottom: '2px solid #5a5a5a' }}>
         <div className="flex items-center">
           <TSeg label="ST" />
-          <TSeg label="MSAW" color={GREEN} />
+          <TSeg label="MSAW" color={msawActive ? RED : GREEN} />
           <TSeg label="CONF" color={GREEN} />
           <TSeg label="APW" color={anyAlarm ? RED : GREEN} />
           <TSeg label="C2" color={tracks.some((t) => t.alerts.includes('C2')) ? RED : GREEN} />
@@ -2413,6 +2439,7 @@ export default function SimuladorPage() {
                     <MB label="PROH" active={zoneKinds.PROHIBITED} onClick={() => setZoneKinds((k) => ({ ...k, PROHIBITED: !k.PROHIBITED }))} />
                     <MB label="REST" active={zoneKinds.RESTRICTED} onClick={() => setZoneKinds((k) => ({ ...k, RESTRICTED: !k.RESTRICTED }))} />
                     <MB label="PELIG" active={zoneKinds.DANGER} onClick={() => setZoneKinds((k) => ({ ...k, DANGER: !k.DANGER }))} />
+                    <MB label="MSA" active={zoneKinds.MSA} onClick={() => setZoneKinds((k) => ({ ...k, MSA: !k.MSA }))} />
                   </div>
                   <div className="text-[#7aa] tracking-wider pt-1">ORIENTACIÓN</div>
                   <div className="flex items-center gap-1 flex-wrap">
@@ -2728,6 +2755,7 @@ export default function SimuladorPage() {
                       <option value="PROHIBITED">PROHIBIDA</option>
                       <option value="RESTRICTED">RESTRINGIDA</option>
                       <option value="DANGER">PELIGROSA</option>
+                      <option value="MSA">SECTOR MSA (MÍN. ALTURA)</option>
                     </select>
                   </div>
                   <div className="flex items-center gap-1">
@@ -2739,6 +2767,14 @@ export default function SimuladorPage() {
                       style={{ ...bevelIn, background: '#000', color: GREEN, width: 50 }} className="px-1 text-[10px]" />
                     <span className="text-[#888]">M</span>
                   </div>
+                  {zoneForm.kind === 'MSA' && (
+                    <div className="flex items-center gap-1">
+                      <span className="text-[#888] w-10">MÍN OP</span>
+                      <input type="number" value={zoneForm.minAlt} onChange={(e) => setZoneForm((f) => ({ ...f, minAlt: +e.target.value }))}
+                        style={{ ...bevelIn, background: '#000', color: '#b06bff', width: 50 }} className="px-1 text-[10px]" />
+                      <span className="text-[#888]">M AGL — bajo este nivel se dispara MSAW (obstáculos)</span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-1">
                     <span className="text-[#888] w-10">APARECE</span>
                     <span className="text-[#888]">T+</span>
