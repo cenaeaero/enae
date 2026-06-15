@@ -22,7 +22,6 @@ const GREEN = '#27e07a';
 const CYAN = '#39c8d8';
 const AMBER = '#e0b83a';
 const RED = '#ff3b30';
-const GRAY = '#6a7a72';
 
 function fmtT(t: number) {
   const h = Math.floor(t / 3600) % 24;
@@ -249,7 +248,7 @@ function Win({
   );
 }
 
-type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone' | 'eval' | 'aftn' | 'layers' | 'zonemaker' | 'exercise' | 'fpl' | 'meteo';
+type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone' | 'eval' | 'aftn' | 'layers' | 'zonemaker' | 'exercise' | 'fpl' | 'meteo' | 'cpdlc' | 'arr';
 
 interface EvalRow {
   position_id: string | null;
@@ -297,6 +296,8 @@ export default function SimuladorPage() {
   const [showExt, setShowExt] = useState(true); // mostrar tráfico externo ADS-B / Mission Planner
   const [freetextMode, setFreetextMode] = useState(false); // modo colocar texto libre en pantalla
   const [freetexts, setFreetexts] = useState<{ id: string; ll: LL; txt: string }[]>([]); // anotaciones de texto libre
+  const [cpdlcText, setCpdlcText] = useState(''); // mensaje CPDLC libre al piloto
+  const arrivedAtRef = useRef<Map<string, number>>(new Map()); // hora SIM de aterrizaje por C/S (lista ARR)
   const viewPreset = useRef<{ pan: { x: number; y: number }; rot: number; rangeNm: number } | null>(null); // VIEW1
   const [hasPreset, setHasPreset] = useState(false);
   const [bright, setBright] = useState(0); // 0=día 1=crepúsculo 2=noche
@@ -347,6 +348,8 @@ export default function SimuladorPage() {
     exercise: { x: 80, y: 60, open: false },
     fpl: { x: 120, y: 90, open: false },
     meteo: { x: 700, y: 200, open: false },
+    cpdlc: { x: 520, y: 320, open: false },
+    arr: { x: 200, y: 120, open: false },
   });
   const [evalRows, setEvalRows] = useState<EvalRow[]>([]);
   const [evalBusy, setEvalBusy] = useState(false);
@@ -548,6 +551,10 @@ export default function SimuladorPage() {
     }, 100);
     const iv = setInterval(() => {
       setClock(new Date().toISOString().slice(11, 19));
+      // registrar aterrizajes: pasan de activos a la lista ARR
+      for (const t of eng.tracks.values()) {
+        if (t.status === 'LANDED' && !arrivedAtRef.current.has(t.callsign)) arrivedAtRef.current.set(t.callsign, eng.t);
+      }
       force((x) => x + 1);
       draw();
     }, 500);
@@ -631,6 +638,10 @@ export default function SimuladorPage() {
       if (a.action === 'ACK_ALARM' && flight) eng.addLog(`${flight} ALARMA RECONOCIDA POR CONTROLADOR`, 'INFO');
       if (a.action === 'ACK_MSG' && flight) eng.addLog(`${flight} MENSAJE ACUSADO POR OPERACIONES`, 'INFO');
       if (a.action === 'RELAY_ALERT' && flight) eng.addLog(`${flight} OPERACIONES ALERTA AL CONTROLADOR`, 'WARN');
+      if (a.action === 'CPDLC_MSG' && flight) {
+        const text = a.detail ? String((a.detail as { text?: string }).text ?? '') : '';
+        eng.addLog(`${flight} CPDLC DEL CONTROLADOR: ${text}`, 'INFO');
+      }
     });
     const iv = setInterval(() => countPositions(sessionId).then(setPeers).catch(() => {}), 8000);
     return () => {
@@ -910,13 +921,13 @@ export default function SimuladorPage() {
     ctx.restore();
 
     for (const tr of eng.tracks.values()) {
-      if (!tr.airborne && tr.status !== 'LANDED') continue;
+      if (!tr.airborne || tr.status === 'LANDED') continue; // aterrizadas salen del radar (van a lista ARR)
       if (!showExt && tr.authRef === 'EXT-MP') continue; // ADS AIR off: oculta tráfico externo (Mission Planner)
       if (altFilter.on && (tr.alt < altFilter.min || tr.alt > altFilter.max)) continue; // filtro de banda de altitud
       const [x, y] = project(tr.lng, tr.lat, w, h);
       const conflict = cfWarn.has(tr.callsign);
       const alarm = tr.alerts.length > 0 || conflict;
-      const col = tr.status === 'LANDED' ? GRAY : alarm ? RED : GREEN;
+      const col = alarm ? RED : GREEN;
 
       if (showTrails && tr.history.length > 1) {
         ctx.strokeStyle = alarm ? 'rgba(255,59,48,.35)' : 'rgba(39,224,122,.3)';
@@ -972,7 +983,7 @@ export default function SimuladorPage() {
         }
       }
 
-      if (showLabels && tr.status !== 'LANDED') {
+      if (showLabels) {
         const fp = labelFont;
         const lh = fp + 1;
         const off = labelOffsets[tr.callsign] ?? { dx: 14, dy: -22 };
@@ -1701,6 +1712,33 @@ export default function SimuladorPage() {
     eng.addLog(`${selected} ${action} TRANSMITIDA`, 'INFO');
   };
 
+  // CPDLC: enviar mensaje al piloto del vuelo seleccionado (uplink datalink)
+  const sendCpdlc = (text: string) => {
+    const t = text.trim();
+    if (!selected) { eng.addLog('CPDLC: SELECCIONE UN VUELO', 'WARN'); return; }
+    if (!t) return;
+    const up = t.toUpperCase();
+    if (sessionId) logAction(sessionId, positionId, eng.t, 'CPDLC_MSG', { flight: selected, text: up }).catch(() => {});
+    eng.addLog(`${selected} CPDLC ▸ ${up}`, 'INFO');
+    setCpdlcText('');
+  };
+
+  // PRINT LISTS: guarda una imagen PNG de la presentación radar actual
+  const saveScreenshot = () => {
+    const cv = canvasRef.current;
+    if (!cv || typeof document === 'undefined') return;
+    try {
+      const url = cv.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `CONDOR_${eng.scenario.id}_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '')}.png`;
+      a.click();
+      eng.addLog('CAPTURA DE PANTALLA GUARDADA', 'INFO');
+    } catch {
+      eng.addLog('NO SE PUDO GUARDAR LA CAPTURA', 'WARN');
+    }
+  };
+
   // evaluación: rúbrica transparente sobre sim_actions vs sim_events
   //  - detectar y reconocer la alarma (ACK): 40 pts (pleno ≤30 s tras el evento)
   //  - ordenar RTH al vuelo afectado: 30 pts
@@ -1789,6 +1827,7 @@ export default function SimuladorPage() {
   const resetEx = () => {
     if (mode === 'student') return;
     eng.reset();
+    arrivedAtRef.current.clear();
     setPaused(true);
     setSelected(null);
   };
@@ -1797,6 +1836,7 @@ export default function SimuladorPage() {
   const startExercise = () => {
     if (mode === 'student') return;
     eng.reset();
+    arrivedAtRef.current.clear();
     setSelected(null);
     setSpd(1);
     setExRunning(true);
@@ -1823,12 +1863,15 @@ export default function SimuladorPage() {
     setExRunning(false);
     if (recording) stopRec();
     eng.tracks.clear(); // bajar todos los vuelos: la pantalla queda sin trazas
+    arrivedAtRef.current.clear();
     setSelected(null);
     eng.addLog('EJERCICIO FINALIZADO — VUELOS BAJADOS', 'INFO');
     force((x) => x + 1);
   };
 
   const tracks: TrackState[] = Array.from(eng.tracks.values());
+  const activeTracks = tracks.filter((t) => t.status !== 'LANDED'); // en vuelo / en espera (radar + VUELOS)
+  const arrTracks = tracks.filter((t) => t.status === 'LANDED'); // aterrizadas (lista ARR)
   const anyAlarm = tracks.some((t) => t.alerts.length > 0);
   // zona a mostrar en ZONE INFO: la zona donde está la pista seleccionada
   // (cualquier zona, incluidas creadas/importadas); si no, la zona asignada al vuelo
@@ -2017,14 +2060,15 @@ export default function SimuladorPage() {
         />
 
         {wins.flights.open && (
-          <Win title="VUELOS" x={wins.flights.x} y={wins.flights.y} w={430}
+          <Win title="VUELOS ACTIVOS" x={wins.flights.x} y={wins.flights.y} w={430}
             onClose={() => setWin('flights', { open: false })}
             onDrag={(x, y) => setWin('flights', { x, y })}>
             <div style={{ background: '#000' }} className="font-mono text-[11px] p-0.5">
               <div className="grid grid-cols-7 text-[#bdbdbd] px-1" style={{ background: '#3a3a3a' }}>
                 <span>C/S</span><span>TYPE</span><span>AUT</span><span>ALT</span><span>SPD</span><span>BAT</span><span>EST</span>
               </div>
-              {tracks.map((t) => (
+              {activeTracks.length === 0 && <div className="px-1 text-[#666]">— sin tráfico activo —</div>}
+              {activeTracks.map((t) => (
                 <div key={t.callsign} onClick={() => setSelected(t.callsign)}
                   className={`grid grid-cols-7 px-1 cursor-pointer ${selected === t.callsign ? 'bg-[#2a2a2a]' : ''}`}
                   style={{ color: (t.alerts.length || conflictCs.includes(t.callsign)) ? RED : t.status === 'LANDED' ? '#777' : GREEN }}>
@@ -2034,9 +2078,33 @@ export default function SimuladorPage() {
                   <span>{Math.round(t.alt)}M</span>
                   <span>{Math.round(t.speedKt)}KT</span>
                   <span>{Math.round(t.batteryPct)}%</span>
-                  <span>{t.status === 'NORMAL' && t.airborne ? 'VUELO' : t.status === 'LANDED' ? 'TIERRA' : t.airborne ? t.status : 'ESPERA'}</span>
+                  <span>{t.status === 'NORMAL' && t.airborne ? 'VUELO' : t.airborne ? t.status : 'ESPERA'}</span>
                 </div>
               ))}
+            </div>
+          </Win>
+        )}
+
+        {wins.arr.open && (
+          <Win title={`ARRIBOS (${arrTracks.length})`} x={wins.arr.x} y={wins.arr.y} w={360}
+            onClose={() => setWin('arr', { open: false })}
+            onDrag={(x, y) => setWin('arr', { x, y })}>
+            <div style={{ background: '#000' }} className="font-mono text-[11px] p-0.5">
+              <div className="grid grid-cols-4 text-[#bdbdbd] px-1" style={{ background: '#3a3a3a' }}>
+                <span>C/S</span><span>TYPE</span><span>ATERRIZÓ</span><span>MOTIVO</span>
+              </div>
+              {arrTracks.length === 0 && <div className="px-1 text-[#666]">— sin arribos —</div>}
+              {arrTracks.map((t) => (
+                <div key={t.callsign} className="grid grid-cols-4 px-1" style={{ color: '#9a9a9a' }}>
+                  <span>{t.callsign}</span>
+                  <span>{t.acType}</span>
+                  <span>{fmtT(arrivedAtRef.current.get(t.callsign) ?? 0)}</span>
+                  <span>{t.batteryPct <= 0 ? 'BATERÍA' : 'MISIÓN'}</span>
+                </div>
+              ))}
+              <div className="text-[9px] text-[#555] px-1 pt-1 border-t border-[#333] mt-1">
+                Las aeronaves aterrizadas salen del radar y de VUELOS ACTIVOS.
+              </div>
             </div>
           </Win>
         )}
@@ -2121,6 +2189,31 @@ export default function SimuladorPage() {
                       style={{ ...bevelIn, background: '#000', color: GREEN, width: 44 }} className="px-1 text-[10px]" /></label>
                 </div>
               )}
+            </div>
+          </Win>
+        )}
+
+        {wins.cpdlc.open && (
+          <Win title="CPDLC — MENSAJE AL PILOTO" x={wins.cpdlc.x} y={wins.cpdlc.y} w={330}
+            onClose={() => setWin('cpdlc', { open: false })}
+            onDrag={(x, y) => setWin('cpdlc', { x, y })}>
+            <div className="p-1 font-mono text-[10px]" style={{ background: '#c0c0c0' }}>
+              <div className="text-black mb-1">DESTINO: <b>{selected ?? '— seleccione vuelo —'}</b></div>
+              <div className="flex flex-wrap gap-1 mb-1">
+                {['MANTENGA POSICIÓN', 'REGRESE A BASE (RTH)', 'ASCIENDA A 120 M', 'DESCIENDA A 60 M', 'REPORTE INTENCIONES', 'SALGA DE LA ZONA'].map((m) => (
+                  <MB key={m} label={m} onClick={() => sendCpdlc(m)} />
+                ))}
+              </div>
+              <div className="flex gap-1 items-center">
+                <input value={cpdlcText} onChange={(e) => setCpdlcText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') sendCpdlc(cpdlcText); }}
+                  placeholder="MENSAJE LIBRE…"
+                  style={{ ...bevelIn, background: '#000', color: GREEN }} className="px-1 text-[10px] flex-1 font-mono" />
+                <MB label="ENVIAR" onClick={() => sendCpdlc(cpdlcText)} />
+              </div>
+              <div className="text-[9px] text-[#333] border-t border-[#888] pt-1 mt-1">
+                El uplink se registra y llega a la posición de pilotaje / pseudo-piloto.
+              </div>
             </div>
           </Win>
         )}
@@ -2718,7 +2811,7 @@ export default function SimuladorPage() {
         <div className="flex items-center gap-0.5 flex-wrap">
           <MB label="EXECUTIVE" wide active />
           <MB label="TWR" active={altFilter.on} onClick={() => setAltFilter((a) => ({ ...a, on: !a.on, min: 0, max: 150 }))} />
-          <MB label="CPDLC" active={wins.msg.open} onClick={() => setWin('msg', { open: !wins.msg.open })} />
+          <MB label="CPDLC" active={wins.cpdlc.open} onClick={() => setWin('cpdlc', { open: !wins.cpdlc.open })} />
           <MB label="VIEW1" active={hasPreset} onClick={viewPresetToggle} />
           <MB label="LMG" active={showBorder || showAD} onClick={() => { const on = !(showBorder || showAD); setShowBorder(on); setShowAD(on); }} />
           <MB label="ZONBLK" active={showZones} onClick={() => setShowZones(!showZones)} />
@@ -2750,12 +2843,12 @@ export default function SimuladorPage() {
           <span className="flex-1" />
           <MB label="SUT" active={wins.exercise.open} onClick={() => setWin('exercise', { open: !wins.exercise.open })} />
           <MB label="STE" active={wins.time.open} onClick={() => setWin('time', { open: !wins.time.open })} />
-          <MB label="PRINT LISTS" onClick={() => { if (typeof window !== 'undefined') window.print(); }} />
+          <MB label="PRINT LISTS" onClick={saveScreenshot} />
           <MB label="LOGIN" active={auth === 'ok'} color={auth === 'ok' ? '#063' : undefined} onClick={() => setWin('flights', { open: !wins.flights.open })} />
         </div>
         <div className="flex items-center gap-0.5 flex-wrap mt-0.5">
           <MB label="PLANNER" wide active={wins.fpl.open} onClick={() => setWin('fpl', { open: !wins.fpl.open })} />
-          <MB label="ARR" active={wins.flights.open} onClick={() => setWin('flights', { open: !wins.flights.open })} />
+          <MB label="ARR" active={wins.arr.open} onClick={() => setWin('arr', { open: !wins.arr.open })} />
           <MB label="ADS AIR" active={showExt} onClick={() => setShowExt((v) => !v)} />
           <MB label="CAPAS" active={wins.layers.open} onClick={() => setWin('layers', { open: !wins.layers.open })} />
           <MB label="GRID" active={showGrid} onClick={() => setShowGrid(!showGrid)} />
