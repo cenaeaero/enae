@@ -11,6 +11,7 @@ import {
   simDb, createSession, joinSession, publishState, subscribeState,
   subscribeActions, logAction, logEvent, countPositions, fetchEvalData,
   subscribeLiveTracks,
+  simConfigOk,
   saveBase, listBases, loadBaseData, deleteBase, updateBase, saveExercise, listExercises, loadExerciseData, deleteExercise, updateExercise,
   type SavedRow,
 } from '@/lib/sim/net';
@@ -377,6 +378,7 @@ export default function SimuladorPage() {
   const [lobbyBusy, setLobbyBusy] = useState(false);
   const [peers, setPeers] = useState(1);
   const lastPubRef = useRef(0);
+  const lastNetRef = useRef(0); // epoch ms del último estado recibido por Realtime (alumno)
 
   if (!engineRef.current) engineRef.current = new SimEngine(SCENARIOS[0]);
   const eng = engineRef.current;
@@ -571,6 +573,7 @@ export default function SimuladorPage() {
     if (mode !== 'student' || !sessionId) return;
     eng.paused = true; // el motor local no avanza; solo refleja la red
     const ch = subscribeState(sessionId, (st) => {
+      lastNetRef.current = Date.now(); // marca de frescura para el indicador de conexión
       eng.t = st.sim_t;
       eng.speed = st.speed;
       eng.log = st.log ?? [];
@@ -603,6 +606,7 @@ export default function SimuladorPage() {
       if (!prev) eng.addLog(`${t.callsign} TRACK EXTERNO CONECTADO (MISSION PLANNER)`, 'INFO');
       tr.lat = t.lat; tr.lng = t.lng; tr.alt = t.alt_m; tr.hdg = t.hdg;
       tr.speedKt = t.speed_kt; tr.batteryPct = t.battery_pct; tr.airborne = true;
+      tr.live = true; tr.tsLive = Date.now(); tr.source = 'MP'; // dato real (puente Mission Planner / Remote ID)
       const last = tr.history[tr.history.length - 1];
       if (!last || last[0] !== t.lng || last[1] !== t.lat) {
         tr.history.push([t.lng, t.lat]);
@@ -961,6 +965,18 @@ export default function SimuladorPage() {
         ctx.strokeStyle = AMBER;
         ctx.strokeRect(x - 10, y - 10, 20, 20);
       }
+      // track de fuente real (Remote ID / ADS-B): rombo cian distintivo alrededor del símbolo
+      if (tr.live) {
+        ctx.strokeStyle = CYAN;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, y - 9);
+        ctx.lineTo(x + 9, y);
+        ctx.lineTo(x, y + 9);
+        ctx.lineTo(x - 9, y);
+        ctx.closePath();
+        ctx.stroke();
+      }
 
       if (showVectors && tr.speedKt > 0) {
         // vector segmentado: un trazo por minuto, orientado al curso real (dirección de vuelo)
@@ -1014,6 +1030,16 @@ export default function SimuladorPage() {
           yy += lh;
           ctx.fillStyle = alarm ? RED : '#1f9e5d';
           ctx.fillText(`${tr.acType} ${tr.authRef.slice(-4)} HDG${String(Math.round(tr.hdg)).padStart(3, '0')}`, lx, yy);
+        }
+        // procedencia y edad del dato: SIM (simulado) vs fuente real con segundos de antigüedad
+        yy += lh;
+        if (tr.live) {
+          const ageS = tr.tsLive ? Math.max(0, Math.round((Date.now() - tr.tsLive) / 1000)) : 0;
+          ctx.fillStyle = ageS > 6 ? AMBER : CYAN; // ámbar si el dato se está poniendo viejo
+          ctx.fillText(`◆ ${tr.source ?? 'RID'} ${ageS}s`, lx, yy);
+        } else {
+          ctx.fillStyle = '#5c6b63';
+          ctx.fillText('· SIM', lx, yy);
         }
       }
     }
@@ -1933,6 +1959,10 @@ export default function SimuladorPage() {
   const activeTracks = tracks.filter((t) => t.status !== 'LANDED'); // en vuelo / en espera (radar + VUELOS)
   const arrTracks = tracks.filter((t) => t.status === 'LANDED'); // aterrizadas (lista ARR)
   const anyAlarm = tracks.some((t) => t.alerts.length > 0);
+  // indicador de conexión (alumno) y feed de datos reales (instructor)
+  const netAgeS = lastNetRef.current ? Math.round((Date.now() - lastNetRef.current) / 1000) : 0;
+  const netStale = mode === 'student' && (!lastNetRef.current || netAgeS > 4);
+  const liveCount = tracks.filter((t) => t.live).length;
   // zona a mostrar en ZONE INFO: la zona donde está la pista seleccionada
   // (cualquier zona, incluidas creadas/importadas); si no, la zona asignada al vuelo
   const selTrack = selected ? eng.tracks.get(selected) : undefined;
@@ -1948,6 +1978,31 @@ export default function SimuladorPage() {
       {label}
     </span>
   );
+
+  // preflight de configuración: si faltan las variables de Supabase del sim,
+  // mostrar un mensaje claro en vez de una pantalla en blanco frente a la audiencia.
+  if (!simConfigOk()) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center font-mono" style={{ background: '#101210' }}>
+        <div style={{ ...bevelOut, width: 460 }}>
+          <div className="px-1 py-0.5 text-center text-[12px] font-bold tracking-widest text-black"
+            style={{ background: '#a8a8a8', borderBottom: '1px solid #5a5a5a' }}>
+            CONDOR SIM — ERROR DE CONFIGURACIÓN
+          </div>
+          <div className="p-4 text-[11px] text-black space-y-2" style={{ background: '#c9c9c9' }}>
+            <div className="font-bold" style={{ color: '#a00' }}>
+              No se encontraron las credenciales del servicio de datos (Supabase).
+            </div>
+            <div className="text-[10px] text-[#444]">
+              Faltan las variables de entorno <b>NEXT_PUBLIC_SIM_SUPABASE_URL</b> y/o{' '}
+              <b>NEXT_PUBLIC_SIM_SUPABASE_KEY</b>. Configúrelas en el entorno de despliegue
+              (Vercel / servidor) y vuelva a compilar. La consola no puede operar sin ellas.
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (auth !== 'ok') {
     return (
@@ -2083,6 +2138,15 @@ export default function SimuladorPage() {
               color={CYAN}
             />
           )}
+          {mode === 'student' && (
+            <TSeg
+              label={netStale ? `SIN DATOS ${netAgeS}s` : 'ENLACE OK'}
+              color={netStale ? RED : GREEN}
+            />
+          )}
+          {mode === 'instructor' && liveCount > 0 && (
+            <TSeg label={`RID ${liveCount}`} color={CYAN} />
+          )}
           <TSeg label={`Wx: CAVOK`} />
         </div>
         <div className="text-[11px] font-bold font-mono" style={{ color: GREEN }}>
@@ -2118,6 +2182,15 @@ export default function SimuladorPage() {
           onPointerCancel={() => { panDrag.current = null; labelDrag.current = null; rblLabelDrag.current = null; }}
           onWheel={onCanvasWheel}
         />
+        {/* alumno: aviso claro si se cortó el enlace de datos (evita pantalla congelada en silencio) */}
+        {netStale && (
+          <div
+            className="absolute top-3 left-1/2 -translate-x-1/2 px-4 py-1.5 font-mono text-[12px] font-bold rounded pointer-events-none"
+            style={{ background: 'rgba(255,59,48,.92)', color: '#fff', border: '1px solid #ff7a72', letterSpacing: '.04em' }}
+          >
+            ⚠ SIN DATOS DEL SUPERVISOR — {netAgeS}s · PRESENTACIÓN CONGELADA
+          </div>
+        )}
 
         {wins.flights.open && (
           <Win title="VUELOS ACTIVOS" x={wins.flights.x} y={wins.flights.y} w={430}

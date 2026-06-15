@@ -58,6 +58,9 @@ export interface TrackState {
   manned?: boolean; // aeronave tripulada (símbolo distinto)
   authRef: string;
   history: [number, number][]; // trail [lng,lat]
+  live?: boolean; // track de fuente real (Remote ID / ADS-B / puente), no simulado
+  tsLive?: number; // epoch ms del último dato real recibido (para edad del dato)
+  source?: 'RID' | 'ADS-B' | 'MP'; // procedencia del dato real
 }
 
 export interface Scenario {

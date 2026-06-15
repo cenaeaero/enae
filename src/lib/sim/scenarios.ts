@@ -277,10 +277,71 @@ export const SCENARIO_SATURACION: Scenario = {
   events: [{ t: 120, flight: 'OPS4', type: 'C2LOSS', duration: 90 }],
 };
 
+// ───────────────────────── Escenario DEMO — Presentación DGAC ─────────────────────────
+// Secuencia guionada para una demostración formal: imagen de tráfico ordenada →
+// conflicto de tránsito (STCA) → pérdida de enlace C2 con desvío de zona segregada →
+// generación automática de mensaje AFTN de alerta (ALR/INCERFA). Sector Colina/Lampa,
+// al norte de Santiago (región de la autoridad). ~4 min de duración.
+const Z_DEMO_SEG: [number, number][] = [
+  [-70.74, -33.18], [-70.62, -33.18], [-70.62, -33.27], [-70.74, -33.27], [-70.74, -33.18],
+];
+const Z_DEMO_PROH: [number, number][] = [
+  [-70.62, -33.18], [-70.575, -33.18], [-70.575, -33.27], [-70.62, -33.27], [-70.62, -33.18],
+];
+export const SCENARIO_DEMO_DGAC: Scenario = {
+  id: 'demo-dgac',
+  name: 'DEMO DGAC — IMAGEN DE TRÁFICO USS/UTM',
+  center: [-70.68, -33.225],
+  rangeNm: 10,
+  briefing:
+    'Demostración guionada (≈4 min). DEMO1 realiza un mapeo ordenado dentro de la zona segregada (operación nominal). ' +
+    'A ~70 s, DEMO2 (E-O) y DEMO3 (N-S) convergen a la misma altura sobre el centro: se dispara la alerta de conflicto ' +
+    'STCA (línea roja + alarma) — medir con RBL y resolver. A ~110 s, DEMO4 sufre PÉRDIDA DE ENLACE C2 y deriva fuera de ' +
+    'su zona segregada hacia la PROHIBIDA: el sistema marca FUERA DE ZONA y emite automáticamente un mensaje AFTN ALR ' +
+    '(INCERFA). El enlace se restablece a ~200 s. Secuencia ideal para mostrar imagen de tráfico, conformance, safety nets y AFTN.',
+  zones: [
+    { id: 'ZS1', name: 'SEGREGADA COLINA (UAS-26-9001)', ring: Z_DEMO_SEG, floor: 0, ceiling: 120, kind: 'SEGREGATED' },
+    { id: 'ZP1', name: 'PROHIBIDA SCUA (NOTAM)', ring: Z_DEMO_PROH, floor: 0, ceiling: 999, kind: 'PROHIBITED' },
+  ],
+  flights: [
+    {
+      callsign: 'DEMO1', acType: 'M350', speedKt: 30, batteryMin: 45, startT: 5, authRef: 'UAS-26-9001', zoneId: 'ZS1',
+      route: [
+        { lat: -33.26, lng: -70.72, alt: 0 }, { lat: -33.20, lng: -70.71, alt: 100 },
+        { lat: -33.20, lng: -70.66, alt: 100 }, { lat: -33.26, lng: -70.67, alt: 80 }, { lat: -33.26, lng: -70.72, alt: 0 },
+      ],
+    },
+    {
+      callsign: 'DEMO2', acType: 'M300', speedKt: 35, batteryMin: 40, startT: 10, authRef: 'UAS-26-9002', zoneId: 'ZS1',
+      route: [
+        { lat: -33.225, lng: -70.73, alt: 100 }, { lat: -33.225, lng: -70.68, alt: 100 }, { lat: -33.225, lng: -70.63, alt: 100 },
+      ],
+    },
+    {
+      callsign: 'DEMO3', acType: 'WINGTRA', speedKt: 35, batteryMin: 40, startT: 10, authRef: 'UAS-26-9003', zoneId: 'ZS1',
+      route: [
+        { lat: -33.27, lng: -70.68, alt: 100 }, { lat: -33.225, lng: -70.68, alt: 100 }, { lat: -33.18, lng: -70.68, alt: 100 },
+      ],
+    },
+    {
+      callsign: 'DEMO4', acType: 'M30T', speedKt: 28, batteryMin: 35, startT: 30, authRef: 'UAS-26-9004', zoneId: 'ZS1',
+      route: [
+        { lat: -33.26, lng: -70.645, alt: 0 }, { lat: -33.23, lng: -70.635, alt: 70 },
+        { lat: -33.20, lng: -70.635, alt: 70 }, { lat: -33.26, lng: -70.645, alt: 0 },
+      ],
+    },
+  ],
+  events: [
+    { t: 110, flight: 'DEMO4', type: 'C2LOSS', duration: 90 },
+    { t: 230, flight: 'DEMO2', type: 'LOWBAT' },
+  ],
+};
+
 export const SCENARIOS: Scenario[] = [
   SCENARIO_BVLOS_CALAMA,
   SCENARIO_CONFLICTO,
   SCENARIO_INCURSION,
   SCENARIO_EMERGENCIA,
   SCENARIO_SATURACION,
+  SCENARIO_DEMO_DGAC,
 ];

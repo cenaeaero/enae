@@ -8,6 +8,12 @@ import type { TrackState, SimMsg, Zone } from './engine';
 
 let _client: SupabaseClient | null = null;
 
+// preflight de configuración: ¿están las variables de Supabase del sim?
+// se usa para mostrar un mensaje claro en vez de una página en blanco.
+export function simConfigOk(): boolean {
+  return Boolean(process.env.NEXT_PUBLIC_SIM_SUPABASE_URL && process.env.NEXT_PUBLIC_SIM_SUPABASE_KEY);
+}
+
 export function simDb(): SupabaseClient {
   if (!_client) {
     _client = createClient(
