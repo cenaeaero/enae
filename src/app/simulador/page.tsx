@@ -67,7 +67,7 @@ function pointInPoly(p: LL, ring: LL[]): boolean {
   }
   return inside;
 }
-interface ConflictTrack { callsign: string; lng: number; lat: number; hdg: number; speedKt: number; alt: number; airborne: boolean; crs: number; }
+interface ConflictTrack { callsign: string; lng: number; lat: number; hdg: number; speedKt: number; alt: number; airborne: boolean; crs: number; zoneId?: string; }
 interface ConflictZone { id?: string; name: string; kind: string; ring: LL[]; }
 // Monitoriza todos los pares de aeronaves (STCA) y la salida de zonas segregadas
 // dentro del horizonte del vector de predicción (minutos). Devuelve warnings por C/S
@@ -100,29 +100,31 @@ function computeConflicts(tracks: ConflictTrack[], zones: ConflictZone[], horizo
       }
     }
   }
+  // conformance POR ASIGNACIÓN: cada operación conforma sólo a SU zona segregada.
+  // Salir de la propia zona = FUERA DE ZONA. Entrar a una zona segregada AJENA, o a
+  // una prohibida/restringida/peligrosa = INCURSIÓN (con aviso anticipado).
   const segs = zones.filter((z) => z.kind === 'SEGREGATED');
+  const hardRestr = zones.filter((z) => z.kind === 'PROHIBITED' || z.kind === 'RESTRICTED' || z.kind === 'DANGER');
   for (const tr of flying) {
-    if (segs.length === 0) continue;
-    const insideZone = segs.find((z) => pointInPoly([tr.lng, tr.lat], z.ring));
-    if (insideZone) {
-      // dentro de la zona: predicción de salida (aviso anticipado)
-      for (let t = STEP; t <= H; t += STEP) {
-        const p = predictPos(tr, t, tr.crs);
-        if (!pointInPoly(p, insideZone.ring)) {
-          add(tr.callsign, `SALE ${insideZone.id ?? insideZone.name} ${t}s`);
-          redLines.push({ from: [tr.lng, tr.lat], to: p });
-          break;
+    const own = tr.zoneId ? segs.find((z) => z.id === tr.zoneId) : undefined;
+    // 1) conformance respecto de la zona propia (segregada asignada)
+    if (own) {
+      if (pointInPoly([tr.lng, tr.lat], own.ring)) {
+        for (let t = STEP; t <= H; t += STEP) {
+          const p = predictPos(tr, t, tr.crs);
+          if (!pointInPoly(p, own.ring)) {
+            add(tr.callsign, `SALE ${own.id ?? own.name} ${t}s`);
+            redLines.push({ from: [tr.lng, tr.lat], to: p });
+            break;
+          }
         }
+      } else {
+        add(tr.callsign, 'FUERA DE ZONA');
       }
-    } else {
-      // ya está FUERA de la zona segregada -> violación persistente (rojo, sin línea al vértice: confunde)
-      add(tr.callsign, 'FUERA DE ZONA');
     }
-  }
-  // incursión en zonas prohibida / restringida / peligrosa
-  const restr = zones.filter((z) => z.kind === 'PROHIBITED' || z.kind === 'RESTRICTED' || z.kind === 'DANGER');
-  for (const tr of flying) {
-    for (const z of restr) {
+    // 2) incursión: zonas restrictivas + zonas segregadas que NO son la propia
+    const intrude = [...hardRestr, ...segs.filter((z) => !own || z.id !== own.id)];
+    for (const z of intrude) {
       if (pointInPoly([tr.lng, tr.lat], z.ring)) {
         add(tr.callsign, `INCURSIÓN ${z.id ?? z.name}`);
         continue;
@@ -840,6 +842,7 @@ export default function SimuladorPage() {
     const cTracks: ConflictTrack[] = Array.from(eng.tracks.values()).map((t) => ({
       callsign: t.callsign, lng: t.lng, lat: t.lat, hdg: t.hdg, speedKt: t.speedKt,
       alt: t.alt, airborne: t.airborne, crs: courseFromHist(t.history, t.lng, t.lat, t.hdg),
+      zoneId: t.zoneId,
     }));
     const { warnings: cfWarn, redLines: cfLines, conflictPairs: cfPairs } = mtcd
       ? computeConflicts(

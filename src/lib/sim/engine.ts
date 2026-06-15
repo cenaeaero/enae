@@ -57,6 +57,7 @@ export interface TrackState {
   airborne: boolean;
   manned?: boolean; // aeronave tripulada (símbolo distinto)
   authRef: string;
+  zoneId?: string; // zona segregada asignada a esta operación (para conformance por asignación)
   history: [number, number][]; // trail [lng,lat]
   live?: boolean; // track de fuente real (Remote ID / ADS-B / puente), no simulado
   tsLive?: number; // epoch ms del último dato real recibido (para edad del dato)
@@ -176,6 +177,7 @@ export class SimEngine {
         wpIdx: 0,
         airborne: false,
         authRef: f.authRef,
+        zoneId: f.zoneId,
         manned: f.manned,
         history: [],
       });
