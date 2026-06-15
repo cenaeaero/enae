@@ -283,6 +283,7 @@ export default function SimuladorPage() {
   const auxCanvasRef = useRef<HTMLCanvasElement>(null); // ventana secundaria (radar independiente)
   const [auxRange, setAuxRange] = useState(48); // alcance de la vista secundaria (NM)
   const [auxPan, setAuxPan] = useState({ x: 0, y: 0 }); // descentrado de la vista secundaria (px)
+  const [auxFollow, setAuxFollow] = useState(false); // CSEL: la secundaria sigue a la aeronave seleccionada
   const [auxLabelOffsets, setAuxLabelOffsets] = useState<Record<string, { dx: number; dy: number }>>({}); // data blocks de la secundaria
   const auxPanDrag = useRef<{ sx: number; sy: number; ox: number; oy: number; moved: boolean } | null>(null);
   const auxLabelDrag = useRef<{ cs: string; sx: number; sy: number; ox: number; oy: number } | null>(null);
@@ -1309,9 +1310,9 @@ export default function SimuladorPage() {
       ctx.fillText(`${tr.callsign} ${String(Math.round(tr.alt)).padStart(3, '0')}M`, lx, ly);
       ctx.fillText(`${Math.round(tr.speedKt)}KT ${Math.round(tr.batteryPct)}%`, lx, ly + 10);
     }
-    ctx.fillStyle = '#7aa'; ctx.font = '9px monospace';
-    ctx.fillText(`VENTANA 2 · ${auxRange} NM · N↑`, 6, h - 6);
-  }, [eng, auxRange, AUX_PXNM, projAux, unproject, selected, conflictCs, showZones, zoneKinds, showExt, auxLabelOffsets]);
+    ctx.fillStyle = auxFollow ? AMBER : '#7aa'; ctx.font = '9px monospace';
+    ctx.fillText(auxFollow && selected ? `VENTANA 2 · ${auxRange} NM · SIGUE ${selected}` : `VENTANA 2 · ${auxRange} NM · N↑`, 6, h - 6);
+  }, [eng, auxRange, AUX_PXNM, projAux, unproject, selected, conflictCs, showZones, zoneKinds, showExt, auxLabelOffsets, auxFollow]);
 
   useEffect(() => {
     if (!wins.aux.open) return;
@@ -1319,6 +1320,19 @@ export default function SimuladorPage() {
     const iv = setInterval(drawAux, 400);
     return () => clearInterval(iv);
   }, [wins.aux.open, drawAux]);
+
+  // CSEL: mantener la secundaria centrada en la aeronave seleccionada mientras se mueve
+  useEffect(() => {
+    if (!wins.aux.open || !auxFollow || !selected) return;
+    const iv = setInterval(() => {
+      const tr = eng.tracks.get(selected);
+      if (!tr) return;
+      const [clng, clat] = eng.scenario.center;
+      const nmLng = 60 * Math.cos((clat * Math.PI) / 180);
+      setAuxPan({ x: -(tr.lng - clng) * nmLng * AUX_PXNM, y: (tr.lat - clat) * 60 * AUX_PXNM });
+    }, 300);
+    return () => clearInterval(iv);
+  }, [wins.aux.open, auxFollow, selected, AUX_PXNM, eng]);
 
   // hit-tests de la secundaria
   const auxTrackAt = (mx: number, my: number): string | null => {
@@ -1348,6 +1362,7 @@ export default function SimuladorPage() {
     const mx = e.clientX - rect.left, my = e.clientY - rect.top;
     const cs = auxLabelAt(mx, my);
     if (cs) { const off = auxLabelOff(cs); auxLabelDrag.current = { cs, sx: e.clientX, sy: e.clientY, ox: off.dx, oy: off.dy }; return; }
+    if (auxFollow) setAuxFollow(false); // mover la vista cancela el seguimiento (como CSEL)
     auxPanDrag.current = { sx: e.clientX, sy: e.clientY, ox: auxPan.x, oy: auxPan.y, moved: false };
   };
   const onAuxPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -1389,6 +1404,7 @@ export default function SimuladorPage() {
       const d = distMeters([clng, clat], [tr.lng, tr.lat]) / 1852;
       if (d > maxNm) maxNm = d;
     }
+    setAuxFollow(false);
     setAuxPan({ x: 0, y: 0 });
     setAuxRange(Math.min(192, Math.ceil((maxNm * 1.25) / 6) * 6));
   };
@@ -2496,7 +2512,8 @@ export default function SimuladorPage() {
                 <MB label="+" onClick={() => setAuxRange((r) => Math.max(6, r - 6))} />
                 <span className="text-[10px] text-[#7aa] px-1">{auxRange} NM</span>
                 <MB label="FIT" onClick={auxFit} />
-                <MB label="CEN" onClick={() => setAuxPan({ x: 0, y: 0 })} active={auxPan.x === 0 && auxPan.y === 0} />
+                <MB label="CEN" onClick={() => { setAuxFollow(false); setAuxPan({ x: 0, y: 0 }); }} active={auxPan.x === 0 && auxPan.y === 0 && !auxFollow} />
+                <MB label="CSEL" active={auxFollow} onClick={() => { if (selected) setAuxFollow((v) => !v); }} />
                 {[24, 48, 96].map((r) => <MB key={r} label={`${r}`} active={auxRange === r} onClick={() => setAuxRange(r)} />)}
               </div>
             </div>
