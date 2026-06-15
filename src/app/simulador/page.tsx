@@ -249,7 +249,7 @@ function Win({
   );
 }
 
-type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone' | 'eval' | 'aftn' | 'layers' | 'zonemaker' | 'exercise' | 'fpl';
+type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone' | 'eval' | 'aftn' | 'layers' | 'zonemaker' | 'exercise' | 'fpl' | 'meteo';
 
 interface EvalRow {
   position_id: string | null;
@@ -291,6 +291,14 @@ export default function SimuladorPage() {
   const [rbls, setRbls] = useState<{ a: RblEnd; b: RblEnd }[]>([]); // mediciones (punto o pista)
   const rblPend = useRef<RblEnd | null>(null); // primer extremo pendiente
   const [cursorLL, setCursorLL] = useState<[number, number] | null>(null); // cursor para línea viva
+  const [meteo, setMeteo] = useState({ qnh: 1013, windDir: 240, windKt: 8, vis: 10, temp: 18, dew: 9, cloud: 'FEW 4000FT' }); // boletín meteo/QNH
+  const [mtcd, setMtcd] = useState(true); // detección de conflictos a medio plazo (STCA) activa
+  const [alarmMute, setAlarmMute] = useState(false); // silenciar alarma acústica
+  const [showExt, setShowExt] = useState(true); // mostrar tráfico externo ADS-B / Mission Planner
+  const [freetextMode, setFreetextMode] = useState(false); // modo colocar texto libre en pantalla
+  const [freetexts, setFreetexts] = useState<{ id: string; ll: LL; txt: string }[]>([]); // anotaciones de texto libre
+  const viewPreset = useRef<{ pan: { x: number; y: number }; rot: number; rangeNm: number } | null>(null); // VIEW1
+  const [hasPreset, setHasPreset] = useState(false);
   const [bright, setBright] = useState(0); // 0=día 1=crepúsculo 2=noche
   const [labelMode, setLabelMode] = useState(1); // 0 compacta, 1 estándar, 2 completa
   const [labelFont, setLabelFont] = useState(11); // px etiqueta de pista
@@ -338,6 +346,7 @@ export default function SimuladorPage() {
     zonemaker: { x: 80, y: 120, open: false },
     exercise: { x: 80, y: 60, open: false },
     fpl: { x: 120, y: 90, open: false },
+    meteo: { x: 700, y: 200, open: false },
   });
   const [evalRows, setEvalRows] = useState<EvalRow[]>([]);
   const [evalBusy, setEvalBusy] = useState(false);
@@ -505,6 +514,11 @@ export default function SimuladorPage() {
     }
   };
 
+  const doLogout = async () => {
+    try { await enaeAuth.auth.signOut(); } catch { /* sin sesión */ }
+    if (typeof window !== 'undefined') window.location.reload();
+  };
+
   useEffect(() => {
     let raf = 0;
     const loop = () => {
@@ -543,7 +557,7 @@ export default function SimuladorPage() {
       clearInterval(iv);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, sep, rbls, cursorLL, labelMode, labelFont, labelOffsets, rblLabelOffsets, zonePts, routePts]);
+  }, [rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, sep, mtcd, alarmMute, showExt, freetexts, rbls, cursorLL, labelMode, labelFont, labelOffsets, rblLabelOffsets, zonePts, routePts]);
 
   // alumno: recibir estado por Realtime
   useEffect(() => {
@@ -812,13 +826,15 @@ export default function SimuladorPage() {
       callsign: t.callsign, lng: t.lng, lat: t.lat, hdg: t.hdg, speedKt: t.speedKt,
       alt: t.alt, airborne: t.airborne, crs: courseFromHist(t.history, t.lng, t.lat, t.hdg),
     }));
-    const { warnings: cfWarn, redLines: cfLines, conflictPairs: cfPairs } = computeConflicts(
-      cTracks,
-      eng.scenario.zones.filter((z) => z.appearAt == null || eng.t >= z.appearAt) as unknown as ConflictZone[],
-      vectorMin,
-      sep.h,
-      sep.v
-    );
+    const { warnings: cfWarn, redLines: cfLines, conflictPairs: cfPairs } = mtcd
+      ? computeConflicts(
+          cTracks,
+          eng.scenario.zones.filter((z) => z.appearAt == null || eng.t >= z.appearAt) as unknown as ConflictZone[],
+          vectorMin,
+          sep.h,
+          sep.v
+        )
+      : { warnings: new Map<string, string[]>(), redLines: [] as { from: LL; to: LL }[], conflictPairs: [] as [string, string][] };
     // alarma sonora al aparecer un conflicto/alerta nuevo (3 s)
     const nowAlarmed = new Set<string>(cfWarn.keys());
     for (const t of eng.tracks.values()) if (t.alerts.length) nowAlarmed.add(t.callsign);
@@ -828,7 +844,7 @@ export default function SimuladorPage() {
     let freshAlarm = false;
     for (const cs of nowAlarmed) if (!alarmedRef.current.has(cs)) { freshAlarm = true; break; }
     alarmedRef.current = nowAlarmed;
-    if (freshAlarm && performance.now() - lastAlarmRef.current > 3000) {
+    if (freshAlarm && !alarmMute && performance.now() - lastAlarmRef.current > 3000) {
       lastAlarmRef.current = performance.now();
       playAlarm();
     }
@@ -895,6 +911,7 @@ export default function SimuladorPage() {
 
     for (const tr of eng.tracks.values()) {
       if (!tr.airborne && tr.status !== 'LANDED') continue;
+      if (!showExt && tr.authRef === 'EXT-MP') continue; // ADS AIR off: oculta tráfico externo (Mission Planner)
       if (altFilter.on && (tr.alt < altFilter.min || tr.alt > altFilter.max)) continue; // filtro de banda de altitud
       const [x, y] = project(tr.lng, tr.lat, w, h);
       const conflict = cfWarn.has(tr.callsign);
@@ -1103,6 +1120,18 @@ export default function SimuladorPage() {
       });
     }
 
+    // anotaciones de texto libre (FREETEXT) — cian, ancladas a coordenadas
+    if (freetexts.length) {
+      ctx.font = 'bold 12px monospace';
+      ctx.fillStyle = '#36d6ff';
+      ctx.textAlign = 'left';
+      freetexts.forEach((ft) => {
+        const [px, py] = project(ft.ll[0], ft.ll[1], w, h);
+        ctx.fillText(ft.txt, px + 4, py + 4);
+        ctx.fillRect(px - 2, py - 2, 4, 4);
+      });
+    }
+
     // HUD inferior con la HORA UTC + escenario + orientación + indicador de grabación (queda en el video)
     ctx.font = 'bold 12px monospace';
     ctx.fillStyle = '#9fe3c0';
@@ -1144,7 +1173,7 @@ export default function SimuladorPage() {
       ctx.font = 'bold 11px monospace';
       ctx.fillText('N', tipx - 3 + nxs * 8, tipy + 4 + nys * 8);
     }
-  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, sep, rbls, cursorLL, labelMode, labelFont, labelOffsets, rblLabelOffsets, playAlarm, recording, zonePts, routePts]);
+  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, sep, mtcd, alarmMute, showExt, freetexts, rbls, cursorLL, labelMode, labelFont, labelOffsets, rblLabelOffsets, playAlarm, recording, zonePts, routePts]);
 
   // re-vincular cuando el canvas aparece tras login/lobby (auth y mode cambian el árbol)
   useEffect(() => {
@@ -1314,6 +1343,18 @@ export default function SimuladorPage() {
       }
       return;
     }
+    if (freetextMode) {
+      // clic sobre una anotación existente la elimina; en vacío, crea una nueva
+      const ll = unproject(mx, my, cv.width, cv.height);
+      const hit = freetexts.find((ft) => {
+        const [px, py] = project(ft.ll[0], ft.ll[1], cv.width, cv.height);
+        return Math.abs(px - mx) < 60 && Math.abs(py - my) < 10;
+      });
+      if (hit) { setFreetexts((fs) => fs.filter((f) => f.id !== hit.id)); return; }
+      const txt = (typeof window !== 'undefined' ? window.prompt('TEXTO LIBRE:') : '') || '';
+      if (txt.trim()) setFreetexts((fs) => [...fs, { id: 'FT' + fs.length + '-' + Math.round(mx), ll, txt: txt.trim().toUpperCase() }]);
+      return;
+    }
     selectAt(mx, my);
   };
 
@@ -1356,6 +1397,19 @@ export default function SimuladorPage() {
     const tr = eng.tracks.get(selected);
     if (tr) centerOn(tr);
   };
+  // VIEW1: primer clic guarda la presentación actual; siguientes clics la recuperan
+  const viewPresetToggle = () => {
+    if (!viewPreset.current) {
+      viewPreset.current = { pan, rot, rangeNm };
+      setHasPreset(true);
+      eng.addLog('VIEW1 GUARDADA', 'INFO');
+    } else {
+      const v = viewPreset.current;
+      setPan(v.pan); setRot(v.rot); setRangeNm(v.rangeNm);
+    }
+  };
+  // ACC: vista de área (alcance amplio + centrado), visión Centro de Control de Área
+  const accView = () => { setRangeNm(48); centerView(); setRot(0); };
   // FINDER: busca una pista por C/S, la selecciona y la centra
   const doFinder = () => {
     const q = finder.trim().toUpperCase();
@@ -1530,7 +1584,7 @@ export default function SimuladorPage() {
         center: eng.scenario.center, rangeNm,
         coast: showBorder ? 'chile' : null, aerodromes: showAD,
         zones: eng.scenario.zones.filter((z) => !isMan(z)),
-        sep,
+        sep, meteo,
       });
       setCurrentBaseName(nm); setPersistMsg(`Base guardada: ${nm}`); refreshSaved();
     } catch { setPersistMsg('Error guardando base'); }
@@ -1538,10 +1592,11 @@ export default function SimuladorPage() {
   const loadBaseNow = async () => {
     if (!selBaseId) return;
     try {
-      const d = (await loadBaseData(selBaseId)) as { center?: [number, number]; rangeNm?: number; coast?: string | null; aerodromes?: boolean; zones?: Zone[]; sep?: { h: number; v: number } };
+      const d = (await loadBaseData(selBaseId)) as { center?: [number, number]; rangeNm?: number; coast?: string | null; aerodromes?: boolean; zones?: Zone[]; sep?: { h: number; v: number }; meteo?: typeof meteo };
       if (d.center) eng.scenario.center = d.center;
       if (d.rangeNm) setRangeNm(d.rangeNm);
       if (d.sep) setSep(d.sep);
+      if (d.meteo) setMeteo(d.meteo);
       eng.scenario.zones = [...eng.scenario.zones.filter(isMan), ...(d.zones ?? [])];
       setShowBorder(d.coast === 'chile'); setShowAD(!!d.aerodromes); setShowZones(true);
       const nm = basesList.find((b) => b.id === selBaseId)?.name ?? '';
@@ -2032,6 +2087,40 @@ export default function SimuladorPage() {
             <div style={{ background: '#000' }} className="px-2 py-1 text-center">
               <div className="font-mono font-bold text-[26px] leading-7" style={{ color: GREEN }}>{clock}</div>
               <div className="font-mono text-[11px]" style={{ color: AMBER }}>SIM {fmtT(eng.t)}</div>
+            </div>
+          </Win>
+        )}
+
+        {wins.meteo.open && (
+          <Win title="METEO / QNH" x={wins.meteo.x} y={wins.meteo.y} w={300}
+            onClose={() => setWin('meteo', { open: false })}
+            onDrag={(x, y) => setWin('meteo', { x, y })}>
+            <div style={{ background: '#000' }} className="font-mono text-[11px] p-2 text-[#b9e8c9] space-y-1">
+              <div className="flex justify-between"><span className="text-[#7aa]">AD</span><span className="font-bold">{eng.scenario.name}</span></div>
+              <div className="flex justify-between"><span className="text-[#7aa]">QNH</span><span className="font-bold" style={{ color: AMBER }}>{meteo.qnh} hPa</span></div>
+              <div className="flex justify-between"><span className="text-[#7aa]">VIENTO</span><span>{meteo.windDir}° / {meteo.windKt} kt</span></div>
+              <div className="flex justify-between"><span className="text-[#7aa]">VIS</span><span>{meteo.vis} km</span></div>
+              <div className="flex justify-between"><span className="text-[#7aa]">TEMP / DP</span><span>{meteo.temp}° / {meteo.dew}°</span></div>
+              <div className="flex justify-between"><span className="text-[#7aa]">NUBES</span><span>{meteo.cloud}</span></div>
+              <div className="border-t border-[#444] pt-1 text-[10px] text-[#36d6ff]">
+                METAR {meteo.windDir.toString().padStart(3, '0')}{String(meteo.windKt).padStart(2, '0')}KT {String(meteo.vis * 1000).padStart(4, '0')} Q{meteo.qnh}
+              </div>
+              {mode !== 'student' && (
+                <div className="grid grid-cols-2 gap-1 pt-1">
+                  <label className="flex items-center gap-1"><span className="text-[#7aa]">QNH</span>
+                    <input type="number" value={meteo.qnh} onChange={(e) => setMeteo((m) => ({ ...m, qnh: +e.target.value }))}
+                      style={{ ...bevelIn, background: '#000', color: GREEN, width: 56 }} className="px-1 text-[10px]" /></label>
+                  <label className="flex items-center gap-1"><span className="text-[#7aa]">VIE°</span>
+                    <input type="number" value={meteo.windDir} onChange={(e) => setMeteo((m) => ({ ...m, windDir: +e.target.value }))}
+                      style={{ ...bevelIn, background: '#000', color: GREEN, width: 44 }} className="px-1 text-[10px]" /></label>
+                  <label className="flex items-center gap-1"><span className="text-[#7aa]">kt</span>
+                    <input type="number" value={meteo.windKt} onChange={(e) => setMeteo((m) => ({ ...m, windKt: +e.target.value }))}
+                      style={{ ...bevelIn, background: '#000', color: GREEN, width: 44 }} className="px-1 text-[10px]" /></label>
+                  <label className="flex items-center gap-1"><span className="text-[#7aa]">VIS</span>
+                    <input type="number" value={meteo.vis} onChange={(e) => setMeteo((m) => ({ ...m, vis: +e.target.value }))}
+                      style={{ ...bevelIn, background: '#000', color: GREEN, width: 44 }} className="px-1 text-[10px]" /></label>
+                </div>
+              )}
             </div>
           </Win>
         )}
@@ -2628,16 +2717,16 @@ export default function SimuladorPage() {
       <div style={{ background: '#b0b0b0', borderTop: '2px solid #f0f0f0' }} className="px-0.5 py-0.5">
         <div className="flex items-center gap-0.5 flex-wrap">
           <MB label="EXECUTIVE" wide active />
-          <MB label="TWR" />
-          <MB label="CPDLC" />
-          <MB label="VIEW1" />
-          <MB label="LMG" />
+          <MB label="TWR" active={altFilter.on} onClick={() => setAltFilter((a) => ({ ...a, on: !a.on, min: 0, max: 150 }))} />
+          <MB label="CPDLC" active={wins.msg.open} onClick={() => setWin('msg', { open: !wins.msg.open })} />
+          <MB label="VIEW1" active={hasPreset} onClick={viewPresetToggle} />
+          <MB label="LMG" active={showBorder || showAD} onClick={() => { const on = !(showBorder || showAD); setShowBorder(on); setShowAD(on); }} />
           <MB label="ZONBLK" active={showZones} onClick={() => setShowZones(!showZones)} />
-          <MB label="RTE OFF" />
+          <MB label="RTE OFF" active={!showVectors} onClick={() => setShowVectors((v) => !v)} />
           <MB label="DATBLK" active={showLabels} onClick={() => setShowLabels(!showLabels)} />
-          <MB label="QNH" />
-          <MB label="RBL ALM" color={anyAlarm ? RED : undefined} />
-          <MB label="OVERLAP" />
+          <MB label="QNH" active={wins.meteo.open} onClick={() => setWin('meteo', { open: !wins.meteo.open })} />
+          <MB label={alarmMute ? 'RBL MUTE' : 'RBL ALM'} active={alarmMute} color={anyAlarm && !alarmMute ? RED : undefined} onClick={() => setAlarmMute((m) => !m)} />
+          <MB label="OVERLAP" onClick={() => { setLabelOffsets({}); setRblLabelOffsets({}); }} />
           <MB label="LAST POS" active={showTrails} onClick={() => setShowTrails(!showTrails)} />
           <MB label="USERS" onClick={() => setWin('flights', { open: !wins.flights.open })} active={wins.flights.open} />
           <span className="mx-0.5 font-mono text-[10px] font-bold">{rangeNm} NM</span>
@@ -2659,25 +2748,25 @@ export default function SimuladorPage() {
             <MB label="8" active={!paused && speed === 8} onClick={() => setSpd(8)} />
           </span>
           <span className="flex-1" />
-          <MB label="SUT" />
-          <MB label="STE" />
-          <MB label="PRINT LISTS" />
-          <MB label="LOGIN" />
+          <MB label="SUT" active={wins.exercise.open} onClick={() => setWin('exercise', { open: !wins.exercise.open })} />
+          <MB label="STE" active={wins.time.open} onClick={() => setWin('time', { open: !wins.time.open })} />
+          <MB label="PRINT LISTS" onClick={() => { if (typeof window !== 'undefined') window.print(); }} />
+          <MB label="LOGIN" active={auth === 'ok'} color={auth === 'ok' ? '#063' : undefined} onClick={() => setWin('flights', { open: !wins.flights.open })} />
         </div>
         <div className="flex items-center gap-0.5 flex-wrap mt-0.5">
-          <MB label="PLANNER" wide />
-          <MB label="ARR" />
-          <MB label="ADS AIR" />
+          <MB label="PLANNER" wide active={wins.fpl.open} onClick={() => setWin('fpl', { open: !wins.fpl.open })} />
+          <MB label="ARR" active={wins.flights.open} onClick={() => setWin('flights', { open: !wins.flights.open })} />
+          <MB label="ADS AIR" active={showExt} onClick={() => setShowExt((v) => !v)} />
           <MB label="CAPAS" active={wins.layers.open} onClick={() => setWin('layers', { open: !wins.layers.open })} />
           <MB label="GRID" active={showGrid} onClick={() => setShowGrid(!showGrid)} />
           <MB label="RINGS" active={rings} onClick={() => setRings(!rings)} />
-          <MB label="ELW" />
+          <MB label="ELW" active={labelFont >= 13} onClick={() => setLabelFont((f) => (f >= 13 ? 9 : f + 2))} />
           <MB label="RBL" active={rblMode} onClick={() => setRblMode((v) => !v)} />
           <MB label="RBL OFF" onClick={() => { setRbls([]); rblPend.current = null; setCursorLL(null); setRblMode(false); }} />
           <MB label={['BRIGHT', 'DUSK', 'NIGHT'][bright]} active={bright > 0} onClick={() => setBright((b) => (b + 1) % 3)} />
-          <MB label="METEO" />
-          <MB label="MTCD" />
-          <MB label="FREETEXT" />
+          <MB label="METEO" active={wins.meteo.open} onClick={() => setWin('meteo', { open: !wins.meteo.open })} />
+          <MB label="MTCD" active={mtcd} color={mtcd ? undefined : RED} onClick={() => setMtcd((v) => !v)} />
+          <MB label="FREETEXT" active={freetextMode} onClick={() => setFreetextMode((v) => !v)} />
           <MB label="FINDER" active={wins.layers.open} onClick={() => setWin('layers', { open: true })} />
           <MB label="RADAR" onClick={() => setWin('stations', { open: !wins.stations.open })} active={wins.stations.open} />
           <MB label="SECTORS" active={wins.sectors.open} onClick={() => setWin('sectors', { open: !wins.sectors.open })} />
@@ -2700,9 +2789,9 @@ export default function SimuladorPage() {
           <span className="flex-1" />
           <MB label={recording ? 'STOP REC' : 'REC ●'} active={recording} color={recording ? RED : undefined}
             onClick={() => (recording ? stopRec() : startRec())} />
-          <MB label="ACC" />
-          <MB label="ATMCSUP" />
-          <MB label="LOGOUT" />
+          <MB label="ACC" onClick={accView} />
+          <MB label="ATMCSUP" active={wins.instructor.open} onClick={() => setWin('instructor', { open: !wins.instructor.open })} />
+          <MB label="LOGOUT" color={RED} onClick={doLogout} />
         </div>
       </div>
     </div>
