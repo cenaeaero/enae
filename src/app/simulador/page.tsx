@@ -317,6 +317,7 @@ export default function SimuladorPage() {
     dep: '', dest: '', rfl: '', speed: 35, alt: 100, startMin: 0, manned: false,
   });
   const [paused, setPaused] = useState(true);
+  const [exRunning, setExRunning] = useState(false); // ejercicio iniciado (para habilitar PAUSA/REANUDAR)
   const [speed, setSpeed] = useState(1);
   const [showLabels, setShowLabels] = useState(true);
   const [showZones, setShowZones] = useState(true);
@@ -1738,13 +1739,14 @@ export default function SimuladorPage() {
     eng.reset();
     setSelected(null);
     setSpd(1);
+    setExRunning(true);
     if (!recording) startRec();
     eng.addLog('EJERCICIO INICIADO — GRABANDO', 'INFO');
   };
   // PAUSA / REANUDAR: congela la situación para analizar (sin reiniciar ni cerrar);
   // las trazas quedan en su lugar y la grabación se pausa/continúa.
   const pauseToggle = () => {
-    if (mode === 'student') return;
+    if (mode === 'student' || !exRunning) return;
     if (paused) {
       setSpd(speed || 1);
       try { if (recRef.current?.rec.state === 'paused') recRef.current.rec.resume(); } catch { /* noop */ }
@@ -1758,6 +1760,7 @@ export default function SimuladorPage() {
   const stopExercise = () => {
     if (mode === 'student') return;
     setSpd(0);
+    setExRunning(false);
     if (recording) stopRec();
     eng.addLog('EJERCICIO FINALIZADO', 'INFO');
   };
@@ -2157,8 +2160,8 @@ export default function SimuladorPage() {
             onDrag={(x, y) => setWin('exercise', { x, y })}>
             <div style={{ background: '#000' }} className="font-mono text-[10px] p-2 space-y-1 text-[#cbd5e1]">
               <div className="flex items-center gap-1 flex-wrap">
-                <MB label="▶ INICIAR" active={!paused} onClick={startExercise} />
-                <MB label={paused ? '▶ REANUDAR' : '⏸ PAUSA'} active={paused} onClick={pauseToggle} />
+                <MB label="▶ INICIAR" active={exRunning && !paused} onClick={startExercise} />
+                <MB label={exRunning && paused ? '▶ REANUDAR' : '⏸ PAUSA'} active={exRunning && paused} onClick={pauseToggle} />
                 <MB label="■ FINALIZAR" onClick={stopExercise} />
               </div>
               <div className="text-[9px] text-[#666]">INICIAR: reloj a 0, corre y graba. PAUSA: congela para analizar (sigue donde quedó). FINALIZAR: cierra y descarga la grabación.</div>
@@ -2349,7 +2352,7 @@ export default function SimuladorPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2 mt-2 pt-1 border-t border-[#333]">
-                <MB label="✚ CREAR PLAN DE VUELO" active={routePts.length >= 2} onClick={createFlightPlan} />
+                <MB label="✚ CREAR PLAN DE VUELO" onClick={createFlightPlan} />
                 <span className="text-[9px] text-[#666]">Clic en el radar para la ruta; aparece a EOBT (T+min).</span>
               </div>
             </div>
