@@ -280,8 +280,12 @@ interface EvalRow {
 
 export default function SimuladorPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const auxCanvasRef = useRef<HTMLCanvasElement>(null); // ventana secundaria (panorámica)
-  const [auxRange, setAuxRange] = useState(48); // alcance de la vista panorámica (NM)
+  const auxCanvasRef = useRef<HTMLCanvasElement>(null); // ventana secundaria (radar independiente)
+  const [auxRange, setAuxRange] = useState(48); // alcance de la vista secundaria (NM)
+  const [auxPan, setAuxPan] = useState({ x: 0, y: 0 }); // descentrado de la vista secundaria (px)
+  const [auxLabelOffsets, setAuxLabelOffsets] = useState<Record<string, { dx: number; dy: number }>>({}); // data blocks de la secundaria
+  const auxPanDrag = useRef<{ sx: number; sy: number; ox: number; oy: number; moved: boolean } | null>(null);
+  const auxLabelDrag = useRef<{ cs: string; sx: number; sy: number; ox: number; oy: number } | null>(null);
   const engineRef = useRef<SimEngine | null>(null);
   const [, force] = useState(0);
   const [rangeNm, setRangeNm] = useState(12);
@@ -1235,31 +1239,30 @@ export default function SimuladorPage() {
     }
   }, [eng, project, rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, sep, mtcd, alarmMute, showExt, freetexts, rbls, cursorLL, labelMode, labelFont, labelOffsets, rblLabelOffsets, playAlarm, recording, zonePts, routePts]);
 
-  // ── ventana secundaria: vista panorámica (norte arriba, sin pan) ──
-  // El controlador trabaja con la principal en zoom y esta para no perder el resto del tráfico.
+  // ── ventana secundaria: radar independiente (norte arriba, con zoom y pan propios) ──
+  // El controlador trabaja con la principal en zoom y ésta como segunda posición.
+  const AUX_W = 344, AUX_H = 250;
+  const AUX_PXNM = Math.min(AUX_W, AUX_H) / (auxRange * 2);
+  const projAux = useCallback((lng: number, lat: number): [number, number] => {
+    const [clng, clat] = eng.scenario.center;
+    const nmLng = 60 * Math.cos((clat * Math.PI) / 180);
+    return [AUX_W / 2 + auxPan.x + (lng - clng) * nmLng * AUX_PXNM, AUX_H / 2 + auxPan.y - (lat - clat) * 60 * AUX_PXNM];
+  }, [eng, auxPan, AUX_PXNM]);
+  const auxLabelOff = (cs: string) => auxLabelOffsets[cs] ?? { dx: 12, dy: -16 };
+
   const drawAux = useCallback(() => {
     const cv = auxCanvasRef.current;
     if (!cv) return;
     const ctx = cv.getContext('2d');
     if (!ctx) return;
     const w = cv.width, h = cv.height;
-    const [clng, clat] = eng.scenario.center;
-    const nmLat = 60, nmLng = 60 * Math.cos((clat * Math.PI) / 180);
-    const px = Math.min(w, h) / (auxRange * 2);
-    const projA = (lng: number, lat: number): [number, number] => [
-      w / 2 + (lng - clng) * nmLng * px,
-      h / 2 - (lat - clat) * nmLat * px,
-    ];
     ctx.fillStyle = '#0a0c0a';
     ctx.fillRect(0, 0, w, h);
-    // anillos de alcance (mitad y total)
+    // anillos de alcance
     ctx.strokeStyle = 'rgba(80,110,90,.5)';
     ctx.lineWidth = 1;
-    for (const r of [auxRange / 2, auxRange]) {
-      ctx.beginPath();
-      ctx.arc(w / 2, h / 2, r * px, 0, Math.PI * 2);
-      ctx.stroke();
-    }
+    const [cx, cy] = projAux(eng.scenario.center[0], eng.scenario.center[1]);
+    for (const r of [auxRange / 2, auxRange]) { ctx.beginPath(); ctx.arc(cx, cy, r * AUX_PXNM, 0, Math.PI * 2); ctx.stroke(); }
     // zonas
     if (showZones) {
       for (const z of eng.scenario.zones) {
@@ -1269,7 +1272,7 @@ export default function SimuladorPage() {
         ctx.setLineDash(z.kind === 'MSA' ? [3, 2] : []);
         ctx.lineWidth = 1;
         ctx.beginPath();
-        z.ring.forEach(([lng, lat], i) => { const [a, b] = projA(lng, lat); if (i === 0) ctx.moveTo(a, b); else ctx.lineTo(a, b); });
+        z.ring.forEach(([lng, lat], i) => { const [a, b] = projAux(lng, lat); if (i === 0) ctx.moveTo(a, b); else ctx.lineTo(a, b); });
         ctx.stroke();
         ctx.setLineDash([]);
       }
@@ -1278,57 +1281,115 @@ export default function SimuladorPage() {
     const mc = canvasRef.current;
     if (mc) {
       const corners: [number, number][] = [
-        unproject(0, 0, mc.width, mc.height),
-        unproject(mc.width, 0, mc.width, mc.height),
-        unproject(mc.width, mc.height, mc.width, mc.height),
-        unproject(0, mc.height, mc.width, mc.height),
+        unproject(0, 0, mc.width, mc.height), unproject(mc.width, 0, mc.width, mc.height),
+        unproject(mc.width, mc.height, mc.width, mc.height), unproject(0, mc.height, mc.width, mc.height),
       ];
-      ctx.strokeStyle = AMBER;
-      ctx.setLineDash([4, 3]);
-      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = AMBER; ctx.setLineDash([4, 3]); ctx.lineWidth = 1.2;
       ctx.beginPath();
-      corners.forEach((c, i) => { const [a, b] = projA(c[0], c[1]); if (i === 0) ctx.moveTo(a, b); else ctx.lineTo(a, b); });
-      ctx.closePath();
-      ctx.stroke();
-      ctx.setLineDash([]);
+      corners.forEach((c, i) => { const [a, b] = projAux(c[0], c[1]); if (i === 0) ctx.moveTo(a, b); else ctx.lineTo(a, b); });
+      ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
     }
-    // aeronaves
+    // aeronaves con data block arrastrable
     const alarmed = new Set(conflictCs);
-    ctx.font = '8px monospace';
     for (const tr of eng.tracks.values()) {
       if (!tr.airborne || tr.status === 'LANDED') continue;
       if (!showExt && tr.authRef === 'EXT-MP') continue;
-      const [x, y] = projA(tr.lng, tr.lat);
+      const [x, y] = projAux(tr.lng, tr.lat);
       const col = alarmed.has(tr.callsign) || tr.alerts.length ? RED : GREEN;
       ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1.2;
       if (tr.manned) { ctx.strokeRect(x - 3, y - 3, 6, 6); }
       else { ctx.beginPath(); ctx.moveTo(x, y - 4); ctx.lineTo(x - 4, y + 3); ctx.lineTo(x + 4, y + 3); ctx.closePath(); ctx.stroke(); }
       if (tr.live) { ctx.strokeStyle = CYAN; ctx.beginPath(); ctx.moveTo(x, y - 6); ctx.lineTo(x + 6, y); ctx.lineTo(x, y + 6); ctx.lineTo(x - 6, y); ctx.closePath(); ctx.stroke(); }
-      if (selected === tr.callsign) { ctx.strokeStyle = AMBER; ctx.strokeRect(x - 6, y - 6, 12, 12); }
-      ctx.fillStyle = col;
-      ctx.fillText(tr.callsign, x + 6, y + 3);
+      if (selected === tr.callsign) { ctx.strokeStyle = AMBER; ctx.strokeRect(x - 7, y - 7, 14, 14); }
+      // data block (2 líneas) en su offset, con leader line
+      const off = auxLabelOffsets[tr.callsign] ?? { dx: 12, dy: -16 };
+      const lx = x + off.dx, ly = y + off.dy;
+      ctx.strokeStyle = 'rgba(120,140,130,.5)'; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(lx - 2, ly + 2); ctx.stroke();
+      ctx.font = 'bold 9px monospace'; ctx.fillStyle = col;
+      ctx.fillText(`${tr.callsign} ${String(Math.round(tr.alt)).padStart(3, '0')}M`, lx, ly);
+      ctx.fillText(`${Math.round(tr.speedKt)}KT ${Math.round(tr.batteryPct)}%`, lx, ly + 10);
     }
-    // rótulo
     ctx.fillStyle = '#7aa'; ctx.font = '9px monospace';
-    ctx.fillText(`PANORÁMICA ${auxRange} NM · N↑`, 6, h - 6);
-  }, [eng, auxRange, unproject, selected, conflictCs, showZones, zoneKinds, showExt]);
+    ctx.fillText(`VENTANA 2 · ${auxRange} NM · N↑`, 6, h - 6);
+  }, [eng, auxRange, AUX_PXNM, projAux, unproject, selected, conflictCs, showZones, zoneKinds, showExt, auxLabelOffsets]);
 
   useEffect(() => {
     if (!wins.aux.open) return;
     drawAux();
-    const iv = setInterval(drawAux, 500);
+    const iv = setInterval(drawAux, 400);
     return () => clearInterval(iv);
   }, [wins.aux.open, drawAux]);
 
-  // FIT: ajustar el alcance panorámico para abarcar todo el tráfico en vuelo
+  // hit-tests de la secundaria
+  const auxTrackAt = (mx: number, my: number): string | null => {
+    let best: string | null = null, bestD = 16;
+    for (const tr of eng.tracks.values()) {
+      if (!tr.airborne || tr.status === 'LANDED') continue;
+      const [x, y] = projAux(tr.lng, tr.lat);
+      const d = Math.hypot(mx - x, my - y);
+      if (d < bestD) { bestD = d; best = tr.callsign; }
+    }
+    return best;
+  };
+  const auxLabelAt = (mx: number, my: number): string | null => {
+    for (const tr of eng.tracks.values()) {
+      if (!tr.airborne || tr.status === 'LANDED') continue;
+      const [x, y] = projAux(tr.lng, tr.lat);
+      const off = auxLabelOff(tr.callsign);
+      const lx = x + off.dx, ly = y + off.dy;
+      if (mx >= lx - 4 && mx <= lx + 90 && my >= ly - 12 && my <= ly + 14) return tr.callsign;
+    }
+    return null;
+  };
+  const onAuxPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    const cv = auxCanvasRef.current; if (!cv) return;
+    const rect = cv.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const cs = auxLabelAt(mx, my);
+    if (cs) { const off = auxLabelOff(cs); auxLabelDrag.current = { cs, sx: e.clientX, sy: e.clientY, ox: off.dx, oy: off.dy }; return; }
+    auxPanDrag.current = { sx: e.clientX, sy: e.clientY, ox: auxPan.x, oy: auxPan.y, moved: false };
+  };
+  const onAuxPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const ld = auxLabelDrag.current;
+    if (ld) { setAuxLabelOffsets((o) => ({ ...o, [ld.cs]: { dx: ld.ox + (e.clientX - ld.sx), dy: ld.oy + (e.clientY - ld.sy) } })); return; }
+    const d = auxPanDrag.current;
+    if (d) {
+      const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
+      if (!d.moved && Math.abs(dx) + Math.abs(dy) > 3) d.moved = true;
+      if (d.moved) setAuxPan({ x: d.ox + dx, y: d.oy + dy });
+    }
+  };
+  const onAuxPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (auxLabelDrag.current) { auxLabelDrag.current = null; return; }
+    const d = auxPanDrag.current; auxPanDrag.current = null;
+    if (d && !d.moved) { // clic simple = seleccionar la aeronave (selección compartida con la principal)
+      const cv = auxCanvasRef.current; if (!cv) return;
+      const rect = cv.getBoundingClientRect();
+      setSelected(auxTrackAt(e.clientX - rect.left, e.clientY - rect.top));
+    }
+  };
+  const onAuxWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
+    const cv = auxCanvasRef.current; if (!cv) return;
+    const rect = cv.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const r0 = auxRange;
+    const r1 = e.deltaY < 0 ? Math.max(3, Math.round(r0 * 0.8)) : Math.min(192, Math.round(r0 * 1.25));
+    if (r1 === r0) return;
+    const k = r0 / r1;
+    setAuxPan((p) => ({ x: mx - AUX_W / 2 - (mx - AUX_W / 2 - p.x) * k, y: my - AUX_H / 2 - (my - AUX_H / 2 - p.y) * k }));
+    setAuxRange(r1);
+  };
+  // FIT: encuadrar todo el tráfico en vuelo (recentra y ajusta alcance)
   const auxFit = () => {
     const [clng, clat] = eng.scenario.center;
     let maxNm = 6;
     for (const tr of eng.tracks.values()) {
       if (!tr.airborne || tr.status === 'LANDED') continue;
-      const d = distMeters([clng, clat], [tr.lng, tr.lat]) / 1852; // m -> NM
+      const d = distMeters([clng, clat], [tr.lng, tr.lat]) / 1852;
       if (d > maxNm) maxNm = d;
     }
+    setAuxPan({ x: 0, y: 0 });
     setAuxRange(Math.min(192, Math.ceil((maxNm * 1.25) / 6) * 6));
   };
 
@@ -2426,12 +2487,16 @@ export default function SimuladorPage() {
             onClose={() => setWin('aux', { open: false })}
             onDrag={(x, y) => setWin('aux', { x, y })}>
             <div style={{ background: '#000' }} className="p-1">
-              <canvas ref={auxCanvasRef} width={344} height={250} className="block" style={{ width: 344, height: 250 }} />
+              <canvas ref={auxCanvasRef} width={344} height={250} className="block cursor-crosshair touch-none"
+                onPointerDown={onAuxPointerDown} onPointerMove={onAuxPointerMove} onPointerUp={onAuxPointerUp}
+                onPointerCancel={() => { auxPanDrag.current = null; auxLabelDrag.current = null; }}
+                onWheel={onAuxWheel} style={{ width: 344, height: 250 }} />
               <div className="flex items-center gap-1 pt-1 font-mono">
                 <MB label="−" onClick={() => setAuxRange((r) => Math.min(192, r + 6))} />
                 <MB label="+" onClick={() => setAuxRange((r) => Math.max(6, r - 6))} />
                 <span className="text-[10px] text-[#7aa] px-1">{auxRange} NM</span>
                 <MB label="FIT" onClick={auxFit} />
+                <MB label="CEN" onClick={() => setAuxPan({ x: 0, y: 0 })} active={auxPan.x === 0 && auxPan.y === 0} />
                 {[24, 48, 96].map((r) => <MB key={r} label={`${r}`} active={auxRange === r} onClick={() => setAuxRange(r)} />)}
               </div>
             </div>
