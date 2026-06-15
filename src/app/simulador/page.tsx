@@ -11,7 +11,7 @@ import {
   simDb, createSession, joinSession, publishState, subscribeState,
   subscribeActions, logAction, logEvent, countPositions, fetchEvalData,
   subscribeLiveTracks,
-  saveBase, listBases, loadBaseData, saveExercise, listExercises, loadExerciseData,
+  saveBase, listBases, loadBaseData, deleteBase, saveExercise, listExercises, loadExerciseData, deleteExercise,
   type SavedRow,
 } from '@/lib/sim/net';
 import { certificadoPdf } from '@/lib/sim/certificado';
@@ -1600,20 +1600,33 @@ export default function SimuladorPage() {
       setCurrentBaseName(nm); setPersistMsg(`Base guardada: ${nm}`); refreshSaved();
     } catch { setPersistMsg('Error guardando base'); }
   };
+  type BaseData = { center?: [number, number]; rangeNm?: number; coast?: string | null; aerodromes?: boolean; zones?: Zone[]; sep?: { h: number; v: number }; meteo?: typeof meteo };
+  // aplica una base cargada al motor/presentación (geografía + zonas no-ZM)
+  const applyBase = (d: BaseData, nm: string) => {
+    if (d.center) eng.scenario.center = d.center;
+    if (d.rangeNm) setRangeNm(d.rangeNm);
+    if (d.sep) setSep(d.sep);
+    if (d.meteo) setMeteo(d.meteo);
+    eng.scenario.zones = [...eng.scenario.zones.filter(isMan), ...(d.zones ?? [])];
+    setShowBorder(d.coast === 'chile'); setShowAD(!!d.aerodromes); setShowZones(true);
+    setCurrentBaseName(nm);
+  };
   const loadBaseNow = async () => {
     if (!selBaseId) return;
     try {
-      const d = (await loadBaseData(selBaseId)) as { center?: [number, number]; rangeNm?: number; coast?: string | null; aerodromes?: boolean; zones?: Zone[]; sep?: { h: number; v: number }; meteo?: typeof meteo };
-      if (d.center) eng.scenario.center = d.center;
-      if (d.rangeNm) setRangeNm(d.rangeNm);
-      if (d.sep) setSep(d.sep);
-      if (d.meteo) setMeteo(d.meteo);
-      eng.scenario.zones = [...eng.scenario.zones.filter(isMan), ...(d.zones ?? [])];
-      setShowBorder(d.coast === 'chile'); setShowAD(!!d.aerodromes); setShowZones(true);
+      const d = (await loadBaseData(selBaseId)) as BaseData;
       const nm = basesList.find((b) => b.id === selBaseId)?.name ?? '';
-      setCurrentBaseName(nm); setSelected(null); setPan({ x: 0, y: 0 }); setRot(0); force((x) => x + 1);
+      applyBase(d, nm);
+      setSelected(null); setPan({ x: 0, y: 0 }); setRot(0); force((x) => x + 1);
       setPersistMsg(`Base cargada: ${nm}`);
     } catch { setPersistMsg('Error cargando base'); }
+  };
+  const deleteBaseNow = async () => {
+    if (!selBaseId) return;
+    const nm = basesList.find((b) => b.id === selBaseId)?.name ?? '';
+    if (typeof window !== 'undefined' && !window.confirm(`¿Borrar la base "${nm}"?`)) return;
+    try { await deleteBase(selBaseId); setSelBaseId(''); setPersistMsg(`Base borrada: ${nm}`); refreshSaved(); }
+    catch { setPersistMsg('Error borrando base'); }
   };
   const saveExerciseNow = async () => {
     const nm = saveName.trim() || `EJ ${new Date().toISOString().slice(5, 16)}`;
@@ -1630,14 +1643,33 @@ export default function SimuladorPage() {
   const loadExerciseNow = async () => {
     if (!selExId) return;
     try {
+      const row = exsList.find((x) => x.id === selExId);
+      // 1) si el ejercicio tiene una base asociada distinta de la actual, cargarla primero
+      const baseName = row?.base_name ?? '';
+      if (baseName && baseName !== currentBaseName) {
+        const baseRow = basesList.find((b) => b.name === baseName);
+        if (baseRow) {
+          const bd = (await loadBaseData(baseRow.id)) as BaseData;
+          applyBase(bd, baseName);
+          setPan({ x: 0, y: 0 }); setRot(0);
+        }
+      }
+      // 2) aplicar los datos del ejercicio (zonas ZM + aeronaves + contingencias + separación)
       const d = (await loadExerciseData(selExId)) as { zones?: Zone[]; flights?: Scenario['flights']; events?: Scenario['events']; sep?: { h: number; v: number } };
       eng.scenario.flights = d.flights ?? [];
       eng.scenario.events = d.events ?? [];
       if (d.sep) setSep(d.sep);
       eng.scenario.zones = [...eng.scenario.zones.filter((z) => !isMan(z)), ...(d.zones ?? [])];
-      eng.reset(); setSelected(null); force((x) => x + 1);
-      setPersistMsg(`Ejercicio cargado: ${exsList.find((x) => x.id === selExId)?.name ?? ''}`);
+      eng.reset(); arrivedAtRef.current.clear(); setSelected(null); force((x) => x + 1);
+      setPersistMsg(`Ejercicio cargado: ${row?.name ?? ''}${baseName ? ` (base ${baseName})` : ''} — listo para INICIAR`);
     } catch { setPersistMsg('Error cargando ejercicio'); }
+  };
+  const deleteExerciseNow = async () => {
+    if (!selExId) return;
+    const nm = exsList.find((x) => x.id === selExId)?.name ?? '';
+    if (typeof window !== 'undefined' && !window.confirm(`¿Borrar el ejercicio "${nm}"?`)) return;
+    try { await deleteExercise(selExId); setSelExId(''); setPersistMsg(`Ejercicio borrado: ${nm}`); refreshSaved(); }
+    catch { setPersistMsg('Error borrando ejercicio'); }
   };
 
   // lobby
@@ -2467,6 +2499,7 @@ export default function SimuladorPage() {
                   {basesList.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
                 <MB label="CARGAR" onClick={loadBaseNow} />
+                <MB label="🗑" onClick={deleteBaseNow} />
               </div>
               <div className="flex items-center gap-1">
                 <span className="text-[#888] w-8">EJER</span>
@@ -2476,9 +2509,10 @@ export default function SimuladorPage() {
                   {exsList.map((x) => <option key={x.id} value={x.id}>{x.name}{x.base_name ? ` · ${x.base_name}` : ''}</option>)}
                 </select>
                 <MB label="CARGAR" onClick={loadExerciseNow} />
+                <MB label="🗑" onClick={deleteExerciseNow} />
               </div>
               {persistMsg && <div className="text-[9px]" style={{ color: GREEN }}>{persistMsg}</div>}
-              <div className="text-[9px] text-[#666]">Base actual: {currentBaseName || '—'}. Flujo: cargar base → cargar ejercicio → INICIAR.</div>
+              <div className="text-[9px] text-[#666]">Base actual: {currentBaseName || '—'}. Flujo: 1) GUARDAR BASE (geografía/zonas) · 2) GUARDAR EJ (aeronaves/contingencias). Para correr: CARGAR ejercicio (trae su base) → ▶ INICIAR.</div>
             </div>
           </Win>
         )}
