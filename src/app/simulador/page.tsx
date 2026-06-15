@@ -267,7 +267,7 @@ function Win({
   );
 }
 
-type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone' | 'eval' | 'aftn' | 'layers' | 'zonemaker' | 'exercise' | 'fpl' | 'meteo' | 'cpdlc' | 'arr';
+type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone' | 'eval' | 'aftn' | 'layers' | 'zonemaker' | 'exercise' | 'fpl' | 'meteo' | 'cpdlc' | 'arr' | 'aux';
 
 interface EvalRow {
   position_id: string | null;
@@ -280,6 +280,8 @@ interface EvalRow {
 
 export default function SimuladorPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const auxCanvasRef = useRef<HTMLCanvasElement>(null); // ventana secundaria (panorámica)
+  const [auxRange, setAuxRange] = useState(48); // alcance de la vista panorámica (NM)
   const engineRef = useRef<SimEngine | null>(null);
   const [, force] = useState(0);
   const [rangeNm, setRangeNm] = useState(12);
@@ -369,6 +371,7 @@ export default function SimuladorPage() {
     meteo: { x: 700, y: 200, open: false },
     cpdlc: { x: 520, y: 320, open: false },
     arr: { x: 200, y: 120, open: false },
+    aux: { x: 1120, y: 470, open: false },
   });
   const [evalRows, setEvalRows] = useState<EvalRow[]>([]);
   const [evalBusy, setEvalBusy] = useState(false);
@@ -1231,6 +1234,103 @@ export default function SimuladorPage() {
       ctx.fillText('N', tipx - 3 + nxs * 8, tipy + 4 + nys * 8);
     }
   }, [eng, project, rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, sep, mtcd, alarmMute, showExt, freetexts, rbls, cursorLL, labelMode, labelFont, labelOffsets, rblLabelOffsets, playAlarm, recording, zonePts, routePts]);
+
+  // ── ventana secundaria: vista panorámica (norte arriba, sin pan) ──
+  // El controlador trabaja con la principal en zoom y esta para no perder el resto del tráfico.
+  const drawAux = useCallback(() => {
+    const cv = auxCanvasRef.current;
+    if (!cv) return;
+    const ctx = cv.getContext('2d');
+    if (!ctx) return;
+    const w = cv.width, h = cv.height;
+    const [clng, clat] = eng.scenario.center;
+    const nmLat = 60, nmLng = 60 * Math.cos((clat * Math.PI) / 180);
+    const px = Math.min(w, h) / (auxRange * 2);
+    const projA = (lng: number, lat: number): [number, number] => [
+      w / 2 + (lng - clng) * nmLng * px,
+      h / 2 - (lat - clat) * nmLat * px,
+    ];
+    ctx.fillStyle = '#0a0c0a';
+    ctx.fillRect(0, 0, w, h);
+    // anillos de alcance (mitad y total)
+    ctx.strokeStyle = 'rgba(80,110,90,.5)';
+    ctx.lineWidth = 1;
+    for (const r of [auxRange / 2, auxRange]) {
+      ctx.beginPath();
+      ctx.arc(w / 2, h / 2, r * px, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    // zonas
+    if (showZones) {
+      for (const z of eng.scenario.zones) {
+        if (z.appearAt != null && eng.t < z.appearAt) continue;
+        if (!zoneKinds[z.kind as keyof typeof zoneKinds]) continue;
+        ctx.strokeStyle = z.kind === 'PROHIBITED' ? RED : z.kind === 'DANGER' ? '#ff8c00' : z.kind === 'RESTRICTED' ? AMBER : z.kind === 'MSA' ? '#b06bff' : CYAN;
+        ctx.setLineDash(z.kind === 'MSA' ? [3, 2] : []);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        z.ring.forEach(([lng, lat], i) => { const [a, b] = projA(lng, lat); if (i === 0) ctx.moveTo(a, b); else ctx.lineTo(a, b); });
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+    // huella de la vista principal (rectángulo, posiblemente rotado)
+    const mc = canvasRef.current;
+    if (mc) {
+      const corners: [number, number][] = [
+        unproject(0, 0, mc.width, mc.height),
+        unproject(mc.width, 0, mc.width, mc.height),
+        unproject(mc.width, mc.height, mc.width, mc.height),
+        unproject(0, mc.height, mc.width, mc.height),
+      ];
+      ctx.strokeStyle = AMBER;
+      ctx.setLineDash([4, 3]);
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      corners.forEach((c, i) => { const [a, b] = projA(c[0], c[1]); if (i === 0) ctx.moveTo(a, b); else ctx.lineTo(a, b); });
+      ctx.closePath();
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    // aeronaves
+    const alarmed = new Set(conflictCs);
+    ctx.font = '8px monospace';
+    for (const tr of eng.tracks.values()) {
+      if (!tr.airborne || tr.status === 'LANDED') continue;
+      if (!showExt && tr.authRef === 'EXT-MP') continue;
+      const [x, y] = projA(tr.lng, tr.lat);
+      const col = alarmed.has(tr.callsign) || tr.alerts.length ? RED : GREEN;
+      ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1.2;
+      if (tr.manned) { ctx.strokeRect(x - 3, y - 3, 6, 6); }
+      else { ctx.beginPath(); ctx.moveTo(x, y - 4); ctx.lineTo(x - 4, y + 3); ctx.lineTo(x + 4, y + 3); ctx.closePath(); ctx.stroke(); }
+      if (tr.live) { ctx.strokeStyle = CYAN; ctx.beginPath(); ctx.moveTo(x, y - 6); ctx.lineTo(x + 6, y); ctx.lineTo(x, y + 6); ctx.lineTo(x - 6, y); ctx.closePath(); ctx.stroke(); }
+      if (selected === tr.callsign) { ctx.strokeStyle = AMBER; ctx.strokeRect(x - 6, y - 6, 12, 12); }
+      ctx.fillStyle = col;
+      ctx.fillText(tr.callsign, x + 6, y + 3);
+    }
+    // rótulo
+    ctx.fillStyle = '#7aa'; ctx.font = '9px monospace';
+    ctx.fillText(`PANORÁMICA ${auxRange} NM · N↑`, 6, h - 6);
+  }, [eng, auxRange, unproject, selected, conflictCs, showZones, zoneKinds, showExt]);
+
+  useEffect(() => {
+    if (!wins.aux.open) return;
+    drawAux();
+    const iv = setInterval(drawAux, 500);
+    return () => clearInterval(iv);
+  }, [wins.aux.open, drawAux]);
+
+  // FIT: ajustar el alcance panorámico para abarcar todo el tráfico en vuelo
+  const auxFit = () => {
+    const [clng, clat] = eng.scenario.center;
+    let maxNm = 6;
+    for (const tr of eng.tracks.values()) {
+      if (!tr.airborne || tr.status === 'LANDED') continue;
+      const d = distMeters([clng, clat], [tr.lng, tr.lat]) / 1852; // m -> NM
+      if (d > maxNm) maxNm = d;
+    }
+    setAuxRange(Math.min(192, Math.ceil((maxNm * 1.25) / 6) * 6));
+  };
 
   // re-vincular cuando el canvas aparece tras login/lobby (auth y mode cambian el árbol)
   useEffect(() => {
@@ -2321,6 +2421,22 @@ export default function SimuladorPage() {
           </Win>
         )}
 
+        {wins.aux.open && (
+          <Win title="VENTANA 2 — PANORÁMICA" x={wins.aux.x} y={wins.aux.y} w={360}
+            onClose={() => setWin('aux', { open: false })}
+            onDrag={(x, y) => setWin('aux', { x, y })}>
+            <div style={{ background: '#000' }} className="p-1">
+              <canvas ref={auxCanvasRef} width={344} height={250} className="block" style={{ width: 344, height: 250 }} />
+              <div className="flex items-center gap-1 pt-1 font-mono">
+                <MB label="−" onClick={() => setAuxRange((r) => Math.min(192, r + 6))} />
+                <MB label="+" onClick={() => setAuxRange((r) => Math.max(6, r - 6))} />
+                <span className="text-[10px] text-[#7aa] px-1">{auxRange} NM</span>
+                <MB label="FIT" onClick={auxFit} />
+                {[24, 48, 96].map((r) => <MB key={r} label={`${r}`} active={auxRange === r} onClick={() => setAuxRange(r)} />)}
+              </div>
+            </div>
+          </Win>
+        )}
         {wins.meteo.open && (
           <Win title="METEO / QNH" x={wins.meteo.x} y={wins.meteo.y} w={300}
             onClose={() => setWin('meteo', { open: false })}
@@ -2995,6 +3111,7 @@ export default function SimuladorPage() {
           <MB label="TWR" active={altFilter.on} onClick={() => setAltFilter((a) => ({ ...a, on: !a.on, min: 0, max: 150 }))} />
           <MB label="CPDLC" active={wins.cpdlc.open} onClick={() => setWin('cpdlc', { open: !wins.cpdlc.open })} />
           <MB label="VIEW1" active={hasPreset} onClick={viewPresetToggle} />
+          <MB label="VIEW2" active={wins.aux.open} onClick={() => setWin('aux', { open: !wins.aux.open })} />
           <MB label="LMG" active={showBorder || showAD} onClick={() => { const on = !(showBorder || showAD); setShowBorder(on); setShowAD(on); }} />
           <MB label="ZONBLK" active={showZones} onClick={() => setShowZones(!showZones)} />
           <MB label="RTE OFF" active={!showVectors} onClick={() => setShowVectors((v) => !v)} />
