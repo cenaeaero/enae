@@ -67,7 +67,7 @@ function pointInPoly(p: LL, ring: LL[]): boolean {
   }
   return inside;
 }
-const SEP_H_M = 150; // separación horizontal mínima (m)
+const SEP_H_M = 500; // separación horizontal mínima (m) — buffer de conflicto (cubre alta velocidad de cierre de frente)
 const SEP_V_M = 30; // separación vertical mínima (m)
 interface ConflictTrack { callsign: string; lng: number; lat: number; hdg: number; speedKt: number; alt: number; airborne: boolean; crs: number; }
 interface ConflictZone { id?: string; name: string; kind: string; ring: LL[]; }
