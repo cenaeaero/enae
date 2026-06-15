@@ -1762,7 +1762,10 @@ export default function SimuladorPage() {
     setSpd(0);
     setExRunning(false);
     if (recording) stopRec();
-    eng.addLog('EJERCICIO FINALIZADO', 'INFO');
+    eng.tracks.clear(); // bajar todos los vuelos: la pantalla queda sin trazas
+    setSelected(null);
+    eng.addLog('EJERCICIO FINALIZADO — VUELOS BAJADOS', 'INFO');
+    force((x) => x + 1);
   };
 
   const tracks: TrackState[] = Array.from(eng.tracks.values());
