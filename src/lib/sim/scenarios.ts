@@ -116,15 +116,15 @@ export const SCENARIO_CONFLICTO: Scenario = {
     {
       callsign: 'AGRO1', acType: 'M350', speedKt: 35, batteryMin: 35, startT: 0, authRef: 'UAS-26-0201', zoneId: 'ZS1',
       route: [
-        { lat: -34.58, lng: -70.985, alt: 0 }, { lat: -34.58, lng: -70.965, alt: 100 },
-        { lat: -34.58, lng: -70.935, alt: 100 }, { lat: -34.58, lng: -70.915, alt: 0 },
+        { lat: -34.58, lng: -70.98, alt: 100 }, { lat: -34.58, lng: -70.965, alt: 100 },
+        { lat: -34.58, lng: -70.935, alt: 100 }, { lat: -34.58, lng: -70.915, alt: 100 },
       ],
     },
     {
       callsign: 'AGRO2', acType: 'M300', speedKt: 35, batteryMin: 35, startT: 0, authRef: 'UAS-26-0202', zoneId: 'ZS1',
       route: [
-        { lat: -34.605, lng: -70.95, alt: 0 }, { lat: -34.585, lng: -70.95, alt: 100 },
-        { lat: -34.575, lng: -70.95, alt: 100 }, { lat: -34.555, lng: -70.95, alt: 0 },
+        { lat: -34.605, lng: -70.95, alt: 100 }, { lat: -34.585, lng: -70.95, alt: 100 },
+        { lat: -34.575, lng: -70.95, alt: 100 }, { lat: -34.555, lng: -70.95, alt: 100 },
       ],
     },
     {
