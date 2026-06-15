@@ -161,6 +161,30 @@ function computeConflicts(tracks: ConflictTrack[], zones: ConflictZone[], horizo
   return { warnings, redLines, conflictPairs };
 }
 
+// Situación futura (HFS): pares de aeronaves que perderán separación, con tiempo al
+// punto de mínima distancia (CPA) y esa distancia mínima. Reusa la extrapolación lineal.
+interface HfsTrack { callsign: string; lng: number; lat: number; alt: number; speedKt: number; hdg: number; history: LL[]; airborne: boolean; status: string }
+interface HfsConflict { a: string; b: string; tCPA: number; minD: number; sev: 'R' | 'A' }
+function hfsScan(tracks: HfsTrack[], sepH: number, sepV: number): HfsConflict[] {
+  const flying = tracks.filter((t) => t.airborne && t.status !== 'LANDED' && t.speedKt > 0);
+  const out: HfsConflict[] = [];
+  for (let i = 0; i < flying.length; i++) {
+    for (let j = i + 1; j < flying.length; j++) {
+      const a = flying[i], b = flying[j];
+      if (Math.abs(a.alt - b.alt) > sepV) continue;
+      const ca = courseFromHist(a.history, a.lng, a.lat, a.hdg);
+      const cb = courseFromHist(b.history, b.lng, b.lat, b.hdg);
+      let minD = Infinity, tC = -1;
+      for (let t = 0; t <= 600; t += 10) {
+        const d = distMeters(predictPos(a, t, ca), predictPos(b, t, cb));
+        if (d < minD) { minD = d; tC = t; }
+      }
+      if (minD < sepH * 2) out.push({ a: a.callsign, b: b.callsign, tCPA: tC, minD: Math.round(minD), sev: minD < sepH ? 'R' : 'A' });
+    }
+  }
+  return out.sort((x, y) => x.minD - y.minD);
+}
+
 // ---------- chrome Motif ----------
 const bevelOut: React.CSSProperties = {
   background: '#c9c9c9',
@@ -267,7 +291,7 @@ function Win({
   );
 }
 
-type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone' | 'eval' | 'aftn' | 'layers' | 'zonemaker' | 'exercise' | 'fpl' | 'meteo' | 'cpdlc' | 'arr' | 'aux';
+type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone' | 'eval' | 'aftn' | 'layers' | 'zonemaker' | 'exercise' | 'fpl' | 'meteo' | 'cpdlc' | 'arr' | 'aux' | 'hfs';
 
 interface EvalRow {
   position_id: string | null;
@@ -287,6 +311,8 @@ export default function SimuladorPage() {
   const [auxLabelOffsets, setAuxLabelOffsets] = useState<Record<string, { dx: number; dy: number }>>({}); // data blocks de la secundaria
   const auxPanDrag = useRef<{ sx: number; sy: number; ox: number; oy: number; moved: boolean } | null>(null);
   const auxLabelDrag = useRef<{ cs: string; sx: number; sy: number; ox: number; oy: number } | null>(null);
+  const hfsCanvasRef = useRef<HTMLCanvasElement>(null); // situación futura (HFS)
+  const [hfsMin, setHfsMin] = useState(5); // proyección a futuro (min): 0 = ahora
   const engineRef = useRef<SimEngine | null>(null);
   const [, force] = useState(0);
   const [rangeNm, setRangeNm] = useState(12);
@@ -377,6 +403,7 @@ export default function SimuladorPage() {
     cpdlc: { x: 520, y: 320, open: false },
     arr: { x: 200, y: 120, open: false },
     aux: { x: 1120, y: 470, open: false },
+    hfs: { x: 360, y: 300, open: false },
   });
   const [evalRows, setEvalRows] = useState<EvalRow[]>([]);
   const [evalBusy, setEvalBusy] = useState(false);
@@ -1409,6 +1436,71 @@ export default function SimuladorPage() {
     setAuxRange(Math.min(192, Math.ceil((maxNm * 1.25) / 6) * 6));
   };
 
+  // ── HFS — Situación Futura Horizontal: extrapola el tráfico a +N min y resalta conflictos ──
+  const drawHfs = useCallback(() => {
+    const cv = hfsCanvasRef.current;
+    if (!cv) return;
+    const ctx = cv.getContext('2d');
+    if (!ctx) return;
+    const w = cv.width, h = cv.height;
+    const [clng, clat] = eng.scenario.center;
+    const nmLat = 60, nmLng = 60 * Math.cos((clat * Math.PI) / 180);
+    const tracks = [...eng.tracks.values()].filter((t) => t.airborne && t.status !== 'LANDED');
+    // posición proyectada a +hfsMin
+    const futLL = (t: TrackState): [number, number] => {
+      const crs = courseFromHist(t.history, t.lng, t.lat, t.hdg);
+      return predictPos({ lng: t.lng, lat: t.lat, speedKt: t.speedKt }, hfsMin * 60, crs);
+    };
+    // alcance que abarque presentes y futuros
+    let maxNm = 4;
+    for (const t of tracks) {
+      const f = futLL(t);
+      maxNm = Math.max(maxNm, distMeters([clng, clat], [t.lng, t.lat]) / 1852, distMeters([clng, clat], f) / 1852);
+    }
+    const range = Math.ceil((maxNm * 1.2) / 2) * 2;
+    const px = Math.min(w, h) / (range * 2);
+    const proj = (lng: number, lat: number): [number, number] => [w / 2 + (lng - clng) * nmLng * px, h / 2 - (lat - clat) * nmLat * px];
+    ctx.fillStyle = '#0a0c0a'; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = 'rgba(80,110,90,.45)'; ctx.lineWidth = 1;
+    for (const r of [range / 2, range]) { ctx.beginPath(); ctx.arc(w / 2, h / 2, r * px, 0, Math.PI * 2); ctx.stroke(); }
+    // zonas
+    if (showZones) for (const z of eng.scenario.zones) {
+      if (z.appearAt != null && eng.t < z.appearAt) continue;
+      if (!zoneKinds[z.kind as keyof typeof zoneKinds]) continue;
+      ctx.strokeStyle = z.kind === 'PROHIBITED' ? RED : z.kind === 'DANGER' ? '#ff8c00' : z.kind === 'RESTRICTED' ? AMBER : z.kind === 'MSA' ? '#b06bff' : CYAN;
+      ctx.setLineDash(z.kind === 'MSA' ? [3, 2] : []); ctx.lineWidth = 1;
+      ctx.beginPath();
+      z.ring.forEach(([lng, lat], i) => { const [a, b] = proj(lng, lat); if (i === 0) ctx.moveTo(a, b); else ctx.lineTo(a, b); });
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+    const conflictCfg = hfsScan(tracks as HfsTrack[], sep.h, sep.v);
+    const inConflict = new Set<string>(); conflictCfg.forEach((c) => { inConflict.add(c.a); inConflict.add(c.b); });
+    ctx.font = '9px monospace';
+    for (const t of tracks) {
+      const [x0, y0] = proj(t.lng, t.lat);
+      const f = futLL(t); const [x1, y1] = proj(f[0], f[1]);
+      const col = inConflict.has(t.callsign) ? RED : GREEN;
+      // posición actual (tenue) -> futura (brillante)
+      ctx.strokeStyle = 'rgba(120,140,130,.5)'; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      ctx.fillStyle = 'rgba(120,140,130,.6)'; ctx.fillRect(x0 - 1.5, y0 - 1.5, 3, 3);
+      ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1.4;
+      if (t.manned) ctx.strokeRect(x1 - 3, y1 - 3, 6, 6);
+      else { ctx.beginPath(); ctx.moveTo(x1, y1 - 4); ctx.lineTo(x1 - 4, y1 + 3); ctx.lineTo(x1 + 4, y1 + 3); ctx.closePath(); ctx.stroke(); }
+      ctx.fillText(t.callsign, x1 + 6, y1 + 3);
+    }
+    ctx.fillStyle = '#36d6ff'; ctx.font = 'bold 10px monospace';
+    ctx.fillText(hfsMin === 0 ? 'AHORA' : `+${hfsMin} MIN`, 6, 14);
+    ctx.fillStyle = '#7aa'; ctx.font = '9px monospace';
+    ctx.fillText(`SITUACIÓN FUTURA · ${range} NM`, 6, h - 6);
+  }, [eng, hfsMin, sep, showZones, zoneKinds]);
+
+  useEffect(() => {
+    if (!wins.hfs.open) return;
+    drawHfs();
+    const iv = setInterval(drawHfs, 500);
+    return () => clearInterval(iv);
+  }, [wins.hfs.open, drawHfs]);
+
   // re-vincular cuando el canvas aparece tras login/lobby (auth y mode cambian el árbol)
   useEffect(() => {
     const cv = canvasRef.current;
@@ -2165,6 +2257,7 @@ export default function SimuladorPage() {
   const netAgeS = lastNetRef.current ? Math.round((Date.now() - lastNetRef.current) / 1000) : 0;
   const netStale = mode === 'student' && (!lastNetRef.current || netAgeS > 4);
   const liveCount = tracks.filter((t) => t.live).length;
+  const hfsList = wins.hfs.open ? hfsScan(tracks as HfsTrack[], sep.h, sep.v) : [];
   // MSAW activo: alguna aeronave en vuelo bajo el mínimo de un sector MSA
   const msawActive = tracks.some((t) => t.airborne && t.status !== 'LANDED' &&
     eng.scenario.zones.some((z) => z.kind === 'MSA' && z.minAlt != null && t.alt < z.minAlt &&
@@ -2515,6 +2608,32 @@ export default function SimuladorPage() {
                 <MB label="CEN" onClick={() => { setAuxFollow(false); setAuxPan({ x: 0, y: 0 }); }} active={auxPan.x === 0 && auxPan.y === 0 && !auxFollow} />
                 <MB label="CSEL" active={auxFollow} onClick={() => { if (selected) setAuxFollow((v) => !v); }} />
                 {[24, 48, 96].map((r) => <MB key={r} label={`${r}`} active={auxRange === r} onClick={() => setAuxRange(r)} />)}
+              </div>
+            </div>
+          </Win>
+        )}
+        {wins.hfs.open && (
+          <Win title="SITUACIÓN FUTURA (HFS)" x={wins.hfs.x} y={wins.hfs.y} w={376}
+            onClose={() => setWin('hfs', { open: false })}
+            onDrag={(x, y) => setWin('hfs', { x, y })}>
+            <div style={{ background: '#000' }} className="p-1 font-mono">
+              <canvas ref={hfsCanvasRef} width={360} height={260} className="block" style={{ width: 360, height: 260 }} />
+              <div className="flex items-center gap-1 pt-1">
+                <span className="text-[10px] text-[#7aa]">PROYECCIÓN</span>
+                <MB label="−" onClick={() => setHfsMin((m) => Math.max(0, m - 1))} />
+                <MB label="+" onClick={() => setHfsMin((m) => Math.min(10, m + 1))} />
+                <MB label="AHORA" active={hfsMin === 0} onClick={() => setHfsMin(0)} />
+                {[5, 10].map((m) => <MB key={m} label={`+${m}`} active={hfsMin === m} onClick={() => setHfsMin(m)} />)}
+                <span className="text-[10px] px-1" style={{ color: '#36d6ff' }}>{hfsMin === 0 ? 'AHORA' : `+${hfsMin} min`}</span>
+              </div>
+              <div className="pt-1 text-[10px]">
+                <div className="text-[#7aa]">CONFLICTOS PREVISTOS ({hfsList.length})</div>
+                {hfsList.length === 0 && <div className="text-[#5c6b63]">— sin conflictos en 10 min —</div>}
+                {hfsList.slice(0, 6).map((c, i) => (
+                  <div key={i} style={{ color: c.sev === 'R' ? RED : AMBER }}>
+                    {c.a} / {c.b} · CPA {Math.round(c.tCPA / 6) / 10}min · {c.minD}m
+                  </div>
+                ))}
               </div>
             </div>
           </Win>
@@ -3240,6 +3359,7 @@ export default function SimuladorPage() {
           <MB label={['BRIGHT', 'DUSK', 'NIGHT'][bright]} active={bright > 0} onClick={() => setBright((b) => (b + 1) % 3)} />
           <MB label="METEO" active={wins.meteo.open} onClick={() => setWin('meteo', { open: !wins.meteo.open })} />
           <MB label="MTCD" active={mtcd} color={mtcd ? undefined : RED} onClick={() => setMtcd((v) => !v)} />
+          <MB label="HFS" active={wins.hfs.open} onClick={() => setWin('hfs', { open: !wins.hfs.open })} />
           <MB label="FREETEXT" active={freetextMode} onClick={() => setFreetextMode((v) => !v)} />
           <MB label="FINDER" active={wins.layers.open} onClick={() => setWin('layers', { open: true })} />
           <MB label="RADAR" onClick={() => setWin('stations', { open: !wins.stations.open })} active={wins.stations.open} />
