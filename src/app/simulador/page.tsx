@@ -2405,7 +2405,7 @@ export default function SimuladorPage() {
         )}
 
         {wins.exercise.open && mode !== 'student' && (
-          <Win title="EJERCICIO — CONTROL (SUPERVISOR)" x={wins.exercise.x} y={wins.exercise.y} w={340}
+          <Win title="EJERCICIO — CONTROL (SUPERVISOR)" x={wins.exercise.x} y={wins.exercise.y} w={720}
             onClose={() => setWin('exercise', { open: false })}
             onDrag={(x, y) => setWin('exercise', { x, y })}>
             <div style={{ background: '#000' }} className="font-mono text-[10px] p-2 space-y-1 text-[#cbd5e1]">
@@ -2415,6 +2415,8 @@ export default function SimuladorPage() {
                 <MB label="■ FINALIZAR" onClick={stopExercise} />
               </div>
               <div className="text-[9px] text-[#666]">INICIAR: reloj a 0, corre y graba. PAUSA: congela para analizar (sigue donde quedó). FINALIZAR: cierra y descarga la grabación.</div>
+              <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
               <div className="text-[#7aa] tracking-wider pt-1">CREAR DATOS DEL EJERCICIO</div>
               <div className="flex items-center gap-1 flex-wrap">
                 <MB label="ZONAS / POLÍGONOS" active={wins.zonemaker.open} onClick={() => setWin('zonemaker', { open: !wins.zonemaker.open })} />
@@ -2480,8 +2482,10 @@ export default function SimuladorPage() {
                 <span className="text-[#888]">m</span>
               </div>
               <div className="text-[9px] text-[#666]">Se guarda con la base y el ejercicio.</div>
+              </div>
+              <div className="space-y-1">
               <div className="text-[#7aa] tracking-wider pt-1">CRONOLOGÍA</div>
-              <div className="max-h-[160px] overflow-y-auto text-[10px] space-y-0.5">
+              <div className="max-h-[360px] overflow-y-auto text-[10px] space-y-0.5">
                 {eng.scenario.zones.filter((z) => z.appearAt != null).map((z) => (
                   <div key={z.id} className="flex justify-between">
                     <span>🛑 {z.name}</span>
@@ -2511,6 +2515,8 @@ export default function SimuladorPage() {
                 {eng.scenario.zones.every((z) => z.appearAt == null) && !eng.scenario.flights.length && !eng.scenario.events.length && (
                   <div className="text-[#666]">Sin elementos programados. Creá zonas con APARECE T+min o contingencias.</div>
                 )}
+              </div>
+              </div>
               </div>
               <div className="text-[#7aa] tracking-wider pt-1">GUARDAR / CARGAR (SUPABASE)</div>
               <div className="flex items-center gap-1">
