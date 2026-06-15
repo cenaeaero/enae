@@ -67,7 +67,7 @@ function pointInPoly(p: LL, ring: LL[]): boolean {
   }
   return inside;
 }
-const SEP_H_M = 150; // separación horizontal mínima (m)
+const SEP_H_M = 500; // separación horizontal mínima (m) — buffer de conflicto, no de colisión
 const SEP_V_M = 30; // separación vertical mínima (m)
 interface ConflictTrack { callsign: string; lng: number; lat: number; hdg: number; speedKt: number; alt: number; airborne: boolean; crs: number; }
 interface ConflictZone { id?: string; name: string; kind: string; ring: LL[]; }
@@ -84,7 +84,7 @@ function computeConflicts(tracks: ConflictTrack[], zones: ConflictZone[], horizo
     warnings.set(cs, a);
   };
   const flying = tracks.filter((t) => t.airborne && t.speedKt > 0);
-  const H = Math.max(60, horizonMin * 60);
+  const H = Math.max(180, horizonMin * 60); // horizonte de conflicto ≥3 min (anticipación), aunque el vector mostrado sea menor
   const STEP = 6;
   for (let i = 0; i < flying.length; i++) {
     for (let j = i + 1; j < flying.length; j++) {
