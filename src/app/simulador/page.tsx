@@ -67,14 +67,12 @@ function pointInPoly(p: LL, ring: LL[]): boolean {
   }
   return inside;
 }
-const SEP_H_M = 500; // separación horizontal mínima (m) — buffer de conflicto (cubre alta velocidad de cierre de frente)
-const SEP_V_M = 30; // separación vertical mínima (m)
 interface ConflictTrack { callsign: string; lng: number; lat: number; hdg: number; speedKt: number; alt: number; airborne: boolean; crs: number; }
 interface ConflictZone { id?: string; name: string; kind: string; ring: LL[]; }
 // Monitoriza todos los pares de aeronaves (STCA) y la salida de zonas segregadas
 // dentro del horizonte del vector de predicción (minutos). Devuelve warnings por C/S
 // y las líneas rojas a dibujar entre la aeronave y el conflicto.
-function computeConflicts(tracks: ConflictTrack[], zones: ConflictZone[], horizonMin: number) {
+function computeConflicts(tracks: ConflictTrack[], zones: ConflictZone[], horizonMin: number, sepH = 500, sepV = 30) {
   const warnings = new Map<string, string[]>();
   const redLines: { from: LL; to: LL }[] = [];
   const conflictPairs: [string, string][] = []; // pares aeronave-aeronave en conflicto (auto-RBL)
@@ -89,13 +87,13 @@ function computeConflicts(tracks: ConflictTrack[], zones: ConflictZone[], horizo
   for (let i = 0; i < flying.length; i++) {
     for (let j = i + 1; j < flying.length; j++) {
       const a = flying[i], b = flying[j];
-      if (Math.abs(a.alt - b.alt) > SEP_V_M) continue;
+      if (Math.abs(a.alt - b.alt) > sepV) continue;
       let minD = Infinity, tC = -1;
       for (let t = 0; t <= H; t += STEP) {
         const d = distMeters(predictPos(a, t, a.crs), predictPos(b, t, b.crs));
         if (d < minD) { minD = d; tC = t; }
       }
-      if (minD < SEP_H_M) {
+      if (minD < sepH) {
         add(a.callsign, `CONF ${b.callsign} ${tC}s`);
         add(b.callsign, `CONF ${a.callsign} ${tC}s`);
         conflictPairs.push([a.callsign, b.callsign]); // se dibuja como auto-RBL
@@ -288,6 +286,7 @@ export default function SimuladorPage() {
   const [zoneKinds, setZoneKinds] = useState({ SEGREGATED: true, PROHIBITED: true, RESTRICTED: true, DANGER: true }); // visibilidad por tipo de zona
   const [showZoneLabels, setShowZoneLabels] = useState(true); // nombres/leyendas de zona
   const [altFilter, setAltFilter] = useState({ on: false, min: 0, max: 150 }); // filtro de banda de altitud (M AGL)
+  const [sep, setSep] = useState({ h: 500, v: 30 }); // separación mínima de conflicto (m): horizontal / vertical
   const [rblMode, setRblMode] = useState(false); // modo medición rango/marcación (clic-clic)
   const [rbls, setRbls] = useState<{ a: RblEnd; b: RblEnd }[]>([]); // mediciones (punto o pista)
   const rblPend = useRef<RblEnd | null>(null); // primer extremo pendiente
@@ -544,7 +543,7 @@ export default function SimuladorPage() {
       clearInterval(iv);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, rbls, cursorLL, labelMode, labelFont, labelOffsets, rblLabelOffsets, zonePts, routePts]);
+  }, [rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, sep, rbls, cursorLL, labelMode, labelFont, labelOffsets, rblLabelOffsets, zonePts, routePts]);
 
   // alumno: recibir estado por Realtime
   useEffect(() => {
@@ -816,7 +815,9 @@ export default function SimuladorPage() {
     const { warnings: cfWarn, redLines: cfLines, conflictPairs: cfPairs } = computeConflicts(
       cTracks,
       eng.scenario.zones.filter((z) => z.appearAt == null || eng.t >= z.appearAt) as unknown as ConflictZone[],
-      vectorMin
+      vectorMin,
+      sep.h,
+      sep.v
     );
     // alarma sonora al aparecer un conflicto/alerta nuevo (3 s)
     const nowAlarmed = new Set<string>(cfWarn.keys());
@@ -1143,7 +1144,7 @@ export default function SimuladorPage() {
       ctx.font = 'bold 11px monospace';
       ctx.fillText('N', tipx - 3 + nxs * 8, tipy + 4 + nys * 8);
     }
-  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, rbls, cursorLL, labelMode, labelFont, labelOffsets, rblLabelOffsets, playAlarm, recording, zonePts, routePts]);
+  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, sep, rbls, cursorLL, labelMode, labelFont, labelOffsets, rblLabelOffsets, playAlarm, recording, zonePts, routePts]);
 
   // re-vincular cuando el canvas aparece tras login/lobby (auth y mode cambian el árbol)
   useEffect(() => {
@@ -1529,6 +1530,7 @@ export default function SimuladorPage() {
         center: eng.scenario.center, rangeNm,
         coast: showBorder ? 'chile' : null, aerodromes: showAD,
         zones: eng.scenario.zones.filter((z) => !isMan(z)),
+        sep,
       });
       setCurrentBaseName(nm); setPersistMsg(`Base guardada: ${nm}`); refreshSaved();
     } catch { setPersistMsg('Error guardando base'); }
@@ -1536,9 +1538,10 @@ export default function SimuladorPage() {
   const loadBaseNow = async () => {
     if (!selBaseId) return;
     try {
-      const d = (await loadBaseData(selBaseId)) as { center?: [number, number]; rangeNm?: number; coast?: string | null; aerodromes?: boolean; zones?: Zone[] };
+      const d = (await loadBaseData(selBaseId)) as { center?: [number, number]; rangeNm?: number; coast?: string | null; aerodromes?: boolean; zones?: Zone[]; sep?: { h: number; v: number } };
       if (d.center) eng.scenario.center = d.center;
       if (d.rangeNm) setRangeNm(d.rangeNm);
+      if (d.sep) setSep(d.sep);
       eng.scenario.zones = [...eng.scenario.zones.filter(isMan), ...(d.zones ?? [])];
       setShowBorder(d.coast === 'chile'); setShowAD(!!d.aerodromes); setShowZones(true);
       const nm = basesList.find((b) => b.id === selBaseId)?.name ?? '';
@@ -1553,6 +1556,7 @@ export default function SimuladorPage() {
         zones: eng.scenario.zones.filter(isMan),
         flights: eng.scenario.flights,
         events: eng.scenario.events,
+        sep,
       });
       setPersistMsg(`Ejercicio guardado: ${nm}`); refreshSaved();
     } catch { setPersistMsg('Error guardando ejercicio'); }
@@ -1560,9 +1564,10 @@ export default function SimuladorPage() {
   const loadExerciseNow = async () => {
     if (!selExId) return;
     try {
-      const d = (await loadExerciseData(selExId)) as { zones?: Zone[]; flights?: Scenario['flights']; events?: Scenario['events'] };
+      const d = (await loadExerciseData(selExId)) as { zones?: Zone[]; flights?: Scenario['flights']; events?: Scenario['events']; sep?: { h: number; v: number } };
       eng.scenario.flights = d.flights ?? [];
       eng.scenario.events = d.events ?? [];
+      if (d.sep) setSep(d.sep);
       eng.scenario.zones = [...eng.scenario.zones.filter((z) => !isMan(z)), ...(d.zones ?? [])];
       eng.reset(); setSelected(null); force((x) => x + 1);
       setPersistMsg(`Ejercicio cargado: ${exsList.find((x) => x.id === selExId)?.name ?? ''}`);
@@ -2222,6 +2227,17 @@ export default function SimuladorPage() {
                 )}
                 <MB label="+ AGREGAR" onClick={addEvent} />
               </div>
+              <div className="text-[#7aa] tracking-wider pt-1">SEPARACIÓN MÍNIMA (CONFLICTO)</div>
+              <div className="flex items-center gap-1">
+                <span className="text-[#888]">HORIZ</span>
+                <input type="number" value={sep.h} onChange={(e) => setSep((s) => ({ ...s, h: +e.target.value }))}
+                  style={{ ...bevelIn, background: '#000', color: GREEN, width: 56 }} className="px-1 text-[10px]" />
+                <span className="text-[#888]">m · VERT</span>
+                <input type="number" value={sep.v} onChange={(e) => setSep((s) => ({ ...s, v: +e.target.value }))}
+                  style={{ ...bevelIn, background: '#000', color: GREEN, width: 46 }} className="px-1 text-[10px]" />
+                <span className="text-[#888]">m</span>
+              </div>
+              <div className="text-[9px] text-[#666]">Se guarda con la base y el ejercicio.</div>
               <div className="text-[#7aa] tracking-wider pt-1">CRONOLOGÍA</div>
               <div className="max-h-[160px] overflow-y-auto text-[10px] space-y-0.5">
                 {eng.scenario.zones.filter((z) => z.appearAt != null).map((z) => (
