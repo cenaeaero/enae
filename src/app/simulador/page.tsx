@@ -371,6 +371,8 @@ export default function SimuladorPage() {
   const [finder, setFinder] = useState(''); // buscador de pista por C/S
   const [labelOffsets, setLabelOffsets] = useState<Record<string, { dx: number; dy: number }>>({}); // posición del data block por pista
   const [conflictCs, setConflictCs] = useState<string[]>([]); // C/S en alerta de conflicto (para colorear filas de VUELOS)
+  const [stcaOn, setStcaOn] = useState(false); // hay al menos un conflicto STCA aeronave-aeronave activo
+  const stcaRef = useRef(false);
   const [rblLabelOffsets, setRblLabelOffsets] = useState<Record<string, { dx: number; dy: number }>>({}); // posición de la etiqueta de cada RBL
   // instructor: alta manual de zona (dibujo de vértices o círculo)
   const [zoneDrawing, setZoneDrawing] = useState(false);
@@ -925,6 +927,8 @@ export default function SimuladorPage() {
     // sincronizar el set de conflicto a React (colorear filas de VUELOS) sólo cuando cambia
     const akey = [...nowAlarmed].sort().join(',');
     if (akey !== conflictKeyRef.current) { conflictKeyRef.current = akey; setConflictCs([...nowAlarmed]); }
+    const stcaNow = cfPairs.length > 0;
+    if (stcaNow !== stcaRef.current) { stcaRef.current = stcaNow; setStcaOn(stcaNow); }
     let freshAlarm = false;
     for (const cs of nowAlarmed) if (!alarmedRef.current.has(cs)) { freshAlarm = true; break; }
     alarmedRef.current = nowAlarmed;
@@ -2478,6 +2482,11 @@ export default function SimuladorPage() {
   const hfsList = wins.hfs.open ? hfsScan(tracks as HfsTrack[], sep.h, sep.v) : [];
   // MSAW activo: alguna aeronave en vuelo bajo el mínimo de un sector MSA
   const contingency = tracks.some((t) => t.status === 'LOST' || t.status === 'EMERG'); // pista perdida o emergencia activa
+  const confActive = tracks.some((t) => t.alerts.includes('ZB') || t.status === 'BREACH'); // conformidad: fuera de zona
+  const c2Active = tracks.some((t) => t.alerts.includes('C2')); // pérdida de enlace
+  const apwActive = tracks.some((t) => t.airborne && t.status !== 'LANDED' && eng.scenario.zones.some((z) =>
+    (z.kind === 'PROHIBITED' || z.kind === 'RESTRICTED' || z.kind === 'DANGER') &&
+    (z.appearAt == null || eng.t >= z.appearAt) && pointInPoly([t.lng, t.lat], z.ring as LL[]))); // incursión en área
   const msawActive = tracks.some((t) => t.airborne && t.status !== 'LANDED' &&
     eng.scenario.zones.some((z) => z.kind === 'MSA' && z.minAlt != null && t.alt < z.minAlt &&
       (z.appearAt == null || eng.t >= z.appearAt) && pointInPoly([t.lng, t.lat], z.ring as LL[])));
@@ -2496,6 +2505,8 @@ export default function SimuladorPage() {
       {label}
     </span>
   );
+  // separador vertical entre grupos de la barra superior
+  const Bar = () => <span className="inline-block w-px self-stretch mx-0.5" style={{ background: '#5a5a5a', height: 16 }} />;
 
   // preflight de configuración: si faltan las variables de Supabase del sim,
   // mostrar un mensaje claro en vez de una pantalla en blanco frente a la audiencia.
@@ -2637,66 +2648,67 @@ export default function SimuladorPage() {
         input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         input[type=number] { -moz-appearance: textfield; appearance: textfield; }
       `}</style>
-      {/* ===== barra superior de estado ===== */}
+      {/* ===== barra superior de estado (organizada por grupos UTM) ===== */}
       <div className="flex items-center justify-between" style={{ background: '#2b2b2b', borderBottom: '2px solid #5a5a5a' }}>
         <div className="flex items-center">
-          <TSeg label="ST" />
+          {/* SAFETY NETS */}
+          <TSeg label="CONF" color={confActive ? RED : GREEN} />
+          <TSeg label="STCA" color={stcaOn ? RED : GREEN} />
           <TSeg label="MSAW" color={msawActive ? RED : GREEN} />
-          <TSeg label="CONF" color={GREEN} />
-          <TSeg label="APW" color={anyAlarm ? RED : GREEN} />
-          <TSeg label="C2" color={tracks.some((t) => t.alerts.includes('C2')) ? RED : GREEN} />
+          <TSeg label="APW" color={apwActive ? RED : GREEN} />
+          <TSeg label="C2" color={c2Active ? RED : GREEN} />
           {contingency && <TSeg label="CONTINGENCIA" color={RED} />}
-          <TSeg label="PSR T" />
-          <TSeg label="OPTIONS" />
-          <TSeg label={`RANGE: ${rangeNm} NM`} />
-          <TSeg label="SIM" color={AMBER} />
+          <Bar />
+          {/* FUENTE / MODO DE DATOS (UTM: Remote ID + ADS-B) */}
           {mode !== 'student' ? (
-            <button onClick={() => setOpMode((m) => (m === 'INT' ? 'MON' : m === 'MON' ? 'BYP' : 'INT'))}>
+            <button onClick={() => setOpMode((m) => (m === 'INT' ? 'MON' : m === 'MON' ? 'BYP' : 'INT'))} title="Modo operacional / fuente de datos">
               <TSeg label={opMode} color={opMode === 'INT' ? '#1f9e5d' : opMode === 'MON' ? GREEN : '#ff7ac0'} />
             </button>
           ) : (
             <TSeg label={opMode} color={opMode === 'BYP' ? '#ff7ac0' : GREEN} />
           )}
+          <TSeg label="RID" color={liveCount > 0 ? CYAN : '#6b7a72'} />
+          {liveCount > 0 && <TSeg label={`${liveCount}`} color={CYAN} />}
+          <TSeg label="ADS-B" color="#6b7a72" />
+          <Bar />
+          {/* ESTADO DEL EJERCICIO */}
+          <TSeg label="SIM" color={AMBER} />
           <TSeg label={paused ? 'HOLD' : `RUN x${speed}`} color={paused ? AMBER : GREEN} />
+          <TSeg label={`${rangeNm} NM`} />
+          <Bar />
+          {/* POSICIÓN / SESIÓN */}
           <button onClick={() => setMyPos((p) => SECTORS[(SECTORS.indexOf(p) + 1) % SECTORS.length])} title="Posición/sector propio">
             <TSeg label={`POS ${myPos}`} color={CYAN} />
           </button>
           {(mode === 'instructor' || mode === 'student') && (
             <TSeg
-              label={mode === 'instructor' ? `SES ${sessionCode} · ${peers}P · SUPERVISOR` : `SES ${sessionCode} · ${userName || 'ALUMNO'}`}
+              label={mode === 'instructor' ? `SES ${sessionCode} · ${peers}P` : `SES ${sessionCode}`}
               color={CYAN}
             />
           )}
           {mode === 'student' && (
-            <TSeg
-              label={netStale ? `SIN DATOS ${netAgeS}s` : 'ENLACE OK'}
-              color={netStale ? RED : GREEN}
-            />
-          )}
-          {mode === 'instructor' && liveCount > 0 && (
-            <TSeg label={`RID ${liveCount}`} color={CYAN} />
+            <TSeg label={netStale ? `SIN DATOS ${netAgeS}s` : 'ENLACE OK'} color={netStale ? RED : GREEN} />
           )}
           {quickLook && <TSeg label="QUICK-LOOK" color={AMBER} />}
-          <TSeg label={`Wx: CAVOK`} />
+          <Bar />
+          <TSeg label="MET CAVOK" color="#6b7a72" />
         </div>
-        <div className="text-[11px] font-bold font-mono" style={{ color: GREEN }}>
-          CONDOR UTM — POSICIÓN CONTROLADOR · {eng.scenario.name}
+        <div className="text-[11px] font-bold font-mono px-2 truncate" style={{ color: GREEN }}>
+          CONDOR UTM · POS CONTROLADOR · {eng.scenario.name}
         </div>
         <div className="flex items-center">
-          <TSeg label="Q" />
-          <TSeg label="EST" />
-          <TSeg label="FPL" />
           <button onClick={() => setWin('layers', { open: !wins.layers.open })}>
-            <TSeg label="MAP" bg={wins.layers.open ? '#4a4a4a' : undefined} />
+            <TSeg label="MAPA" bg={wins.layers.open ? '#4a4a4a' : undefined} />
           </button>
-          <TSeg label="CONFIG" />
+          <button onClick={() => setWin('aftn', { open: !wins.aftn.open })}>
+            <TSeg label="AFTN" bg={wins.aftn.open ? '#4a4a4a' : undefined} />
+          </button>
           <button onClick={() => setWin('msg', { open: !wins.msg.open })}>
             <TSeg label="SYS MSG" bg={wins.msg.open ? '#4a4a4a' : undefined} color={anyAlarm ? RED : '#d6d6d6'} />
           </button>
           <button onClick={() => setWin('time', { open: !wins.time.open })}>
-            <TSeg label="CLOCK" bg={wins.time.open ? '#4a4a4a' : undefined} />
+            <TSeg label="RELOJ" bg={wins.time.open ? '#4a4a4a' : undefined} />
           </button>
-          <TSeg label="MENU" color={AMBER} />
         </div>
       </div>
 
