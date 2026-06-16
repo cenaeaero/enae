@@ -310,7 +310,8 @@ export default function SimuladorPage() {
   const [auxFollow, setAuxFollow] = useState(false); // CSEL: la secundaria sigue a la aeronave seleccionada
   const [auxLabelOffsets, setAuxLabelOffsets] = useState<Record<string, { dx: number; dy: number }>>({}); // data blocks de la secundaria
   const auxPanDrag = useRef<{ sx: number; sy: number; ox: number; oy: number; moved: boolean } | null>(null);
-  const auxLabelDrag = useRef<{ cs: string; sx: number; sy: number; ox: number; oy: number } | null>(null);
+  const auxLabelDrag = useRef<{ cs: string; sx: number; sy: number; ox: number; oy: number; moved: boolean } | null>(null);
+  const auxLeaderClick = useRef<string | null>(null); // C/S de la línea guía pulsada en la VENTANA 2
   const hfsCanvasRef = useRef<HTMLCanvasElement>(null); // situación futura (HFS)
   const [hfsMin, setHfsMin] = useState(5); // proyección a futuro (min): 0 = ahora
   const engineRef = useRef<SimEngine | null>(null);
@@ -1331,11 +1332,31 @@ export default function SimuladorPage() {
       if (!showExt && tr.authRef === 'EXT-MP') continue;
       const [x, y] = projAux(tr.lng, tr.lat);
       const col = alarmed.has(tr.callsign) || tr.alerts.length ? RED : GREEN;
+      // estela
+      if (showTrails && tr.history.length > 1) {
+        ctx.strokeStyle = col === RED ? 'rgba(255,59,48,.3)' : 'rgba(39,224,122,.28)';
+        ctx.lineWidth = 1; ctx.beginPath();
+        tr.history.forEach(([lng, lat], i) => { const [tx, ty] = projAux(lng, lat); if (i === 0) ctx.moveTo(tx, ty); else ctx.lineTo(tx, ty); });
+        ctx.stroke();
+      }
       ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1.2;
       if (tr.manned) { ctx.strokeRect(x - 3, y - 3, 6, 6); }
       else { ctx.beginPath(); ctx.moveTo(x, y - 4); ctx.lineTo(x - 4, y + 3); ctx.lineTo(x + 4, y + 3); ctx.closePath(); ctx.stroke(); }
       if (tr.live) { ctx.strokeStyle = CYAN; ctx.beginPath(); ctx.moveTo(x, y - 6); ctx.lineTo(x + 6, y); ctx.lineTo(x, y + 6); ctx.lineTo(x - 6, y); ctx.closePath(); ctx.stroke(); }
       if (selected === tr.callsign) { ctx.strokeStyle = AMBER; ctx.strokeRect(x - 7, y - 7, 14, 14); }
+      // vector de velocidad (norte arriba): un trazo por minuto
+      if (showVectors && tr.speedKt > 0) {
+        const course = courseFromHist(tr.history, tr.lng, tr.lat, tr.hdg);
+        const dirx = Math.sin((course * Math.PI) / 180), diry = -Math.cos((course * Math.PI) / 180);
+        const minPx = (tr.speedKt / 60) * AUX_PXNM;
+        ctx.strokeStyle = col; ctx.lineWidth = 1.2;
+        for (let mn = 0; mn < vectorMin; mn++) {
+          ctx.beginPath();
+          ctx.moveTo(x + dirx * (mn + 0.06) * minPx, y + diry * (mn + 0.06) * minPx);
+          ctx.lineTo(x + dirx * (mn + 0.94) * minPx, y + diry * (mn + 0.94) * minPx);
+          ctx.stroke();
+        }
+      }
       // data block (2 líneas) en su offset, con leader line
       const off = auxLabelOffsets[tr.callsign] ?? { dx: 12, dy: -16 };
       const lx = x + off.dx, ly = y + off.dy;
@@ -1346,7 +1367,7 @@ export default function SimuladorPage() {
     }
     ctx.fillStyle = auxFollow ? AMBER : '#7aa'; ctx.font = '9px monospace';
     ctx.fillText(auxFollow && selected ? `VENTANA 2 · ${auxRange} NM · SIGUE ${selected}` : `VENTANA 2 · ${auxRange} NM · N↑`, 6, h - 6);
-  }, [eng, auxRange, AUX_PXNM, projAux, unproject, selected, conflictCs, showZones, zoneKinds, showExt, auxLabelOffsets, auxFollow]);
+  }, [eng, auxRange, AUX_PXNM, projAux, unproject, selected, conflictCs, showZones, zoneKinds, showExt, auxLabelOffsets, auxFollow, showTrails, showVectors, vectorMin]);
 
   useEffect(() => {
     if (!wins.aux.open) return;
@@ -1389,19 +1410,41 @@ export default function SimuladorPage() {
     }
     return null;
   };
+  const auxLeaderAt = (mx: number, my: number): string | null => {
+    for (const tr of eng.tracks.values()) {
+      if (!tr.airborne || tr.status === 'LANDED') continue;
+      const [x, y] = projAux(tr.lng, tr.lat);
+      const off = auxLabelOff(tr.callsign);
+      if (distToSeg(mx, my, x, y, x + off.dx, y + off.dy) < 5) return tr.callsign;
+    }
+    return null;
+  };
+  const rotateAuxLabel = (cs: string) => {
+    const off = auxLabelOff(cs);
+    const r = Math.max(18, Math.hypot(off.dx, off.dy));
+    const na = (Math.round(Math.atan2(off.dy, off.dx) / (Math.PI / 4)) + 1) * (Math.PI / 4);
+    setAuxLabelOffsets((o) => ({ ...o, [cs]: { dx: Math.round(r * Math.cos(na)), dy: Math.round(r * Math.sin(na)) } }));
+  };
   const onAuxPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    if (csMenu) setCsMenu(null);
     const cv = auxCanvasRef.current; if (!cv) return;
     const rect = cv.getBoundingClientRect();
     const mx = e.clientX - rect.left, my = e.clientY - rect.top;
     const cs = auxLabelAt(mx, my);
-    if (cs) { const off = auxLabelOff(cs); auxLabelDrag.current = { cs, sx: e.clientX, sy: e.clientY, ox: off.dx, oy: off.dy }; return; }
+    if (cs) { const off = auxLabelOff(cs); auxLabelDrag.current = { cs, sx: e.clientX, sy: e.clientY, ox: off.dx, oy: off.dy, moved: false }; return; }
+    const lcs = auxLeaderAt(mx, my);
+    if (lcs) auxLeaderClick.current = lcs;
     if (auxFollow) setAuxFollow(false); // mover la vista cancela el seguimiento (como CSEL)
     auxPanDrag.current = { sx: e.clientX, sy: e.clientY, ox: auxPan.x, oy: auxPan.y, moved: false };
   };
   const onAuxPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const ld = auxLabelDrag.current;
-    if (ld) { setAuxLabelOffsets((o) => ({ ...o, [ld.cs]: { dx: ld.ox + (e.clientX - ld.sx), dy: ld.oy + (e.clientY - ld.sy) } })); return; }
+    if (ld) {
+      if (!ld.moved && Math.abs(e.clientX - ld.sx) + Math.abs(e.clientY - ld.sy) > 3) ld.moved = true;
+      if (ld.moved) setAuxLabelOffsets((o) => ({ ...o, [ld.cs]: { dx: ld.ox + (e.clientX - ld.sx), dy: ld.oy + (e.clientY - ld.sy) } }));
+      return;
+    }
     const d = auxPanDrag.current;
     if (d) {
       const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
@@ -1410,7 +1453,15 @@ export default function SimuladorPage() {
     }
   };
   const onAuxPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (auxLabelDrag.current) { auxLabelDrag.current = null; return; }
+    if (auxLabelDrag.current) {
+      const ld = auxLabelDrag.current; auxLabelDrag.current = null;
+      if (!ld.moved) { setSelected(ld.cs); setCsMenu({ cs: ld.cs, x: e.clientX, y: e.clientY }); } // clic = menú de callsign
+      return;
+    }
+    if (auxLeaderClick.current) {
+      const lc = auxLeaderClick.current; auxLeaderClick.current = null;
+      if (!auxPanDrag.current || !auxPanDrag.current.moved) { rotateAuxLabel(lc); auxPanDrag.current = null; return; }
+    }
     const d = auxPanDrag.current; auxPanDrag.current = null;
     if (d && !d.moved) { // clic simple = seleccionar la aeronave (selección compartida con la principal)
       const cv = auxCanvasRef.current; if (!cv) return;
@@ -2646,7 +2697,7 @@ export default function SimuladorPage() {
             <div style={{ background: '#000' }} className="p-1">
               <canvas ref={auxCanvasRef} width={344} height={250} className="block cursor-crosshair touch-none"
                 onPointerDown={onAuxPointerDown} onPointerMove={onAuxPointerMove} onPointerUp={onAuxPointerUp}
-                onPointerCancel={() => { auxPanDrag.current = null; auxLabelDrag.current = null; }}
+                onPointerCancel={() => { auxPanDrag.current = null; auxLabelDrag.current = null; auxLeaderClick.current = null; }}
                 onWheel={onAuxWheel} style={{ width: 344, height: 250 }} />
               <div className="flex items-center gap-1 pt-1 font-mono">
                 <MB label="−" onClick={() => setAuxRange((r) => Math.min(192, r + 6))} />
