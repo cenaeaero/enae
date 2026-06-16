@@ -343,6 +343,9 @@ export default function SimuladorPage() {
   const [altFilter, setAltFilter] = useState({ on: false, min: 0, max: 150 }); // filtro de banda de altitud (M AGL)
   const [sep, setSep] = useState({ h: 500, v: 30 }); // separación mínima de conflicto (m): horizontal / vertical
   const [rblMode, setRblMode] = useState(false); // modo medición rango/marcación (clic-clic)
+  const [expandMode, setExpandMode] = useState<'in' | 'out' | null>(null); // zoom por recuadro (EXP+/EXP−)
+  const [zoomBox, setZoomBox] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+  const boxDrag = useRef<{ sx: number; sy: number } | null>(null);
   const [rbls, setRbls] = useState<{ a: RblEnd; b: RblEnd }[]>([]); // mediciones (punto o pista)
   const rblPend = useRef<RblEnd | null>(null); // primer extremo pendiente
   const [cursorLL, setCursorLL] = useState<[number, number] | null>(null); // cursor para línea viva
@@ -1690,6 +1693,12 @@ export default function SimuladorPage() {
       const rect = cv.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
+      // 0) zoom por recuadro armado (EXP+/EXP−): empieza a dibujar la caja
+      if (expandMode) {
+        boxDrag.current = { sx: mx, sy: my };
+        setZoomBox({ x0: mx, y0: my, x1: mx, y1: my });
+        return;
+      }
       // 1) data block de pista (prioridad sobre la etiqueta RBL): arrastre = mover, clic = menú.
       // Permitido también en modo RBL: el RBL se crea pinchando los SÍMBOLOS, no las etiquetas.
       if (!zoneDrawing && !routeDrawing) {
@@ -1717,6 +1726,11 @@ export default function SimuladorPage() {
   };
   const onCanvasPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const cv = canvasRef.current;
+    if (boxDrag.current && cv) {
+      const rect = cv.getBoundingClientRect();
+      setZoomBox({ x0: boxDrag.current.sx, y0: boxDrag.current.sy, x1: e.clientX - rect.left, y1: e.clientY - rect.top });
+      return;
+    }
     const rld = rblLabelDrag.current;
     if (rld) {
       setRblLabelOffsets((o) => ({ ...o, [rld.id]: { dx: rld.ox + (e.clientX - rld.sx), dy: rld.oy + (e.clientY - rld.sy) } }));
@@ -1743,6 +1757,11 @@ export default function SimuladorPage() {
     }
   };
   const onCanvasPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (boxDrag.current) { // soltó el recuadro de zoom (EXP+/EXP−)
+      const b = zoomBox; boxDrag.current = null; setZoomBox(null);
+      if (b) applyBoxZoom(b.x0, b.y0, b.x1, b.y1);
+      return;
+    }
     if (rblLabelDrag.current) { rblLabelDrag.current = null; return; } // soltó etiqueta RBL
     if (labelDrag.current) {
       const ld = labelDrag.current; labelDrag.current = null;
@@ -1829,6 +1848,24 @@ export default function SimuladorPage() {
 
   // CEN: re-centra la presentación (pan a 0). CSEL: centra en la pista seleccionada.
   const centerView = () => setPan({ x: 0, y: 0 });
+  // zoom por recuadro (EXP+/EXP−): ajusta el rango a la caja dibujada y recentra en ella
+  const applyBoxZoom = (x0: number, y0: number, x1: number, y1: number) => {
+    const cv = canvasRef.current; if (!cv) return;
+    const w = cv.width, h = cv.height;
+    const bw = Math.abs(x1 - x0), bh = Math.abs(y1 - y0);
+    if (bw < 8 || bh < 8) return; // recuadro muy pequeño: ignorar (fue un clic)
+    const [blng, blat] = unproject((x0 + x1) / 2, (y0 + y1) / 2, w, h);
+    const factor = Math.min(w / bw, h / bh);
+    let nr = expandMode === 'out' ? rangeNm * factor : rangeNm / factor;
+    nr = Math.max(3, Math.min(192, Math.round(nr)));
+    const [clng, clat] = eng.scenario.center;
+    const nmLng = 60 * Math.cos((clat * Math.PI) / 180);
+    const px = Math.min(w, h) / (nr * 2);
+    const u = (blng - clng) * nmLng * px, v = -(blat - clat) * 60 * px;
+    const R = (rot * Math.PI) / 180, cosR = Math.cos(R), sinR = Math.sin(R);
+    setRangeNm(nr);
+    setPan({ x: -(u * cosR + v * sinR), y: -(-u * sinR + v * cosR) });
+  };
   const centerOn = (tr: { lng: number; lat: number }) => {
     const cv = canvasRef.current;
     if (!cv) return;
@@ -2603,7 +2640,7 @@ export default function SimuladorPage() {
           onPointerDown={onCanvasPointerDown}
           onPointerMove={onCanvasPointerMove}
           onPointerUp={onCanvasPointerUp}
-          onPointerCancel={() => { panDrag.current = null; labelDrag.current = null; rblLabelDrag.current = null; leaderClick.current = null; }}
+          onPointerCancel={() => { panDrag.current = null; labelDrag.current = null; rblLabelDrag.current = null; leaderClick.current = null; boxDrag.current = null; setZoomBox(null); }}
           onWheel={onCanvasWheel}
         />
         {/* alumno: aviso claro si se cortó el enlace de datos (evita pantalla congelada en silencio) */}
@@ -2620,6 +2657,18 @@ export default function SimuladorPage() {
             style={{ background: 'rgba(57,200,216,.92)', color: '#001014', border: '1px solid #7fe' }}>
             VENTANA 2 — pulse un punto del radar para centrarla ahí
           </div>
+        )}
+        {expandMode && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 px-4 py-1.5 font-mono text-[11px] font-bold rounded pointer-events-none"
+            style={{ background: 'rgba(224,184,58,.92)', color: '#1a1400', border: '1px solid #ffe08a' }}>
+            {expandMode === 'in' ? 'ZOOM +' : 'ZOOM −'} — arrastre un recuadro sobre el área
+          </div>
+        )}
+        {zoomBox && (
+          <div className="absolute pointer-events-none"
+            style={{ left: Math.min(zoomBox.x0, zoomBox.x1), top: Math.min(zoomBox.y0, zoomBox.y1),
+              width: Math.abs(zoomBox.x1 - zoomBox.x0), height: Math.abs(zoomBox.y1 - zoomBox.y0),
+              border: '1px solid #e0b83a', background: 'rgba(224,184,58,.12)' }} />
         )}
 
         {wins.flights.open && (
@@ -3495,8 +3544,8 @@ export default function SimuladorPage() {
           <span className="mx-0.5 font-mono text-[10px] font-bold">{rangeNm} NM</span>
           <MB label="−" onClick={() => setRangeNm(Math.min(96, rangeNm * 2))} />
           <MB label="+" onClick={() => setRangeNm(Math.max(3, Math.round(rangeNm / 2)))} />
-          <MB label="EXP+" onClick={() => setRangeNm(Math.max(3, rangeNm - 3))} />
-          <MB label="EXP−" onClick={() => setRangeNm(Math.min(96, rangeNm + 3))} />
+          <MB label="EXP+" active={expandMode === 'in'} onClick={() => setExpandMode((m) => (m === 'in' ? null : 'in'))} />
+          <MB label="EXP−" active={expandMode === 'out'} onClick={() => setExpandMode((m) => (m === 'out' ? null : 'out'))} />
           <MB label="CEN" onClick={centerView} active={pan.x === 0 && pan.y === 0} />
           <MB label="CSEL" onClick={centerSelected} active={!!selected} />
           <span className="flex-1" />
