@@ -1,0 +1,8 @@
+node_modules
+.next
+.git
+.env*
+deploy/certs
+deploy/supabase
+**/*.mov
+**/*.webm

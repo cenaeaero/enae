@@ -1,0 +1,28 @@
+# CONDOR — Fase 0: consola Next.js + nginx (TLS). Compatible con podman-compose y docker compose.
+# Supabase (Postgres/Realtime/Auth) se levanta aparte con ./supabase-selfhost.sh (stack oficial).
+services:
+  consola:
+    build:
+      context: ..
+      dockerfile: deploy/Containerfile
+      args:
+        NEXT_PUBLIC_SIM_SUPABASE_URL: ${NEXT_PUBLIC_SIM_SUPABASE_URL}
+        NEXT_PUBLIC_SIM_SUPABASE_KEY: ${NEXT_PUBLIC_SIM_SUPABASE_KEY}
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    image: condor/consola:local
+    restart: unless-stopped
+    expose:
+      - "3000"
+
+  nginx:
+    image: docker.io/library/nginx:stable
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/condor.conf:/etc/nginx/conf.d/default.conf:ro,Z
+      - ./certs:/etc/nginx/certs:ro,Z
+    depends_on:
+      - consola
