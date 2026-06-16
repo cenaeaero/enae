@@ -342,18 +342,22 @@ export class SimEngine {
         tr.lng = wp.lng;
         tr.alt = wp.alt;
         if (tr.wpIdx >= f.route.length - 1) {
-          // sólo "arriba" si mantiene control positivo; en contingencia → PISTA PERDIDA (sin confirmación de aterrizaje)
-          if (tr.status === 'C2LOSS' || tr.status === 'BREACH') {
-            tr.status = 'LOST';
-            tr.speedKt = 0;
-            if (!tr.alerts.includes('LOST')) tr.alerts.push('LOST');
-            this.addLog(`${f.callsign} PISTA PERDIDA — SIN CONFIRMACIÓN DE ATERRIZAJE`, 'ALARM');
-          } else {
+          // sólo "arriba" si mantiene control positivo Y termina DENTRO de su zona;
+          // si cruzó el límite o está en contingencia → PISTA PERDIDA (sin confirmación de aterrizaje)
+          const zc = this.scenario.zones.find((z) => z.id === f.zoneId);
+          const insideFinal = !zc || pointInRing(tr.lng, tr.lat, zc.ring);
+          if (tr.status === 'NORMAL' && insideFinal) {
             tr.status = 'LANDED';
             tr.speedKt = 0;
             tr.alt = 0;
             this.addLog(`${f.callsign} ATERRIZADO — MISIÓN COMPLETA`, 'INFO');
             this.msgsForFlight(f, 'ARR');
+          } else {
+            tr.status = 'LOST';
+            tr.speedKt = 0;
+            if (!tr.alerts.includes('LOST')) tr.alerts.push('LOST');
+            this.addLog(`${f.callsign} PISTA PERDIDA — ${insideFinal ? 'SIN ENLACE AL FINALIZAR' : 'FUERA DE ZONA'}`, 'ALARM');
+            this.msgsForFlight(f, 'ALR');
           }
         } else {
           tr.wpIdx++;

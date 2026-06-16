@@ -2739,6 +2739,7 @@ export default function SimuladorPage() {
                 <MB label="FIT" onClick={auxFit} />
                 <MB label="CEN" onClick={() => { setAuxFollow(false); setAuxPan({ x: 0, y: 0 }); }} active={auxPan.x === 0 && auxPan.y === 0 && !auxFollow} />
                 <MB label="CSEL" active={auxFollow} onClick={() => { if (selected) setAuxFollow((v) => !v); }} />
+                <MB label="FIJAR" active={auxPlacing} onClick={() => setAuxPlacing((v) => !v)} />
                 {[24, 48, 96].map((r) => <MB key={r} label={`${r}`} active={auxRange === r} onClick={() => setAuxRange(r)} />)}
               </div>
             </div>
@@ -3474,7 +3475,7 @@ export default function SimuladorPage() {
           <MB label="QL" active={quickLook} onClick={() => setQuickLook((v) => !v)} />
           <MB label="CPDLC" active={wins.cpdlc.open} onClick={() => setWin('cpdlc', { open: !wins.cpdlc.open })} />
           <MB label="VIEW1" active={hasPreset} onClick={viewPresetToggle} />
-          <MB label="VIEW2" active={wins.aux.open || auxPlacing} onClick={() => { if (wins.aux.open) { setWin('aux', { open: false }); setAuxPlacing(false); } else setAuxPlacing(true); }} />
+          <MB label="VIEW2" active={wins.aux.open} onClick={() => { setWin('aux', { open: !wins.aux.open }); if (wins.aux.open) setAuxPlacing(false); }} />
           <MB label="LMG" active={showBorder || showAD} onClick={() => { const on = !(showBorder || showAD); setShowBorder(on); setShowAD(on); }} />
           <MB label="ZONBLK" active={showZones} onClick={() => setShowZones(!showZones)} />
           <MB label="RTE OFF" active={!showVectors} onClick={() => setShowVectors((v) => !v)} />
