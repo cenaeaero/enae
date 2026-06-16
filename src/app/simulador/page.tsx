@@ -2331,13 +2331,18 @@ export default function SimuladorPage() {
   // comando del piloto: directo al motor (instructor/local) o vía sim_actions (piloto remoto → instructor lo aplica)
   const pilotCmd = (cmd: { mode?: 'AUTO' | 'LOITER' | 'RTL' | 'GUIDED'; dAlt?: number; dHdg?: number; dSpd?: number; hdg?: number }) => {
     if (!selected) { eng.addLog('PILOTO: SELECCIONE SU AERONAVE', 'WARN'); return; }
-    // colación (read-back) de la instrucción
+    // colación (read-back) con el VALOR RESULTANTE (base = valor comandado si existe, si no el actual)
+    const tr0 = eng.tracks.get(selected);
+    const baseAlt = tr0 ? (tr0.altCmd ?? tr0.alt) : 0;
+    const baseHdg = tr0 ? (tr0.hdgCmd ?? tr0.hdg) : 0;
+    const baseSpd = tr0 ? (tr0.spdCmd ?? tr0.speedKt) : 0;
+    const pad3 = (h: number) => String(Math.round(((h % 360) + 360) % 360)).padStart(3, '0');
     const rb =
       cmd.mode ? `MODO ${cmd.mode}` :
-      cmd.dHdg != null ? (cmd.dHdg < 0 ? `LEFT ${-cmd.dHdg}°` : `RIGHT ${cmd.dHdg}°`) :
-      cmd.hdg != null ? `RUMBO ${String(Math.round(((cmd.hdg % 360) + 360) % 360)).padStart(3, '0')}°` :
-      cmd.dAlt != null ? (cmd.dAlt > 0 ? `SUBIR ${cmd.dAlt}M` : `BAJAR ${-cmd.dAlt}M`) :
-      cmd.dSpd != null ? (cmd.dSpd > 0 ? `+${cmd.dSpd}KT` : `${cmd.dSpd}KT`) : '';
+      cmd.dHdg != null ? `${cmd.dHdg < 0 ? 'LEFT' : 'RIGHT'} ${Math.abs(cmd.dHdg)}° VIRANDO HDG A ${pad3(baseHdg + cmd.dHdg)}` :
+      cmd.hdg != null ? `RUMBO A ${pad3(cmd.hdg)}` :
+      cmd.dAlt != null ? `${cmd.dAlt > 0 ? 'SUBO' : 'BAJO'} A ${Math.max(0, Math.round(baseAlt + cmd.dAlt))}M` :
+      cmd.dSpd != null ? `VELOCIDAD ${Math.max(0, Math.round(baseSpd + cmd.dSpd))}KT` : '';
     setLastInstr(`${selected} ▸ ${rb}`);
     if (mode === 'student') {
       if (sessionId) logAction(sessionId, positionId, eng.t, 'PILOT_CMD', { flight: selected, ...cmd }).catch(() => {});
@@ -3861,7 +3866,7 @@ export default function SimuladorPage() {
             onClick={() => (recording ? stopRec() : startRec())} />
           <MB label="ACC" onClick={accView} />
           <MB label="ATMCSUP" active={wins.instructor.open} onClick={() => setWin('instructor', { open: !wins.instructor.open })} />
-          <MB label="◀ SALIR SES" color={AMBER} onClick={leaveToLobby} />
+          <MB label="◀ SALIR SES" color={RED} onClick={leaveToLobby} />
           <MB label="LOGOUT" color={RED} onClick={doLogout} />
         </div>
       </div>

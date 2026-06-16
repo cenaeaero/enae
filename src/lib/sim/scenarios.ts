@@ -306,7 +306,7 @@ export const SCENARIO_DEMO_DGAC: Scenario = {
   flights: [
     {
       // nominal: mapeo en bucle, bien al interior de la zona (no roza el borde) → opera verde y arriba
-      callsign: 'DEMO1', acType: 'M350', speedKt: 30, batteryMin: 60, startT: 5, authRef: 'UAS-26-9001', zoneId: 'ZS1',
+      callsign: 'DEMO1', acType: 'M350', speedKt: 40, batteryMin: 60, startT: 5, authRef: 'UAS-26-9001', zoneId: 'ZS1',
       route: [
         { lat: -33.245, lng: -70.705, alt: 0 }, { lat: -33.205, lng: -70.705, alt: 100 },
         { lat: -33.205, lng: -70.675, alt: 100 }, { lat: -33.245, lng: -70.675, alt: 100 },
@@ -315,7 +315,7 @@ export const SCENARIO_DEMO_DGAC: Scenario = {
     },
     {
       // conflicto E-O: cruza el centro a 100 m; permanece dentro de la zona y arriba
-      callsign: 'DEMO2', acType: 'M300', speedKt: 35, batteryMin: 50, startT: 12, authRef: 'UAS-26-9002', zoneId: 'ZS1',
+      callsign: 'DEMO2', acType: 'M300', speedKt: 40, batteryMin: 50, startT: 12, authRef: 'UAS-26-9002', zoneId: 'ZS1',
       route: [
         { lat: -33.225, lng: -70.705, alt: 100 }, { lat: -33.225, lng: -70.68, alt: 100 },
         { lat: -33.225, lng: -70.655, alt: 100 }, { lat: -33.225, lng: -70.705, alt: 0 },
@@ -323,7 +323,7 @@ export const SCENARIO_DEMO_DGAC: Scenario = {
     },
     {
       // conflicto N-S: cruza el centro a 100 m a la misma hora que DEMO2 → STCA; dentro de la zona y arriba
-      callsign: 'DEMO3', acType: 'WINGTRA', speedKt: 35, batteryMin: 50, startT: 12, authRef: 'UAS-26-9003', zoneId: 'ZS1',
+      callsign: 'DEMO3', acType: 'WINGTRA', speedKt: 40, batteryMin: 50, startT: 12, authRef: 'UAS-26-9003', zoneId: 'ZS1',
       route: [
         { lat: -33.252, lng: -70.68, alt: 100 }, { lat: -33.225, lng: -70.68, alt: 100 },
         { lat: -33.198, lng: -70.68, alt: 100 }, { lat: -33.252, lng: -70.68, alt: 0 },
@@ -331,7 +331,7 @@ export const SCENARIO_DEMO_DGAC: Scenario = {
     },
     {
       // contingencia: vuela cerca del borde este; al perder C2 la deriva la saca de la zona → PISTA PERDIDA
-      callsign: 'DEMO4', acType: 'M30T', speedKt: 28, batteryMin: 40, startT: 30, authRef: 'UAS-26-9004', zoneId: 'ZS1',
+      callsign: 'DEMO4', acType: 'M30T', speedKt: 38, batteryMin: 40, startT: 30, authRef: 'UAS-26-9004', zoneId: 'ZS1',
       route: [
         { lat: -33.255, lng: -70.64, alt: 0 }, { lat: -33.225, lng: -70.635, alt: 70 },
         { lat: -33.20, lng: -70.63, alt: 70 }, { lat: -33.255, lng: -70.64, alt: 0 },
@@ -341,7 +341,7 @@ export const SCENARIO_DEMO_DGAC: Scenario = {
       // HELICÓPTERO TRIPULADO (intruso): entra a la SEGREGADA (incursión roja), maniobra ~20 s en varias
       // direcciones como acomodándose, ATERRIZA dentro 30 s y luego despega y se va al oeste. NO toca la
       // PROHIBIDA (todos los lng al oeste de -70.62). Velocidad baja para que la maniobra se vea.
-      callsign: 'CC-ABC', acType: 'H125', speedKt: 40, batteryMin: 999, startT: 70, authRef: 'HELI VFR', zoneId: '', sector: 'GA', manned: true,
+      callsign: 'CC-ABC', acType: 'H125', speedKt: 55, batteryMin: 999, startT: 70, authRef: 'HELI VFR', zoneId: '', sector: 'GA', manned: true,
       route: [
         { lat: -33.205, lng: -70.78, alt: 100 },
         { lat: -33.205, lng: -70.71, alt: 70 },
