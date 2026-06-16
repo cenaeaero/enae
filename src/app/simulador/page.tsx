@@ -1042,6 +1042,12 @@ export default function SimuladorPage() {
         ctx.closePath();
         ctx.stroke();
       }
+      // pista perdida: anillo rojo punteado = última posición conocida
+      if (tr.status === 'LOST') {
+        ctx.strokeStyle = RED; ctx.lineWidth = 1.4; ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.arc(x, y, 11, 0, Math.PI * 2); ctx.stroke();
+        ctx.setLineDash([]);
+      }
 
       if (showVectors && tr.speedKt > 0) {
         // vector segmentado: un trazo por minuto, orientado al curso real (dirección de vuelo)

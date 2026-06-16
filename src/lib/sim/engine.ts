@@ -1,7 +1,7 @@
 // CONDOR SIM — motor de simulación BVLOS (corre en el navegador, sin backend)
 // Coordenadas en lat/lng WGS-84; distancias en NM; velocidades en kt; alturas en m AGL.
 
-export type TrackStatus = 'NORMAL' | 'C2LOSS' | 'LOWBAT' | 'BREACH' | 'EMERG' | 'LANDED';
+export type TrackStatus = 'NORMAL' | 'C2LOSS' | 'LOWBAT' | 'BREACH' | 'EMERG' | 'LANDED' | 'LOST';
 
 export interface Waypoint {
   lat: number;
@@ -303,7 +303,7 @@ export class SimEngine {
 
     for (const f of this.scenario.flights) {
       const tr = this.tracks.get(f.callsign)!;
-      if (tr.status === 'LANDED') continue;
+      if (tr.status === 'LANDED' || tr.status === 'LOST') continue; // aterrizada o pista perdida: congelada en su última posición
 
       // despegue
       if (!tr.airborne) {
@@ -342,11 +342,19 @@ export class SimEngine {
         tr.lng = wp.lng;
         tr.alt = wp.alt;
         if (tr.wpIdx >= f.route.length - 1) {
-          tr.status = 'LANDED';
-          tr.speedKt = 0;
-          tr.alt = 0;
-          this.addLog(`${f.callsign} ATERRIZADO — MISIÓN COMPLETA`, 'INFO');
-          this.msgsForFlight(f, 'ARR');
+          // sólo "arriba" si mantiene control positivo; en contingencia → PISTA PERDIDA (sin confirmación de aterrizaje)
+          if (tr.status === 'C2LOSS' || tr.status === 'BREACH') {
+            tr.status = 'LOST';
+            tr.speedKt = 0;
+            if (!tr.alerts.includes('LOST')) tr.alerts.push('LOST');
+            this.addLog(`${f.callsign} PISTA PERDIDA — SIN CONFIRMACIÓN DE ATERRIZAJE`, 'ALARM');
+          } else {
+            tr.status = 'LANDED';
+            tr.speedKt = 0;
+            tr.alt = 0;
+            this.addLog(`${f.callsign} ATERRIZADO — MISIÓN COMPLETA`, 'INFO');
+            this.msgsForFlight(f, 'ARR');
+          }
         } else {
           tr.wpIdx++;
         }
@@ -360,7 +368,7 @@ export class SimEngine {
 
       // conformance — zona segregada asignada
       const zone = this.scenario.zones.find((z) => z.id === f.zoneId);
-      if (zone && tr.airborne && tr.status !== 'LANDED') {
+      if (zone && tr.airborne && tr.status !== 'LANDED' && tr.status !== 'LOST') {
         const inside = pointInRing(tr.lng, tr.lat, zone.ring);
         if (!inside && tr.inside) {
           tr.inside = false;
@@ -373,10 +381,18 @@ export class SimEngine {
           if (tr.status === 'BREACH') tr.status = 'NORMAL';
           this.addLog(`${f.callsign} REINGRESO A ZONA ${zone.name}`, 'INFO');
         }
+        // fuera de su zona Y sin enlace de comando → PISTA PERDIDA (no "arriba")
+        if (!inside && tr.status === 'C2LOSS' && !tr.alerts.includes('LOST')) {
+          tr.status = 'LOST';
+          tr.speedKt = 0;
+          tr.alerts.push('LOST');
+          this.addLog(`${f.callsign} PISTA PERDIDA — FUERA DE ZONA SIN ENLACE C2`, 'ALARM');
+          this.msgsForFlight(f, 'ALR');
+        }
       }
 
       // trail
-      if (tr.airborne && tr.status !== 'LANDED') {
+      if (tr.airborne && tr.status !== 'LANDED' && tr.status !== 'LOST') {
         const last = tr.history[tr.history.length - 1];
         if (!last || distNm(last[1], last[0], tr.lat, tr.lng) > 0.02) {
           tr.history.push([tr.lng, tr.lat]);
