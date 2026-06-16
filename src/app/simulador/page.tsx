@@ -1723,8 +1723,14 @@ export default function SimuladorPage() {
       if (!zoneDrawing && !routeDrawing) {
         const cs = findLabelAt(mx, my);
         if (cs) {
-          const off = labelOffOf(cs);
-          labelDrag.current = { cs, sx: e.clientX, sy: e.clientY, ox: off.dx, oy: off.dy, moved: false };
+          if (cs === selected) {
+            // la traza ya está seleccionada: arrastrar mueve su etiqueta
+            const off = labelOffOf(cs);
+            labelDrag.current = { cs, sx: e.clientX, sy: e.clientY, ox: off.dx, oy: off.dy, moved: false };
+          } else {
+            // primer clic sobre la etiqueta: seleccionar la traza (aún no mueve la etiqueta)
+            setSelected(cs);
+          }
           return;
         }
       }
@@ -1939,19 +1945,6 @@ export default function SimuladorPage() {
   };
   // ACC: vista de área (alcance amplio + centrado), visión Centro de Control de Área
   const accView = () => { setRangeNm(48); centerView(); setRot(0); };
-  // FINDER: busca una pista por C/S, la selecciona y la centra
-  const doFinder = () => {
-    const q = finder.trim().toUpperCase();
-    if (!q) return;
-    const hit = Array.from(eng.tracks.values()).find((t) => t.callsign.toUpperCase().includes(q));
-    if (!hit) {
-      eng.addLog(`BUSCADOR: SIN COINCIDENCIA "${q}"`, 'WARN');
-      return;
-    }
-    setSelected(hit.callsign);
-    centerOn(hit);
-  };
-
   // ── instructor: alta manual de zona (vértices o círculo) ──
   const commitZone = (ring: LL[]) => {
     if (ring.length < 3) return;
@@ -3182,15 +3175,6 @@ export default function SimuladorPage() {
                       <MB key={l} label={l} active={labelFont === px} onClick={() => setLabelFont(px)} />
                     ))}
                   </div>
-                  <div className="text-[#7aa] tracking-wider pt-1">BUSCAR PISTA</div>
-                  <div className="flex items-center gap-1">
-                    <input value={finder}
-                      onChange={(e) => setFinder(e.target.value.toUpperCase())}
-                      onKeyDown={(e) => { if (e.key === 'Enter') doFinder(); }}
-                      placeholder="C/S" style={{ ...bevelIn, background: '#000', color: GREEN, width: 110 }}
-                      className="px-1 text-[10px] uppercase" />
-                    <MB label="IR" onClick={doFinder} />
-                  </div>
                 </div>
               </div>
             </div>
@@ -3736,7 +3720,14 @@ export default function SimuladorPage() {
           <MB label="MTCD" active={mtcd} color={mtcd ? undefined : RED} onClick={() => setMtcd((v) => !v)} />
           <MB label="HFS" active={wins.hfs.open} onClick={() => setWin('hfs', { open: !wins.hfs.open })} />
           <MB label="FREETEXT" active={freetextMode} onClick={() => setFreetextMode((v) => !v)} />
-          <MB label="FINDER" active={wins.layers.open} onClick={() => setWin('layers', { open: true })} />
+          <MB label="FINDER" onClick={() => {
+            const q = (typeof window !== 'undefined' ? window.prompt('BUSCAR PISTA (C/S):', finder) : '') || '';
+            if (!q.trim()) return;
+            setFinder(q.toUpperCase());
+            const hit = Array.from(eng.tracks.values()).find((t) => t.callsign.toUpperCase().includes(q.trim().toUpperCase()));
+            if (!hit) { eng.addLog(`BUSCADOR: SIN COINCIDENCIA "${q.trim().toUpperCase()}"`, 'WARN'); return; }
+            setSelected(hit.callsign); centerOn(hit);
+          }} />
           <MB label="RADAR" onClick={() => setWin('stations', { open: !wins.stations.open })} active={wins.stations.open} />
           <MB label="SECTORS" active={wins.sectors.open} onClick={() => setWin('sectors', { open: !wins.sectors.open })} />
           <MB label="ZONE INFO" active={wins.zone.open} onClick={() => setWin('zone', { open: !wins.zone.open })} />

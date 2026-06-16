@@ -338,12 +338,15 @@ export const SCENARIO_DEMO_DGAC: Scenario = {
       ],
     },
     {
-      // tráfico TRIPULADO (GA): cruza la zona segregada a 100 m (dentro de la banda 0-120 m) → INCURSIÓN.
-      // Fuera de la zona = blanco; al entrar (con anticipación ENTRA Xs) = rojo; al salir = blanco.
-      // Si volara por encima del techo (>120 m) seguiría blanco (la incursión respeta los límites verticales).
-      callsign: 'CC-ABC', acType: 'C172', speedKt: 90, batteryMin: 999, startT: 70, authRef: 'GA VFR', zoneId: '', sector: 'GA', manned: true,
+      // HELICÓPTERO TRIPULADO: cruza la zona segregada a 100 m (dentro de la banda) → INCURSIÓN (rojo);
+      // ATERRIZA dentro 30 s y vuelve a DESPEGAR; al salir de la zona = blanco. Sin batería, símbolo cuadrado.
+      callsign: 'CC-ABC', acType: 'H125', speedKt: 70, batteryMin: 999, startT: 70, authRef: 'HELI VFR', zoneId: '', sector: 'GA', manned: true,
       route: [
-        { lat: -33.205, lng: -70.80, alt: 100 }, { lat: -33.205, lng: -70.56, alt: 100 },
+        { lat: -33.205, lng: -70.80, alt: 100 },
+        { lat: -33.205, lng: -70.70, alt: 100 },
+        { lat: -33.205, lng: -70.66, alt: 0, hold: 30 },
+        { lat: -33.205, lng: -70.60, alt: 100 },
+        { lat: -33.205, lng: -70.56, alt: 100 },
       ],
     },
   ],

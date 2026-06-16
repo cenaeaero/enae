@@ -7,6 +7,7 @@ export interface Waypoint {
   lat: number;
   lng: number;
   alt: number; // m AGL
+  hold?: number; // segundos en tierra antes de despegar (toma de helicóptero / aterrizaje y re-despegue)
 }
 
 export interface SimEvent {
@@ -64,6 +65,7 @@ export interface TrackState {
   xfer?: string; // handover en curso: sector destino pendiente de aceptación (la traza parpadea)
   // ── control del piloto (Remote Pilot Station, estilo ArduPilot) ──
   pmode?: 'AUTO' | 'LOITER' | 'RTL' | 'GUIDED'; // modo de vuelo (AUTO = sigue ruta)
+  holdUntil?: number; // en tierra hasta este t de sim (espera en waypoint con hold)
   altCmd?: number; // altitud comandada (m)
   hdgCmd?: number; // rumbo comandado (°)
   spdCmd?: number; // velocidad comandada (kt)
@@ -406,7 +408,21 @@ export class SimEngine {
         tr.lat = wp.lat;
         tr.lng = wp.lng;
         tr.alt = wp.alt;
-        if (tr.wpIdx >= f.route.length - 1) {
+        // espera en tierra (helicóptero que aterriza y vuelve a despegar)
+        if (wp.hold && tr.holdUntil == null && tr.wpIdx < f.route.length - 1) {
+          tr.holdUntil = this.t + wp.hold;
+          tr.speedKt = 0;
+          this.addLog(`${f.callsign} EN TIERRA — ${wp.hold}s`, 'INFO');
+        }
+        if (tr.holdUntil != null) {
+          if (this.t >= tr.holdUntil) {
+            tr.holdUntil = undefined;
+            tr.speedKt = f.speedKt;
+            tr.wpIdx++;
+            this.addLog(`${f.callsign} DESPEGUE`, 'INFO');
+          }
+          // mientras espera en tierra, no avanza ni evalúa fin de ruta
+        } else if (tr.wpIdx >= f.route.length - 1) {
           // sólo "arriba" si mantiene control positivo Y termina DENTRO de su zona;
           // si cruzó el límite o está en contingencia → PISTA PERDIDA (sin confirmación de aterrizaje)
           const zc = this.scenario.zones.find((z) => z.id === f.zoneId);
