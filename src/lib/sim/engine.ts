@@ -62,6 +62,11 @@ export interface TrackState {
   zoneId?: string; // zona segregada asignada a esta operación (para conformance por asignación)
   sector?: string; // posición/sector de control dueño (handover). 'GA'/otro = no controlado por sectores UAS
   xfer?: string; // handover en curso: sector destino pendiente de aceptación (la traza parpadea)
+  // ── control del piloto (Remote Pilot Station, estilo ArduPilot) ──
+  pmode?: 'AUTO' | 'LOITER' | 'RTL' | 'GUIDED'; // modo de vuelo (AUTO = sigue ruta)
+  altCmd?: number; // altitud comandada (m)
+  hdgCmd?: number; // rumbo comandado (°)
+  spdCmd?: number; // velocidad comandada (kt)
   history: [number, number][]; // trail [lng,lat]
   live?: boolean; // track de fuente real (Remote ID / ADS-B / puente), no simulado
   tsLive?: number; // epoch ms del último dato real recibido (para edad del dato)
@@ -251,6 +256,24 @@ export class SimEngine {
     this.applyEvent({ t: this.t, flight, type, duration: type === 'C2LOSS' ? 45 : undefined });
   }
 
+  // comando del piloto (Remote Pilot Station): modo de vuelo o ajuste relativo de alt/rumbo/velocidad
+  applyPilotCommand(flight: string, cmd: { mode?: TrackState['pmode']; dAlt?: number; dHdg?: number; dSpd?: number }) {
+    const tr = this.tracks.get(flight);
+    if (!tr || tr.status === 'LANDED' || tr.status === 'LOST') return;
+    const guide = () => { if (tr.pmode !== 'GUIDED') tr.pmode = 'GUIDED'; tr.altCmd ??= tr.alt; tr.hdgCmd ??= tr.hdg; tr.spdCmd ??= tr.speedKt; };
+    if (cmd.mode) {
+      tr.pmode = cmd.mode;
+      if (cmd.mode === 'GUIDED') { tr.altCmd ??= tr.alt; tr.hdgCmd ??= tr.hdg; tr.spdCmd ??= tr.speedKt; }
+      if (cmd.mode === 'LOITER') { tr.altCmd ??= tr.alt; }
+      if (cmd.mode === 'AUTO') { tr.altCmd = undefined; tr.hdgCmd = undefined; tr.spdCmd = undefined; }
+      this.addLog(`${flight} PILOTO ▸ MODO ${cmd.mode}`, 'INFO');
+      return;
+    }
+    if (cmd.dAlt != null) { if (tr.pmode !== 'LOITER') guide(); tr.altCmd = Math.max(0, (tr.altCmd ?? tr.alt) + cmd.dAlt); this.addLog(`${flight} PILOTO ▸ ALT ${cmd.dAlt > 0 ? '+' : ''}${cmd.dAlt} → ${Math.round(tr.altCmd)}M`, 'INFO'); }
+    if (cmd.dHdg != null) { guide(); tr.hdgCmd = (((tr.hdgCmd ?? tr.hdg) + cmd.dHdg) % 360 + 360) % 360; this.addLog(`${flight} PILOTO ▸ HDG ${cmd.dHdg > 0 ? '+' : ''}${cmd.dHdg} → ${Math.round(tr.hdgCmd)}°`, 'INFO'); }
+    if (cmd.dSpd != null) { guide(); tr.spdCmd = Math.max(0, (tr.spdCmd ?? tr.speedKt) + cmd.dSpd); this.addLog(`${flight} PILOTO ▸ VEL ${cmd.dSpd > 0 ? '+' : ''}${cmd.dSpd} → ${Math.round(tr.spdCmd)}KT`, 'INFO'); }
+  }
+
   private applyEvent(ev: SimEvent) {
     const tr = this.tracks.get(ev.flight);
     if (!tr || tr.status === 'LANDED') return;
@@ -344,7 +367,38 @@ export class SimEngine {
         continue;
       }
 
-      // navegación por waypoints
+      // ── navegación según el modo de vuelo del piloto ──
+      const pmode = tr.pmode ?? 'AUTO';
+      if (pmode === 'LOITER') {
+        // mantener posición; sólo ajustar altitud al comando
+        tr.speedKt = 0;
+        if (tr.altCmd != null) tr.alt += (tr.altCmd - tr.alt) * Math.min(1, dt / 8);
+      } else if (pmode === 'GUIDED') {
+        // volar rumbo/velocidad/altitud comandados por el piloto
+        if (tr.spdCmd != null) tr.speedKt = tr.spdCmd;
+        if (tr.hdgCmd != null) tr.hdg = tr.hdgCmd;
+        [tr.lat, tr.lng] = stepTowards(tr.lat, tr.lng, tr.hdg, (tr.speedKt / 3600) * dt);
+        if (tr.altCmd != null) tr.alt += (tr.altCmd - tr.alt) * Math.min(1, dt / 8);
+      } else if (pmode === 'RTL') {
+        // retorno al punto de lanzamiento (route[0]) y aterrizaje
+        const home = f.route[0];
+        const dHome = distNm(tr.lat, tr.lng, home.lat, home.lng);
+        const sN = (tr.speedKt / 3600) * dt;
+        if (dHome <= sN) {
+          tr.lat = home.lat; tr.lng = home.lng;
+          tr.alt = Math.max(0, tr.alt - 25 * dt);
+          if (tr.alt <= 0) {
+            tr.status = 'LANDED'; tr.speedKt = 0;
+            this.addLog(`${f.callsign} ATERRIZADO — RTL`, 'INFO');
+            this.msgsForFlight(f, 'ARR');
+            continue;
+          }
+        } else {
+          tr.hdg = bearing(tr.lat, tr.lng, home.lat, home.lng);
+          [tr.lat, tr.lng] = stepTowards(tr.lat, tr.lng, tr.hdg, sN);
+        }
+      } else {
+      // AUTO — navegación por waypoints
       const wp = f.route[Math.min(tr.wpIdx, f.route.length - 1)];
       const dist = distNm(tr.lat, tr.lng, wp.lat, wp.lng);
       const stepNm = (tr.speedKt / 3600) * dt;
@@ -385,6 +439,7 @@ export class SimEngine {
         [tr.lat, tr.lng] = stepTowards(tr.lat, tr.lng, hdgUse, stepNm);
         tr.alt += (wp.alt - tr.alt) * Math.min(1, dt / 20);
       }
+      } // fin AUTO
 
       // conformance — zona segregada asignada
       const zone = this.scenario.zones.find((z) => z.id === f.zoneId);

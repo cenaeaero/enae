@@ -53,7 +53,7 @@ export async function createSession(scenarioId: string, instructorName: string) 
   return { sessionId: data.id as string, code, positionId: pos.data?.id as string };
 }
 
-export async function joinSession(code: string, studentName: string, role: 'controller' | 'aftn' = 'controller') {
+export async function joinSession(code: string, studentName: string, role: 'controller' | 'aftn' | 'pilot' = 'controller') {
   const db = simDb();
   const { data: ses, error } = await db
     .from('sim_sessions')

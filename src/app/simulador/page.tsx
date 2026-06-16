@@ -292,7 +292,7 @@ function Win({
   );
 }
 
-type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone' | 'eval' | 'aftn' | 'layers' | 'zonemaker' | 'exercise' | 'fpl' | 'meteo' | 'cpdlc' | 'arr' | 'aux' | 'hfs';
+type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone' | 'eval' | 'aftn' | 'layers' | 'zonemaker' | 'exercise' | 'fpl' | 'meteo' | 'cpdlc' | 'arr' | 'aux' | 'hfs' | 'pilot';
 
 interface EvalRow {
   position_id: string | null;
@@ -420,6 +420,7 @@ export default function SimuladorPage() {
     arr: { x: 200, y: 120, open: false },
     aux: { x: 1120, y: 470, open: false },
     hfs: { x: 360, y: 300, open: false },
+    pilot: { x: 80, y: 300, open: false },
   });
   const [evalRows, setEvalRows] = useState<EvalRow[]>([]);
   const [evalBusy, setEvalBusy] = useState(false);
@@ -435,7 +436,7 @@ export default function SimuladorPage() {
 
   // multi-puesto
   const [mode, setMode] = useState<'lobby' | 'local' | 'instructor' | 'student'>('lobby');
-  const [posRole, setPosRole] = useState<'controller' | 'aftn'>('controller');
+  const [posRole, setPosRole] = useState<'controller' | 'aftn' | 'pilot'>('controller');
   const [selMsg, setSelMsg] = useState<number | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionCode, setSessionCode] = useState('');
@@ -709,6 +710,10 @@ export default function SimuladorPage() {
       if (a.action === 'DECLARE_CONTINGENCY' && flight)
         eng.addLog(`${flight} CONTINGENCIA DECLARADA POR CONTROLADOR`, 'WARN');
       if (a.action === 'ACK_ALARM' && flight) eng.addLog(`${flight} ALARMA RECONOCIDA POR CONTROLADOR`, 'INFO');
+      if (a.action === 'PILOT_CMD' && flight) {
+        const d = a.detail as { mode?: 'AUTO' | 'LOITER' | 'RTL' | 'GUIDED'; dAlt?: number; dHdg?: number; dSpd?: number };
+        eng.applyPilotCommand(flight, { mode: d.mode, dAlt: d.dAlt, dHdg: d.dHdg, dSpd: d.dSpd });
+      }
       if (a.action === 'ACK_MSG' && flight) eng.addLog(`${flight} MENSAJE ACUSADO POR OPERACIONES`, 'INFO');
       if (a.action === 'RELAY_ALERT' && flight) eng.addLog(`${flight} OPERACIONES ALERTA AL CONTROLADOR`, 'WARN');
       if (a.action === 'CPDLC_MSG' && flight) {
@@ -2269,6 +2274,7 @@ export default function SimuladorPage() {
       setSessionCode(r.code);
       setPositionId(r.positionId);
       if (posRole === 'aftn') setWin('aftn', { open: true });
+      if (posRole === 'pilot') setWin('pilot', { open: true });
       setMode('student');
     } catch (e) {
       setLobbyErr((e as Error).message || 'Error uniéndose a la sesión');
@@ -2298,6 +2304,18 @@ export default function SimuladorPage() {
     const tr = eng.tracks.get(cs); if (!tr || !tr.xfer) return;
     eng.addLog(`HANDOVER RECHAZADO ${cs} (sigue en ${tr.sector ?? 'S1'})`, 'WARN');
     tr.xfer = undefined;
+    force((x) => x + 1);
+  };
+
+  // comando del piloto: directo al motor (instructor/local) o vía sim_actions (piloto remoto → instructor lo aplica)
+  const pilotCmd = (cmd: { mode?: 'AUTO' | 'LOITER' | 'RTL' | 'GUIDED'; dAlt?: number; dHdg?: number; dSpd?: number }) => {
+    if (!selected) { eng.addLog('PILOTO: SELECCIONE SU AERONAVE', 'WARN'); return; }
+    if (mode === 'student') {
+      if (sessionId) logAction(sessionId, positionId, eng.t, 'PILOT_CMD', { flight: selected, ...cmd }).catch(() => {});
+      eng.addLog(`${selected} PILOTO ▸ ${cmd.mode ?? (cmd.dAlt ? `ALT ${cmd.dAlt > 0 ? '+' : ''}${cmd.dAlt}` : cmd.dHdg ? `HDG ${cmd.dHdg > 0 ? '+' : ''}${cmd.dHdg}` : cmd.dSpd ? `VEL ${cmd.dSpd > 0 ? '+' : ''}${cmd.dSpd}` : '')} TRANSMITIDO`, 'INFO');
+    } else {
+      eng.applyPilotCommand(selected, cmd);
+    }
     force((x) => x + 1);
   };
 
@@ -2620,6 +2638,7 @@ export default function SimuladorPage() {
               <div className="flex gap-1 mb-2">
                 <MB label="CONTROLADOR (RADAR)" active={posRole === 'controller'} onClick={() => setPosRole('controller')} />
                 <MB label="OPERACIONES (AFTN)" active={posRole === 'aftn'} onClick={() => setPosRole('aftn')} />
+                <MB label="PILOTO (RPS)" active={posRole === 'pilot'} onClick={() => setPosRole('pilot')} />
               </div>
               <div className="flex gap-2">
                 <input value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
@@ -2934,6 +2953,38 @@ export default function SimuladorPage() {
             </div>
           );
         })()}
+        {wins.pilot.open && (
+          <Win title="PILOTO — ESTACIÓN RPS" x={wins.pilot.x} y={wins.pilot.y} w={250}
+            onClose={() => setWin('pilot', { open: false })}
+            onDrag={(x, y) => setWin('pilot', { x, y })}>
+            <div className="p-2 font-mono text-[11px] space-y-1.5" style={{ background: '#000', color: '#b9e8c9' }}>
+              {!selTrack ? (
+                <div className="text-[#888] text-[10px] py-2">Seleccione su aeronave en el radar para pilotarla (1 dron).</div>
+              ) : (
+                <>
+                  <div className="flex justify-between"><span className="text-[#7aa]">AERONAVE</span><span className="font-bold">{selTrack.callsign}</span></div>
+                  <div className="grid grid-cols-3 gap-1 text-[10px]">
+                    <div>ALT <b>{Math.round(selTrack.alt)}M</b></div>
+                    <div>RMB <b>{String(Math.round(selTrack.hdg)).padStart(3, '0')}°</b></div>
+                    <div>VEL <b>{Math.round(selTrack.speedKt)}KT</b></div>
+                  </div>
+                  <div className="flex justify-between"><span className="text-[#7aa]">MODO</span><span className="font-bold" style={{ color: AMBER }}>{selTrack.pmode ?? 'AUTO'}</span></div>
+                  <div className="grid grid-cols-4 gap-1">
+                    {(['AUTO', 'LOITER', 'GUIDED', 'RTL'] as const).map((m) => (
+                      <MB key={m} label={m} active={(selTrack.pmode ?? 'AUTO') === m} onClick={() => pilotCmd({ mode: m })} />
+                    ))}
+                  </div>
+                  <div className="text-[#7aa] text-[10px] pt-1">ALTITUD</div>
+                  <div className="grid grid-cols-2 gap-1"><MB label="▲ SUBIR +10" onClick={() => pilotCmd({ dAlt: 10 })} /><MB label="▼ BAJAR −10" onClick={() => pilotCmd({ dAlt: -10 })} /></div>
+                  <div className="text-[#7aa] text-[10px]">RUMBO</div>
+                  <div className="grid grid-cols-2 gap-1"><MB label="◄ IZQ −15°" onClick={() => pilotCmd({ dHdg: -15 })} /><MB label="DER +15° ►" onClick={() => pilotCmd({ dHdg: 15 })} /></div>
+                  <div className="text-[#7aa] text-[10px]">VELOCIDAD</div>
+                  <div className="grid grid-cols-2 gap-1"><MB label="+ 5 KT" onClick={() => pilotCmd({ dSpd: 5 })} /><MB label="− 5 KT" onClick={() => pilotCmd({ dSpd: -5 })} /></div>
+                </>
+              )}
+            </div>
+          </Win>
+        )}
         {wins.hfs.open && (
           <Win title="SITUACIÓN FUTURA (HFS)" x={wins.hfs.x} y={wins.hfs.y} w={376}
             onClose={() => setWin('hfs', { open: false })}
@@ -3690,6 +3741,7 @@ export default function SimuladorPage() {
           <MB label="SECTORS" active={wins.sectors.open} onClick={() => setWin('sectors', { open: !wins.sectors.open })} />
           <MB label="ZONE INFO" active={wins.zone.open} onClick={() => setWin('zone', { open: !wins.zone.open })} />
           <MB label={mode === 'student' ? 'ÓRDENES' : 'INSTRUCTOR'} active={wins.instructor.open} onClick={() => setWin('instructor', { open: !wins.instructor.open })} />
+          <MB label="PILOTO" active={wins.pilot.open} onClick={() => setWin('pilot', { open: !wins.pilot.open })} />
           {(mode === 'instructor' || mode === 'local') && (
             <MB label="EJERCICIO" active={wins.exercise.open} onClick={() => setWin('exercise', { open: !wins.exercise.open })} />
           )}
