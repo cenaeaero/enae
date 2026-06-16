@@ -312,6 +312,9 @@ export default function SimuladorPage() {
   const auxPanDrag = useRef<{ sx: number; sy: number; ox: number; oy: number; moved: boolean } | null>(null);
   const auxLabelDrag = useRef<{ cs: string; sx: number; sy: number; ox: number; oy: number; moved: boolean } | null>(null);
   const auxLeaderClick = useRef<string | null>(null); // C/S de la línea guía pulsada en la VENTANA 2
+  const [auxSize, setAuxSize] = useState({ w: 344, h: 250 }); // tamaño redimensionable de la VENTANA 2
+  const [auxPlacing, setAuxPlacing] = useState(false); // armado para abrir la VENTANA 2 centrada en un punto del radar
+  const auxResize = useRef<{ sx: number; sy: number; ow: number; oh: number } | null>(null);
   const hfsCanvasRef = useRef<HTMLCanvasElement>(null); // situación futura (HFS)
   const [hfsMin, setHfsMin] = useState(5); // proyección a futuro (min): 0 = ahora
   const engineRef = useRef<SimEngine | null>(null);
@@ -1277,13 +1280,13 @@ export default function SimuladorPage() {
 
   // ── ventana secundaria: radar independiente (norte arriba, con zoom y pan propios) ──
   // El controlador trabaja con la principal en zoom y ésta como segunda posición.
-  const AUX_W = 344, AUX_H = 250;
+  const AUX_W = auxSize.w, AUX_H = auxSize.h;
   const AUX_PXNM = Math.min(AUX_W, AUX_H) / (auxRange * 2);
   const projAux = useCallback((lng: number, lat: number): [number, number] => {
     const [clng, clat] = eng.scenario.center;
     const nmLng = 60 * Math.cos((clat * Math.PI) / 180);
     return [AUX_W / 2 + auxPan.x + (lng - clng) * nmLng * AUX_PXNM, AUX_H / 2 + auxPan.y - (lat - clat) * 60 * AUX_PXNM];
-  }, [eng, auxPan, AUX_PXNM]);
+  }, [eng, auxPan, AUX_PXNM, AUX_W, AUX_H]);
   const auxLabelOff = (cs: string) => auxLabelOffsets[cs] ?? { dx: 12, dy: -16 };
 
   const drawAux = useCallback(() => {
@@ -1745,6 +1748,16 @@ export default function SimuladorPage() {
     const rect = cv.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
+    if (auxPlacing) { // abrir la VENTANA 2 centrada en el punto pulsado (estilo VIEW del manual)
+      const [plng, plat] = unproject(mx, my, cv.width, cv.height);
+      const [clng, clat] = eng.scenario.center;
+      const nmLng = 60 * Math.cos((clat * Math.PI) / 180);
+      setAuxFollow(false);
+      setAuxPan({ x: -(plng - clng) * nmLng * AUX_PXNM, y: (plat - clat) * 60 * AUX_PXNM });
+      setWin('aux', { open: true });
+      setAuxPlacing(false);
+      return;
+    }
     if (zoneDrawing) {
       setZonePts((p) => [...p, unproject(mx, my, cv.width, cv.height)]);
       return;
@@ -2589,6 +2602,12 @@ export default function SimuladorPage() {
             ⚠ SIN DATOS DEL SUPERVISOR — {netAgeS}s · PRESENTACIÓN CONGELADA
           </div>
         )}
+        {auxPlacing && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 px-4 py-1.5 font-mono text-[12px] font-bold rounded pointer-events-none"
+            style={{ background: 'rgba(57,200,216,.92)', color: '#001014', border: '1px solid #7fe' }}>
+            VENTANA 2 — pulse un punto del radar para centrarla ahí
+          </div>
+        )}
 
         {wins.flights.open && (
           <Win title="VUELOS ACTIVOS" x={wins.flights.x} y={wins.flights.y} w={430}
@@ -2691,15 +2710,23 @@ export default function SimuladorPage() {
         )}
 
         {wins.aux.open && (
-          <Win title="VENTANA 2 — PANORÁMICA" x={wins.aux.x} y={wins.aux.y} w={360}
+          <Win title="VENTANA 2 — PANORÁMICA" x={wins.aux.x} y={wins.aux.y} w={auxSize.w + 12}
             onClose={() => setWin('aux', { open: false })}
             onDrag={(x, y) => setWin('aux', { x, y })}>
             <div style={{ background: '#000' }} className="p-1">
-              <canvas ref={auxCanvasRef} width={344} height={250} className="block cursor-crosshair touch-none"
-                onPointerDown={onAuxPointerDown} onPointerMove={onAuxPointerMove} onPointerUp={onAuxPointerUp}
-                onPointerCancel={() => { auxPanDrag.current = null; auxLabelDrag.current = null; auxLeaderClick.current = null; }}
-                onWheel={onAuxWheel} style={{ width: 344, height: 250 }} />
-              <div className="flex items-center gap-1 pt-1 font-mono">
+              <div className="relative" style={{ width: auxSize.w, height: auxSize.h }}>
+                <canvas ref={auxCanvasRef} width={auxSize.w} height={auxSize.h} className="block cursor-crosshair touch-none"
+                  onPointerDown={onAuxPointerDown} onPointerMove={onAuxPointerMove} onPointerUp={onAuxPointerUp}
+                  onPointerCancel={() => { auxPanDrag.current = null; auxLabelDrag.current = null; auxLeaderClick.current = null; }}
+                  onWheel={onAuxWheel} style={{ width: auxSize.w, height: auxSize.h }} />
+                {/* manija de redimensión (esquina inferior derecha) */}
+                <div className="absolute bottom-0 right-0 cursor-nwse-resize touch-none"
+                  style={{ width: 14, height: 14, background: 'linear-gradient(135deg, transparent 50%, #888 50%)' }}
+                  onPointerDown={(e) => { (e.target as HTMLElement).setPointerCapture?.(e.pointerId); auxResize.current = { sx: e.clientX, sy: e.clientY, ow: auxSize.w, oh: auxSize.h }; }}
+                  onPointerMove={(e) => { const r = auxResize.current; if (!r) return; setAuxSize({ w: Math.max(260, Math.min(820, r.ow + (e.clientX - r.sx))), h: Math.max(190, Math.min(620, r.oh + (e.clientY - r.sy))) }); }}
+                  onPointerUp={() => { auxResize.current = null; }} />
+              </div>
+              <div className="flex items-center gap-1 pt-1 font-mono flex-wrap">
                 <MB label="−" onClick={() => setAuxRange((r) => Math.min(192, r + 6))} />
                 <MB label="+" onClick={() => setAuxRange((r) => Math.max(6, r - 6))} />
                 <span className="text-[10px] text-[#7aa] px-1">{auxRange} NM</span>
@@ -3441,7 +3468,7 @@ export default function SimuladorPage() {
           <MB label="QL" active={quickLook} onClick={() => setQuickLook((v) => !v)} />
           <MB label="CPDLC" active={wins.cpdlc.open} onClick={() => setWin('cpdlc', { open: !wins.cpdlc.open })} />
           <MB label="VIEW1" active={hasPreset} onClick={viewPresetToggle} />
-          <MB label="VIEW2" active={wins.aux.open} onClick={() => setWin('aux', { open: !wins.aux.open })} />
+          <MB label="VIEW2" active={wins.aux.open || auxPlacing} onClick={() => { if (wins.aux.open) { setWin('aux', { open: false }); setAuxPlacing(false); } else setAuxPlacing(true); }} />
           <MB label="LMG" active={showBorder || showAD} onClick={() => { const on = !(showBorder || showAD); setShowBorder(on); setShowAD(on); }} />
           <MB label="ZONBLK" active={showZones} onClick={() => setShowZones(!showZones)} />
           <MB label="RTE OFF" active={!showVectors} onClick={() => setShowVectors((v) => !v)} />
