@@ -1004,8 +1004,10 @@ export default function SimuladorPage() {
       const conflict = cfWarn.has(tr.callsign);
       const alarm = tr.alerts.length > 0 || conflict;
       const mine = (tr.sector ?? 'S1') === myPos; // propiedad de la posición (handover)
-      // verde si es mía; gris si la controla otra posición (salvo alarma, que siempre prevalece en rojo)
-      const col = alarm ? RED : mine ? GREEN : '#7c8a82';
+      const xferring = !!tr.xfer; // handover en curso (pendiente de aceptación)
+      const blinkOn = Math.floor(Date.now() / 400) % 2 === 0;
+      // alarma siempre roja. En handover parpadea (blanco/atenuado). Mía = verde; ajena = blanco.
+      const col = alarm ? RED : xferring ? (blinkOn ? '#ffffff' : '#33402f') : mine ? GREEN : '#ffffff';
       if (peeked) { ctx.strokeStyle = AMBER; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2); ctx.stroke(); } // anillo ámbar = revelado por QL
 
       if (showTrails && tr.history.length > 1) {
@@ -1103,7 +1105,7 @@ export default function SimuladorPage() {
           warnLines.forEach((wl, wi) => ctx.fillText(wl, lx, yy - lh * (warnLines.length - wi)));
         }
         ctx.fillStyle = col;
-        const sec = tr.sector ?? 'S1';
+        const sec = tr.xfer ? `${tr.sector ?? 'S1'}▸${tr.xfer}` : (tr.sector ?? 'S1');
         ctx.fillText(`${sec} ${tr.callsign}  ${String(Math.round(tr.alt)).padStart(3, '0')}M`, lx, yy);
         if (lblMode >= 1) {
           yy += lh;
@@ -1351,7 +1353,7 @@ export default function SimuladorPage() {
       if (!tr.airborne || tr.status === 'LANDED') continue;
       if (!showExt && tr.authRef === 'EXT-MP') continue;
       const [x, y] = projAux(tr.lng, tr.lat);
-      const col = alarmed.has(tr.callsign) || tr.alerts.length ? RED : GREEN;
+      const col = (alarmed.has(tr.callsign) || tr.alerts.length) ? RED : tr.xfer ? AMBER : ((tr.sector ?? 'S1') === myPos ? GREEN : '#ffffff');
       // estela
       if (showTrails && tr.history.length > 1) {
         ctx.strokeStyle = col === RED ? 'rgba(255,59,48,.3)' : 'rgba(39,224,122,.28)';
@@ -1387,7 +1389,7 @@ export default function SimuladorPage() {
     }
     ctx.fillStyle = auxFollow ? AMBER : '#7aa'; ctx.font = '9px monospace';
     ctx.fillText(auxFollow && selected ? `VENTANA 2 · ${auxRange} NM · SIGUE ${selected}` : `VENTANA 2 · ${auxRange} NM · N↑`, 6, h - 6);
-  }, [eng, auxRange, AUX_PXNM, projAux, unproject, selected, conflictCs, showZones, zoneKinds, showExt, auxLabelOffsets, auxFollow, showTrails, showVectors, vectorMin]);
+  }, [eng, auxRange, AUX_PXNM, projAux, unproject, selected, conflictCs, showZones, zoneKinds, showExt, auxLabelOffsets, auxFollow, showTrails, showVectors, vectorMin, myPos]);
 
   useEffect(() => {
     if (!wins.aux.open) return;
@@ -2271,14 +2273,27 @@ export default function SimuladorPage() {
     }
   };
 
-  // handover: transferir el control de una traza a otra posición/sector
+  // handover: INICIAR transferencia (queda pendiente de aceptación; la traza parpadea)
   const transferTrack = (cs: string, to: string) => {
     const tr = eng.tracks.get(cs); if (!tr) return;
     const from = tr.sector ?? 'S1';
     if (from === to) return;
-    tr.sector = to;
-    eng.addLog(`HANDOVER ${cs}: ${from} → ${to}`, 'INFO');
+    tr.xfer = to;
+    eng.addLog(`HANDOVER INICIADO ${cs}: ${from} → ${to} (pendiente de aceptación)`, 'INFO');
     if (mode === 'instructor' && sessionId) logEvent(sessionId, eng.t, cs, `HANDOVER ${from}>${to}`, userName || 'INSTRUCTOR').catch(() => {});
+    force((x) => x + 1);
+  };
+  // handover: ACEPTAR (el sector destino toma el control) / RECHAZAR (se cancela)
+  const acceptTransfer = (cs: string) => {
+    const tr = eng.tracks.get(cs); if (!tr || !tr.xfer) return;
+    eng.addLog(`HANDOVER ACEPTADO ${cs} POR ${tr.xfer}`, 'INFO');
+    tr.sector = tr.xfer; tr.xfer = undefined;
+    force((x) => x + 1);
+  };
+  const rejectTransfer = (cs: string) => {
+    const tr = eng.tracks.get(cs); if (!tr || !tr.xfer) return;
+    eng.addLog(`HANDOVER RECHAZADO ${cs} (sigue en ${tr.sector ?? 'S1'})`, 'WARN');
+    tr.xfer = undefined;
     force((x) => x + 1);
   };
 
@@ -2887,8 +2902,18 @@ export default function SimuladorPage() {
                   {item('DECLARAR CONTINGENCIA', () => studentAction('DECLARE_CONTINGENCY', csMenu.cs), RED)}
                 </>}
                 {!isStudent && (() => {
-                  const cur = eng.tracks.get(csMenu.cs)?.sector ?? 'S1';
-                  return SECTORS.filter((s) => s !== cur).map((s) => item(`HANDOVER ▸ ${s}`, () => transferTrack(csMenu.cs, s), CYAN));
+                  const tr = eng.tracks.get(csMenu.cs);
+                  const cur = tr?.sector ?? 'S1';
+                  const out = [];
+                  if (tr?.xfer === myPos) { // me la están transfiriendo: aceptar/rechazar
+                    out.push(item(`ACEPTAR TRANSFERENCIA (${cur}▸${myPos})`, () => acceptTransfer(csMenu.cs), GREEN));
+                    out.push(item('RECHAZAR TRANSFERENCIA', () => rejectTransfer(csMenu.cs), RED));
+                  } else if (tr?.xfer) { // transferencia en curso hacia otro sector
+                    out.push(item(`CANCELAR HANDOVER (▸${tr.xfer})`, () => rejectTransfer(csMenu.cs), AMBER));
+                  } else { // iniciar handover a otro sector
+                    SECTORS.filter((s) => s !== cur).forEach((s) => out.push(item(`HANDOVER ▸ ${s}`, () => transferTrack(csMenu.cs, s), CYAN)));
+                  }
+                  return out;
                 })()}
                 {item('CERRAR', () => {}, '#888')}
               </div>

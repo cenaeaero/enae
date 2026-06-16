@@ -60,7 +60,8 @@ export interface TrackState {
   manned?: boolean; // aeronave tripulada (símbolo distinto)
   authRef: string;
   zoneId?: string; // zona segregada asignada a esta operación (para conformance por asignación)
-  sector?: string; // posición/sector de control dueño (handover)
+  sector?: string; // posición/sector de control dueño (handover). 'GA'/otro = no controlado por sectores UAS
+  xfer?: string; // handover en curso: sector destino pendiente de aceptación (la traza parpadea)
   history: [number, number][]; // trail [lng,lat]
   live?: boolean; // track de fuente real (Remote ID / ADS-B / puente), no simulado
   tsLive?: number; // epoch ms del último dato real recibido (para edad del dato)

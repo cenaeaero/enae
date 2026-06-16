@@ -340,7 +340,7 @@ export const SCENARIO_DEMO_DGAC: Scenario = {
     {
       // tráfico TRIPULADO (GA): tránsito E-O a 150 m, por encima del techo de la zona UAS (120 m).
       // Símbolo cuadrado, sin batería, sin conformance de zona. Demuestra coexistencia manned/UAS.
-      callsign: 'CC-ABC', acType: 'C172', speedKt: 90, batteryMin: 999, startT: 40, authRef: 'GA VFR', zoneId: '', manned: true,
+      callsign: 'CC-ABC', acType: 'C172', speedKt: 90, batteryMin: 999, startT: 40, authRef: 'GA VFR', zoneId: '', sector: 'GA', manned: true,
       route: [
         { lat: -33.212, lng: -70.78, alt: 150 }, { lat: -33.212, lng: -70.58, alt: 150 },
       ],
