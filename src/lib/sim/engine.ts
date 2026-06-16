@@ -259,10 +259,11 @@ export class SimEngine {
   }
 
   // comando del piloto (Remote Pilot Station): modo de vuelo o ajuste relativo de alt/rumbo/velocidad
-  applyPilotCommand(flight: string, cmd: { mode?: TrackState['pmode']; dAlt?: number; dHdg?: number; dSpd?: number }) {
+  applyPilotCommand(flight: string, cmd: { mode?: TrackState['pmode']; dAlt?: number; dHdg?: number; dSpd?: number; hdg?: number }) {
     const tr = this.tracks.get(flight);
     if (!tr || tr.status === 'LANDED' || tr.status === 'LOST') return;
     const guide = () => { if (tr.pmode !== 'GUIDED') tr.pmode = 'GUIDED'; tr.altCmd ??= tr.alt; tr.hdgCmd ??= tr.hdg; tr.spdCmd ??= tr.speedKt; };
+    if (cmd.hdg != null) { guide(); tr.hdgCmd = ((cmd.hdg % 360) + 360) % 360; this.addLog(`${flight} PILOTO ▸ RUMBO ${String(Math.round(tr.hdgCmd)).padStart(3, '0')}°`, 'INFO'); }
     if (cmd.mode) {
       tr.pmode = cmd.mode;
       if (cmd.mode === 'GUIDED') { tr.altCmd ??= tr.alt; tr.hdgCmd ??= tr.hdg; tr.spdCmd ??= tr.speedKt; }

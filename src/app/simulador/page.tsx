@@ -67,7 +67,7 @@ function pointInPoly(p: LL, ring: LL[]): boolean {
   }
   return inside;
 }
-interface ConflictTrack { callsign: string; lng: number; lat: number; hdg: number; speedKt: number; alt: number; airborne: boolean; crs: number; zoneId?: string; }
+interface ConflictTrack { callsign: string; lng: number; lat: number; hdg: number; speedKt: number; alt: number; airborne: boolean; crs: number; zoneId?: string; manned?: boolean; }
 interface ConflictZone { id?: string; name: string; kind: string; ring: LL[]; floor?: number; ceiling?: number; minAlt?: number; }
 // ¿la altura está dentro de la banda vertical de la zona (piso..techo)?
 function inBand(z: ConflictZone, alt: number): boolean {
@@ -76,7 +76,7 @@ function inBand(z: ConflictZone, alt: number): boolean {
 // Monitoriza todos los pares de aeronaves (STCA) y la salida de zonas segregadas
 // dentro del horizonte del vector de predicción (minutos). Devuelve warnings por C/S
 // y las líneas rojas a dibujar entre la aeronave y el conflicto.
-function computeConflicts(tracks: ConflictTrack[], zones: ConflictZone[], horizonMin: number, sepH = 500, sepV = 30) {
+function computeConflicts(tracks: ConflictTrack[], zones: ConflictZone[], horizonMin: number, sepH = 500, sepV = 30, ceiling = 120) {
   const warnings = new Map<string, string[]>();
   const redLines: { from: LL; to: LL }[] = [];
   const conflictPairs: [string, string][] = []; // pares aeronave-aeronave en conflicto (auto-RBL)
@@ -114,6 +114,8 @@ function computeConflicts(tracks: ConflictTrack[], zones: ConflictZone[], horizo
   const hardRestr = zones.filter((z) => z.kind === 'PROHIBITED' || z.kind === 'RESTRICTED' || z.kind === 'DANGER');
   const msaZones = zones.filter((z) => z.kind === 'MSA');
   for (const tr of flying) {
+    // techo operacional UAS: por encima del techo configurado → FUERA DE LÍMITE (no aplica a tráfico tripulado)
+    if (!tr.manned && tr.alt > ceiling) add(tr.callsign, `TECHO ${ceiling}M`);
     const own = tr.zoneId ? segs.find((z) => z.id === tr.zoneId) : undefined;
     // 1) conformance respecto de la zona propia (segregada asignada), en 3D
     if (own) {
@@ -343,6 +345,7 @@ export default function SimuladorPage() {
   const [showZoneLabels, setShowZoneLabels] = useState(true); // nombres/leyendas de zona
   const [altFilter, setAltFilter] = useState({ on: false, min: 0, max: 150 }); // filtro de banda de altitud (M AGL)
   const [sep, setSep] = useState({ h: 500, v: 30 }); // separación mínima de conflicto (m): horizontal / vertical
+  const [opCeiling, setOpCeiling] = useState(120); // techo operacional de los UAS (m AGL); por encima → FUERA DE LÍMITE
   const [rblMode, setRblMode] = useState(false); // modo medición rango/marcación (clic-clic)
   const [expandMode, setExpandMode] = useState<'in' | 'out' | null>(null); // zoom por recuadro (EXP+/EXP−)
   const [opMode, setOpMode] = useState<'INT' | 'MON' | 'BYP'>('INT'); // modo operacional (fuente/salud del dato)
@@ -401,6 +404,7 @@ export default function SimuladorPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [csMenu, setCsMenu] = useState<{ cs: string; x: number; y: number } | null>(null); // menú de campo callsign
   const [inputWin, setInputWin] = useState<{ title: string; value: string; placeholder?: string; onOk: (v: string) => void } | null>(null); // diálogo de entrada estilado (reemplaza window.prompt)
+  const [lastInstr, setLastInstr] = useState(''); // colación (read-back) de la última instrucción del piloto
   const [clock, setClock] = useState('--:--:--');
   const [wins, setWins] = useState<Record<WinId, { x: number; y: number; open: boolean }>>({
     flights: { x: 150, y: 60, open: true },
@@ -639,7 +643,7 @@ export default function SimuladorPage() {
       clearInterval(iv);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, sep, mtcd, opMode, myPos, alarmMute, showExt, quickLook, freetexts, rbls, cursorLL, labelMode, labelFont, labelOffsets, rblLabelOffsets, zonePts, routePts]);
+  }, [rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, sep, opCeiling, mtcd, opMode, myPos, alarmMute, showExt, quickLook, freetexts, rbls, cursorLL, labelMode, labelFont, labelOffsets, rblLabelOffsets, zonePts, routePts]);
 
   // alumno: recibir estado por Realtime
   useEffect(() => {
@@ -714,8 +718,8 @@ export default function SimuladorPage() {
         eng.addLog(`${flight} CONTINGENCIA DECLARADA POR CONTROLADOR`, 'WARN');
       if (a.action === 'ACK_ALARM' && flight) eng.addLog(`${flight} ALARMA RECONOCIDA POR CONTROLADOR`, 'INFO');
       if (a.action === 'PILOT_CMD' && flight) {
-        const d = a.detail as { mode?: 'AUTO' | 'LOITER' | 'RTL' | 'GUIDED'; dAlt?: number; dHdg?: number; dSpd?: number };
-        eng.applyPilotCommand(flight, { mode: d.mode, dAlt: d.dAlt, dHdg: d.dHdg, dSpd: d.dSpd });
+        const d = a.detail as { mode?: 'AUTO' | 'LOITER' | 'RTL' | 'GUIDED'; dAlt?: number; dHdg?: number; dSpd?: number; hdg?: number };
+        eng.applyPilotCommand(flight, { mode: d.mode, dAlt: d.dAlt, dHdg: d.dHdg, dSpd: d.dSpd, hdg: d.hdg });
       }
       if (a.action === 'ACK_MSG' && flight) eng.addLog(`${flight} MENSAJE ACUSADO POR OPERACIONES`, 'INFO');
       if (a.action === 'RELAY_ALERT' && flight) eng.addLog(`${flight} OPERACIONES ALERTA AL CONTROLADOR`, 'WARN');
@@ -918,7 +922,7 @@ export default function SimuladorPage() {
     const cTracks: ConflictTrack[] = Array.from(eng.tracks.values()).map((t) => ({
       callsign: t.callsign, lng: t.lng, lat: t.lat, hdg: t.hdg, speedKt: t.speedKt,
       alt: t.alt, airborne: t.airborne, crs: courseFromHist(t.history, t.lng, t.lat, t.hdg),
-      zoneId: t.zoneId,
+      zoneId: t.zoneId, manned: t.manned,
     }));
     const { warnings: cfWarn, redLines: cfLines, conflictPairs: cfPairs } = (mtcd && opMode !== 'BYP')
       ? computeConflicts(
@@ -926,7 +930,8 @@ export default function SimuladorPage() {
           eng.scenario.zones.filter((z) => z.appearAt == null || eng.t >= z.appearAt) as unknown as ConflictZone[],
           vectorMin,
           sep.h,
-          sep.v
+          sep.v,
+          opCeiling
         )
       : { warnings: new Map<string, string[]>(), redLines: [] as { from: LL; to: LL }[], conflictPairs: [] as [string, string][] };
     // alarma sonora al aparecer un conflicto/alerta nuevo (3 s)
@@ -1307,7 +1312,7 @@ export default function SimuladorPage() {
       ctx.font = 'bold 11px monospace';
       ctx.fillText('N', tipx - 3 + nxs * 8, tipy + 4 + nys * 8);
     }
-  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, sep, mtcd, opMode, myPos, alarmMute, showExt, quickLook, freetexts, rbls, cursorLL, labelMode, labelFont, labelOffsets, rblLabelOffsets, playAlarm, recording, zonePts, routePts]);
+  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, sep, opCeiling, mtcd, opMode, myPos, alarmMute, showExt, quickLook, freetexts, rbls, cursorLL, labelMode, labelFont, labelOffsets, rblLabelOffsets, playAlarm, recording, zonePts, routePts]);
 
   // ── ventana secundaria: radar independiente (norte arriba, con zoom y pan propios) ──
   // El controlador trabaja con la principal en zoom y ésta como segunda posición.
@@ -2314,11 +2319,19 @@ export default function SimuladorPage() {
   };
 
   // comando del piloto: directo al motor (instructor/local) o vía sim_actions (piloto remoto → instructor lo aplica)
-  const pilotCmd = (cmd: { mode?: 'AUTO' | 'LOITER' | 'RTL' | 'GUIDED'; dAlt?: number; dHdg?: number; dSpd?: number }) => {
+  const pilotCmd = (cmd: { mode?: 'AUTO' | 'LOITER' | 'RTL' | 'GUIDED'; dAlt?: number; dHdg?: number; dSpd?: number; hdg?: number }) => {
     if (!selected) { eng.addLog('PILOTO: SELECCIONE SU AERONAVE', 'WARN'); return; }
+    // colación (read-back) de la instrucción
+    const rb =
+      cmd.mode ? `MODO ${cmd.mode}` :
+      cmd.dHdg != null ? (cmd.dHdg < 0 ? `LEFT ${-cmd.dHdg}°` : `RIGHT ${cmd.dHdg}°`) :
+      cmd.hdg != null ? `RUMBO ${String(Math.round(((cmd.hdg % 360) + 360) % 360)).padStart(3, '0')}°` :
+      cmd.dAlt != null ? (cmd.dAlt > 0 ? `SUBIR ${cmd.dAlt}M` : `BAJAR ${-cmd.dAlt}M`) :
+      cmd.dSpd != null ? (cmd.dSpd > 0 ? `+${cmd.dSpd}KT` : `${cmd.dSpd}KT`) : '';
+    setLastInstr(`${selected} ▸ ${rb}`);
     if (mode === 'student') {
       if (sessionId) logAction(sessionId, positionId, eng.t, 'PILOT_CMD', { flight: selected, ...cmd }).catch(() => {});
-      eng.addLog(`${selected} PILOTO ▸ ${cmd.mode ?? (cmd.dAlt ? `ALT ${cmd.dAlt > 0 ? '+' : ''}${cmd.dAlt}` : cmd.dHdg ? `HDG ${cmd.dHdg > 0 ? '+' : ''}${cmd.dHdg}` : cmd.dSpd ? `VEL ${cmd.dSpd > 0 ? '+' : ''}${cmd.dSpd}` : '')} TRANSMITIDO`, 'INFO');
+      eng.addLog(`${selected} PILOTO ▸ ${rb} TRANSMITIDO`, 'INFO');
     } else {
       eng.applyPilotCommand(selected, cmd);
     }
@@ -3008,34 +3021,53 @@ export default function SimuladorPage() {
           </Win>
         )}
         {wins.pilot.open && (
-          <Win title="PILOTO — ESTACIÓN RPS" x={wins.pilot.x} y={wins.pilot.y} w={250}
+          <Win title="PILOTO — ESTACIÓN RPS" x={wins.pilot.x} y={wins.pilot.y} w={258}
             onClose={() => setWin('pilot', { open: false })}
             onDrag={(x, y) => setWin('pilot', { x, y })}>
             <div className="p-2 font-mono text-[11px] space-y-1.5" style={{ background: '#000', color: '#b9e8c9' }}>
               {!selTrack ? (
                 <div className="text-[#888] text-[10px] py-2">Seleccione su aeronave en el radar para pilotarla (1 dron).</div>
-              ) : (
+              ) : (() => {
+                const hd = selTrack.hdg, hr = (hd * Math.PI) / 180;
+                const cmdH = selTrack.hdgCmd;
+                const ms = (selTrack.speedKt * 0.514444).toFixed(1);
+                return (
                 <>
-                  <div className="flex justify-between"><span className="text-[#7aa]">AERONAVE</span><span className="font-bold">{selTrack.callsign}</span></div>
+                  <div className="flex justify-between"><span className="text-[#7aa]">AERONAVE</span><span className="font-bold">{selTrack.callsign} <span style={{ color: AMBER }}>{selTrack.pmode ?? 'AUTO'}</span></span></div>
                   <div className="grid grid-cols-3 gap-1 text-[10px]">
                     <div>ALT <b>{Math.round(selTrack.alt)}M</b></div>
-                    <div>RMB <b>{String(Math.round(selTrack.hdg)).padStart(3, '0')}°</b></div>
-                    <div>VEL <b>{Math.round(selTrack.speedKt)}KT</b></div>
+                    <div>RMB <b>{String(Math.round(hd)).padStart(3, '0')}°</b></div>
+                    <div>VEL <b>{Math.round(selTrack.speedKt)}KT</b> <span className="text-[#7aa]">{ms} M/S</span></div>
                   </div>
-                  <div className="flex justify-between"><span className="text-[#7aa]">MODO</span><span className="font-bold" style={{ color: AMBER }}>{selTrack.pmode ?? 'AUTO'}</span></div>
+                  {/* rosa de 360° — clic fija rumbo (GUIDED) */}
+                  <div className="flex justify-center py-1">
+                    <svg width={118} height={118} style={{ cursor: 'crosshair' }}
+                      onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); const dx = e.clientX - r.left - 59; const dy = e.clientY - r.top - 59; pilotCmd({ hdg: Math.round((((Math.atan2(dx, -dy) * 180) / Math.PI) + 360) % 360) }); }}>
+                      <circle cx={59} cy={59} r={50} fill="none" stroke="#3a4a42" strokeWidth={1} />
+                      {[0, 90, 180, 270].map((a) => { const ar = (a * Math.PI) / 180; const sx = Math.sin(ar), cy2 = -Math.cos(ar); return (
+                        <g key={a}>
+                          <line x1={59 + 44 * sx} y1={59 + 44 * cy2} x2={59 + 50 * sx} y2={59 + 50 * cy2} stroke="#5c6b63" strokeWidth={1} />
+                          <text x={59 + 38 * sx} y={59 + 38 * cy2 + 3} fill="#7aa" fontSize={9} textAnchor="middle">{a === 0 ? 'N' : a === 90 ? 'E' : a === 180 ? 'S' : 'W'}</text>
+                        </g>); })}
+                      {/* aguja: rumbo actual */}
+                      <line x1={59} y1={59} x2={59 + 48 * Math.sin(hr)} y2={59 - 48 * Math.cos(hr)} stroke={GREEN} strokeWidth={2} />
+                      {/* bug: rumbo comandado */}
+                      {cmdH != null && (() => { const cr = (cmdH * Math.PI) / 180; return <circle cx={59 + 48 * Math.sin(cr)} cy={59 - 48 * Math.cos(cr)} r={4} fill={AMBER} />; })()}
+                      <circle cx={59} cy={59} r={2.5} fill={GREEN} />
+                    </svg>
+                  </div>
+                  {lastInstr && <div className="text-[10px] text-center" style={{ color: '#36d6ff' }}>COLACIÓN: <b>{lastInstr.split('▸')[1]?.trim()}</b></div>}
                   <div className="grid grid-cols-4 gap-1">
                     {(['AUTO', 'LOITER', 'GUIDED', 'RTL'] as const).map((m) => (
                       <MB key={m} label={m} active={(selTrack.pmode ?? 'AUTO') === m} onClick={() => pilotCmd({ mode: m })} />
                     ))}
                   </div>
-                  <div className="text-[#7aa] text-[10px] pt-1">ALTITUD</div>
-                  <div className="grid grid-cols-2 gap-1"><MB label="▲ SUBIR +10" onClick={() => pilotCmd({ dAlt: 10 })} /><MB label="▼ BAJAR −10" onClick={() => pilotCmd({ dAlt: -10 })} /></div>
-                  <div className="text-[#7aa] text-[10px]">RUMBO</div>
-                  <div className="grid grid-cols-2 gap-1"><MB label="◄ IZQ −15°" onClick={() => pilotCmd({ dHdg: -15 })} /><MB label="DER +15° ►" onClick={() => pilotCmd({ dHdg: 15 })} /></div>
-                  <div className="text-[#7aa] text-[10px]">VELOCIDAD</div>
+                  <div className="grid grid-cols-2 gap-1"><MB label="▲ SUBIR +10M" onClick={() => pilotCmd({ dAlt: 10 })} /><MB label="▼ BAJAR −10M" onClick={() => pilotCmd({ dAlt: -10 })} /></div>
+                  <div className="grid grid-cols-2 gap-1"><MB label="◄ LEFT 15°" onClick={() => pilotCmd({ dHdg: -15 })} /><MB label="RIGHT 15° ►" onClick={() => pilotCmd({ dHdg: 15 })} /></div>
                   <div className="grid grid-cols-2 gap-1"><MB label="+ 5 KT" onClick={() => pilotCmd({ dSpd: 5 })} /><MB label="− 5 KT" onClick={() => pilotCmd({ dSpd: -5 })} /></div>
                 </>
-              )}
+                );
+              })()}
             </div>
           </Win>
         )}
@@ -3319,7 +3351,13 @@ export default function SimuladorPage() {
                   style={{ ...bevelIn, background: '#000', color: GREEN, width: 46 }} className="px-1 text-[10px]" />
                 <span className="text-[#888]">m</span>
               </div>
-              <div className="text-[9px] text-[#666]">Se guarda con la base y el ejercicio.</div>
+              <div className="flex items-center gap-1">
+                <span className="text-[#888]">TECHO OPERACIONAL UAS</span>
+                <input type="number" value={opCeiling} onChange={(e) => setOpCeiling(+e.target.value)}
+                  style={{ ...bevelIn, background: '#000', color: GREEN, width: 56 }} className="px-1 text-[10px]" />
+                <span className="text-[#888]">m AGL</span>
+              </div>
+              <div className="text-[9px] text-[#666]">Mínimos configurables. Un UAS sobre el techo marca TECHO/FUERA DE LÍMITE.</div>
               </div>
               <div className="space-y-1">
               <div className="text-[#7aa] tracking-wider pt-1">CRONOLOGÍA</div>

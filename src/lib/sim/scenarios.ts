@@ -338,15 +338,18 @@ export const SCENARIO_DEMO_DGAC: Scenario = {
       ],
     },
     {
-      // HELICÓPTERO TRIPULADO: ATERRIZA en helipuerto FUERA de toda zona (al oeste), espera y DESPEGA;
-      // luego cruza la zona segregada a 100 m → INCURSIÓN (rojo) y regresa al oeste (blanco). No toca la prohibida.
-      callsign: 'CC-ABC', acType: 'H125', speedKt: 70, batteryMin: 999, startT: 70, authRef: 'HELI VFR', zoneId: '', sector: 'GA', manned: true,
+      // HELICÓPTERO TRIPULADO (intruso): entra a la SEGREGADA (incursión roja), maniobra ~20 s en varias
+      // direcciones como acomodándose, ATERRIZA dentro 30 s y luego despega y se va al oeste. NO toca la
+      // PROHIBIDA (todos los lng al oeste de -70.62). Velocidad baja para que la maniobra se vea.
+      callsign: 'CC-ABC', acType: 'H125', speedKt: 40, batteryMin: 999, startT: 70, authRef: 'HELI VFR', zoneId: '', sector: 'GA', manned: true,
       route: [
-        { lat: -33.205, lng: -70.82, alt: 100 },
-        { lat: -33.205, lng: -70.79, alt: 0, hold: 30 },
-        { lat: -33.205, lng: -70.70, alt: 100 },
-        { lat: -33.205, lng: -70.64, alt: 100 },
-        { lat: -33.205, lng: -70.82, alt: 100 },
+        { lat: -33.205, lng: -70.78, alt: 100 },
+        { lat: -33.205, lng: -70.71, alt: 70 },
+        { lat: -33.198, lng: -70.69, alt: 50 },
+        { lat: -33.214, lng: -70.685, alt: 40 },
+        { lat: -33.203, lng: -70.672, alt: 25 },
+        { lat: -33.208, lng: -70.676, alt: 0, hold: 30 },
+        { lat: -33.205, lng: -70.78, alt: 100 },
       ],
     },
   ],
