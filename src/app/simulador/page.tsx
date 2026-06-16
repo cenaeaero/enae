@@ -1760,6 +1760,7 @@ export default function SimuladorPage() {
     if (boxDrag.current) { // soltó el recuadro de zoom (EXP+/EXP−)
       const b = zoomBox; boxDrag.current = null; setZoomBox(null);
       if (b) applyBoxZoom(b.x0, b.y0, b.x1, b.y1);
+      setExpandMode(null); // un solo zoom y se desactiva (no bloquea otras funciones)
       return;
     }
     if (rblLabelDrag.current) { rblLabelDrag.current = null; return; } // soltó etiqueta RBL
@@ -1828,6 +1829,17 @@ export default function SimuladorPage() {
   };
 
   // zoom con rueda, manteniendo fijo el punto bajo el cursor (estilo EXP+/EXP-)
+  // doble clic sobre la etiqueta de una RBL → borra esa RBL (equivale al borrado individual del manual)
+  const onCanvasDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const cv = canvasRef.current; if (!cv) return;
+    const rect = cv.getBoundingClientRect();
+    const id = findRblLabelAt(e.clientX - rect.left, e.clientY - rect.top);
+    if (id && id.startsWith('rbl-')) {
+      const idx = parseInt(id.slice(4), 10);
+      setRbls((rs) => rs.filter((_, i) => i !== idx));
+      setRblLabelOffsets((o) => { const n = { ...o }; delete n[id]; return n; });
+    }
+  };
   const onCanvasWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
     const cv = canvasRef.current;
     if (!cv) return;
@@ -2641,6 +2653,7 @@ export default function SimuladorPage() {
           onPointerMove={onCanvasPointerMove}
           onPointerUp={onCanvasPointerUp}
           onPointerCancel={() => { panDrag.current = null; labelDrag.current = null; rblLabelDrag.current = null; leaderClick.current = null; boxDrag.current = null; setZoomBox(null); }}
+          onDoubleClick={onCanvasDoubleClick}
           onWheel={onCanvasWheel}
         />
         {/* alumno: aviso claro si se cortó el enlace de datos (evita pantalla congelada en silencio) */}
@@ -2656,12 +2669,6 @@ export default function SimuladorPage() {
           <div className="absolute top-3 left-1/2 -translate-x-1/2 px-4 py-1.5 font-mono text-[12px] font-bold rounded pointer-events-none"
             style={{ background: 'rgba(57,200,216,.92)', color: '#001014', border: '1px solid #7fe' }}>
             VENTANA 2 — pulse un punto del radar para centrarla ahí
-          </div>
-        )}
-        {expandMode && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 px-4 py-1.5 font-mono text-[11px] font-bold rounded pointer-events-none"
-            style={{ background: 'rgba(224,184,58,.92)', color: '#1a1400', border: '1px solid #ffe08a' }}>
-            {expandMode === 'in' ? 'ZOOM +' : 'ZOOM −'} — arrastre un recuadro sobre el área
           </div>
         )}
         {zoomBox && (
@@ -3573,7 +3580,7 @@ export default function SimuladorPage() {
           <MB label="GRID" active={showGrid} onClick={() => setShowGrid(!showGrid)} />
           <MB label="RINGS" active={rings} onClick={() => setRings(!rings)} />
           <MB label="ELW" active={labelFont >= 13} onClick={() => setLabelFont((f) => (f >= 13 ? 9 : f + 2))} />
-          <MB label="RBL" active={rblMode} onClick={() => setRblMode((v) => !v)} />
+          <MB label="RBL" active={rblMode} onClick={() => { setExpandMode(null); setRblMode((v) => !v); }} />
           <MB label="RBL OFF" onClick={() => { setRbls([]); rblPend.current = null; setCursorLL(null); setRblMode(false); }} />
           <MB label={['BRIGHT', 'DUSK', 'NIGHT'][bright]} active={bright > 0} onClick={() => setBright((b) => (b + 1) % 3)} />
           <MB label="METEO" active={wins.meteo.open} onClick={() => setWin('meteo', { open: !wins.meteo.open })} />
