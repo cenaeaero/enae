@@ -1740,14 +1740,9 @@ export default function SimuladorPage() {
       if (!zoneDrawing && !routeDrawing) {
         const cs = findLabelAt(mx, my);
         if (cs) {
-          if (cs === selected) {
-            // la traza ya está seleccionada: arrastrar mueve su etiqueta
-            const off = labelOffOf(cs);
-            labelDrag.current = { cs, sx: e.clientX, sy: e.clientY, ox: off.dx, oy: off.dy, moved: false };
-          } else {
-            // primer clic sobre la etiqueta: seleccionar la traza (aún no mueve la etiqueta)
-            setSelected(cs);
-          }
+          // arrastre = mover la etiqueta; clic corto (sin mover) = seleccionar (o menú si ya está seleccionada)
+          const off = labelOffOf(cs);
+          labelDrag.current = { cs, sx: e.clientX, sy: e.clientY, ox: off.dx, oy: off.dy, moved: false };
           return;
         }
       }
@@ -1808,7 +1803,11 @@ export default function SimuladorPage() {
     if (rblLabelDrag.current) { rblLabelDrag.current = null; return; } // soltó etiqueta RBL
     if (labelDrag.current) {
       const ld = labelDrag.current; labelDrag.current = null;
-      if (!ld.moved) { setSelected(ld.cs); if (!rblMode) setCsMenu({ cs: ld.cs, x: e.clientX, y: e.clientY }); } // clic = menú (salvo en modo RBL)
+      if (!ld.moved) {
+        // clic corto: si la traza ya estaba seleccionada → menú; si no → seleccionarla
+        if (ld.cs === selected && !rblMode) setCsMenu({ cs: ld.cs, x: e.clientX, y: e.clientY });
+        else setSelected(ld.cs);
+      }
       return; // si se movió, fue arrastre del data block
     }
     if (leaderClick.current) { // clic en la línea guía sin arrastre = rotar 45°
