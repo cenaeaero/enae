@@ -345,6 +345,10 @@ export default function SimuladorPage() {
   const [sep, setSep] = useState({ h: 500, v: 30 }); // separación mínima de conflicto (m): horizontal / vertical
   const [rblMode, setRblMode] = useState(false); // modo medición rango/marcación (clic-clic)
   const [expandMode, setExpandMode] = useState<'in' | 'out' | null>(null); // zoom por recuadro (EXP+/EXP−)
+  const [opMode, setOpMode] = useState<'INT' | 'MON' | 'BYP'>('INT'); // modo operacional (fuente/salud del dato)
+  const [dcenMode, setDcenMode] = useState(false); // armar recentrado por clic (DCEN)
+  const [myPos, setMyPos] = useState('S1'); // posición/sector propio (para ownership y handover)
+  const SECTORS = ['S1', 'S2', 'S3'];
   const [zoomBox, setZoomBox] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
   const boxDrag = useRef<{ sx: number; sy: number } | null>(null);
   const [rbls, setRbls] = useState<{ a: RblEnd; b: RblEnd }[]>([]); // mediciones (punto o pista)
@@ -629,7 +633,7 @@ export default function SimuladorPage() {
       clearInterval(iv);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, sep, mtcd, alarmMute, showExt, quickLook, freetexts, rbls, cursorLL, labelMode, labelFont, labelOffsets, rblLabelOffsets, zonePts, routePts]);
+  }, [rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, mode, sessionId, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, sep, mtcd, opMode, myPos, alarmMute, showExt, quickLook, freetexts, rbls, cursorLL, labelMode, labelFont, labelOffsets, rblLabelOffsets, zonePts, routePts]);
 
   // alumno: recibir estado por Realtime
   useEffect(() => {
@@ -906,7 +910,7 @@ export default function SimuladorPage() {
       alt: t.alt, airborne: t.airborne, crs: courseFromHist(t.history, t.lng, t.lat, t.hdg),
       zoneId: t.zoneId,
     }));
-    const { warnings: cfWarn, redLines: cfLines, conflictPairs: cfPairs } = mtcd
+    const { warnings: cfWarn, redLines: cfLines, conflictPairs: cfPairs } = (mtcd && opMode !== 'BYP')
       ? computeConflicts(
           cTracks,
           eng.scenario.zones.filter((z) => z.appearAt == null || eng.t >= z.appearAt) as unknown as ConflictZone[],
@@ -999,7 +1003,9 @@ export default function SimuladorPage() {
       const [x, y] = project(tr.lng, tr.lat, w, h);
       const conflict = cfWarn.has(tr.callsign);
       const alarm = tr.alerts.length > 0 || conflict;
-      const col = alarm ? RED : GREEN;
+      const mine = (tr.sector ?? 'S1') === myPos; // propiedad de la posición (handover)
+      // verde si es mía; gris si la controla otra posición (salvo alarma, que siempre prevalece en rojo)
+      const col = alarm ? RED : mine ? GREEN : '#7c8a82';
       if (peeked) { ctx.strokeStyle = AMBER; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2); ctx.stroke(); } // anillo ámbar = revelado por QL
 
       if (showTrails && tr.history.length > 1) {
@@ -1096,8 +1102,9 @@ export default function SimuladorPage() {
           ctx.fillStyle = RED;
           warnLines.forEach((wl, wi) => ctx.fillText(wl, lx, yy - lh * (warnLines.length - wi)));
         }
-        ctx.fillStyle = alarm ? RED : GREEN;
-        ctx.fillText(`${tr.callsign}  ${String(Math.round(tr.alt)).padStart(3, '0')}M`, lx, yy);
+        ctx.fillStyle = col;
+        const sec = tr.sector ?? 'S1';
+        ctx.fillText(`${sec} ${tr.callsign}  ${String(Math.round(tr.alt)).padStart(3, '0')}M`, lx, yy);
         if (lblMode >= 1) {
           yy += lh;
           ctx.fillText(tr.manned ? `${Math.round(tr.speedKt)}KT GA` : `${Math.round(tr.speedKt)}KT ${Math.round(tr.batteryPct)}%`, lx, yy);
@@ -1286,7 +1293,7 @@ export default function SimuladorPage() {
       ctx.font = 'bold 11px monospace';
       ctx.fillText('N', tipx - 3 + nxs * 8, tipy + 4 + nys * 8);
     }
-  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, sep, mtcd, alarmMute, showExt, quickLook, freetexts, rbls, cursorLL, labelMode, labelFont, labelOffsets, rblLabelOffsets, playAlarm, recording, zonePts, routePts]);
+  }, [eng, project, rangeNm, pan, rot, showLabels, showZones, zoneKinds, showZoneLabels, showTrails, rings, selected, showVectors, vectorMin, showGrid, showBorder, showAD, altFilter, sep, mtcd, opMode, myPos, alarmMute, showExt, quickLook, freetexts, rbls, cursorLL, labelMode, labelFont, labelOffsets, rblLabelOffsets, playAlarm, recording, zonePts, routePts]);
 
   // ── ventana secundaria: radar independiente (norte arriba, con zoom y pan propios) ──
   // El controlador trabaja con la principal en zoom y ésta como segunda posición.
@@ -1782,6 +1789,17 @@ export default function SimuladorPage() {
     const rect = cv.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
+    if (dcenMode) { // DCEN: recentrar la presentación en el punto pulsado
+      const [plng, plat] = unproject(mx, my, cv.width, cv.height);
+      const [clng, clat] = eng.scenario.center;
+      const nmLng = 60 * Math.cos((clat * Math.PI) / 180);
+      const px = Math.min(cv.width, cv.height) / (rangeNm * 2);
+      const u = (plng - clng) * nmLng * px, v = -(plat - clat) * 60 * px;
+      const R = (rot * Math.PI) / 180, cosR = Math.cos(R), sinR = Math.sin(R);
+      setPan({ x: -(u * cosR + v * sinR), y: -(-u * sinR + v * cosR) });
+      setDcenMode(false);
+      return;
+    }
     if (auxPlacing) { // abrir la VENTANA 2 centrada en el punto pulsado (estilo VIEW del manual)
       const [plng, plat] = unproject(mx, my, cv.width, cv.height);
       const [clng, clat] = eng.scenario.center;
@@ -2253,6 +2271,17 @@ export default function SimuladorPage() {
     }
   };
 
+  // handover: transferir el control de una traza a otra posición/sector
+  const transferTrack = (cs: string, to: string) => {
+    const tr = eng.tracks.get(cs); if (!tr) return;
+    const from = tr.sector ?? 'S1';
+    if (from === to) return;
+    tr.sector = to;
+    eng.addLog(`HANDOVER ${cs}: ${from} → ${to}`, 'INFO');
+    if (mode === 'instructor' && sessionId) logEvent(sessionId, eng.t, cs, `HANDOVER ${from}>${to}`, userName || 'INSTRUCTOR').catch(() => {});
+    force((x) => x + 1);
+  };
+
   // instructor: inyectar evento + auditoría
   const inject = (cs: string, ev: 'C2LOSS' | 'C2RESTORE' | 'LOWBAT' | 'EMERG' | 'RTH') => {
     eng.injectEvent(cs, ev);
@@ -2606,7 +2635,17 @@ export default function SimuladorPage() {
           <TSeg label="OPTIONS" />
           <TSeg label={`RANGE: ${rangeNm} NM`} />
           <TSeg label="SIM" color={AMBER} />
+          {mode !== 'student' ? (
+            <button onClick={() => setOpMode((m) => (m === 'INT' ? 'MON' : m === 'MON' ? 'BYP' : 'INT'))}>
+              <TSeg label={opMode} color={opMode === 'INT' ? '#1f9e5d' : opMode === 'MON' ? GREEN : '#ff7ac0'} />
+            </button>
+          ) : (
+            <TSeg label={opMode} color={opMode === 'BYP' ? '#ff7ac0' : GREEN} />
+          )}
           <TSeg label={paused ? 'HOLD' : `RUN x${speed}`} color={paused ? AMBER : GREEN} />
+          <button onClick={() => setMyPos((p) => SECTORS[(SECTORS.indexOf(p) + 1) % SECTORS.length])} title="Posición/sector propio">
+            <TSeg label={`POS ${myPos}`} color={CYAN} />
+          </button>
           {(mode === 'instructor' || mode === 'student') && (
             <TSeg
               label={mode === 'instructor' ? `SES ${sessionCode} · ${peers}P · SUPERVISOR` : `SES ${sessionCode} · ${userName || 'ALUMNO'}`}
@@ -2672,6 +2711,18 @@ export default function SimuladorPage() {
           <div className="absolute top-3 left-1/2 -translate-x-1/2 px-4 py-1.5 font-mono text-[12px] font-bold rounded pointer-events-none"
             style={{ background: 'rgba(57,200,216,.92)', color: '#001014', border: '1px solid #7fe' }}>
             VENTANA 2 — pulse un punto del radar para centrarla ahí
+          </div>
+        )}
+        {dcenMode && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 px-4 py-1.5 font-mono text-[11px] font-bold rounded pointer-events-none"
+            style={{ background: 'rgba(57,200,216,.92)', color: '#001014', border: '1px solid #7fe' }}>
+            DCEN — pulse un punto para recentrar la presentación
+          </div>
+        )}
+        {opMode === 'BYP' && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 px-4 py-1.5 font-mono text-[11px] font-bold rounded pointer-events-none"
+            style={{ background: 'rgba(255,122,192,.92)', color: '#1a0010', border: '1px solid #ffc0e0' }}>
+            MODO BYPASS — PRESENTACIÓN DEGRADADA · CONFLICTOS INHIBIDOS
           </div>
         )}
         {zoomBox && (
@@ -2835,6 +2886,10 @@ export default function SimuladorPage() {
                   {item('ORDENAR RTH', () => studentAction('ORDER_RTH', csMenu.cs), AMBER)}
                   {item('DECLARAR CONTINGENCIA', () => studentAction('DECLARE_CONTINGENCY', csMenu.cs), RED)}
                 </>}
+                {!isStudent && (() => {
+                  const cur = eng.tracks.get(csMenu.cs)?.sector ?? 'S1';
+                  return SECTORS.filter((s) => s !== cur).map((s) => item(`HANDOVER ▸ ${s}`, () => transferTrack(csMenu.cs, s), CYAN));
+                })()}
                 {item('CERRAR', () => {}, '#888')}
               </div>
             </div>
@@ -3557,6 +3612,7 @@ export default function SimuladorPage() {
           <MB label="EXP+" active={expandMode === 'in'} onClick={() => setExpandMode((m) => (m === 'in' ? null : 'in'))} />
           <MB label="EXP−" active={expandMode === 'out'} onClick={() => setExpandMode((m) => (m === 'out' ? null : 'out'))} />
           <MB label="CEN" onClick={centerView} active={pan.x === 0 && pan.y === 0} />
+          <MB label="DCEN" active={dcenMode} onClick={() => setDcenMode((v) => !v)} />
           <MB label="CSEL" onClick={centerSelected} active={!!selected} />
           <span className="flex-1" />
           {/* velocidades estilo replay */}

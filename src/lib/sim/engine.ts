@@ -25,6 +25,7 @@ export interface SimFlight {
   startT: number; // segundos de sim en que despega
   authRef: string; // n° autorización
   zoneId: string; // zona segregada asignada
+  sector?: string; // posición/sector de control dueño (handover); por defecto S1
   manned?: boolean; // aeronave tripulada (símbolo distinto)
   // plan de vuelo (campos ICAO/EPP, informativos para el ejercicio y AFTN)
   fpl?: { rules?: string; fType?: string; wake?: string; equip?: string; ssr?: string; dep?: string; dest?: string; rfl?: string; eobt?: string };
@@ -59,6 +60,7 @@ export interface TrackState {
   manned?: boolean; // aeronave tripulada (símbolo distinto)
   authRef: string;
   zoneId?: string; // zona segregada asignada a esta operación (para conformance por asignación)
+  sector?: string; // posición/sector de control dueño (handover)
   history: [number, number][]; // trail [lng,lat]
   live?: boolean; // track de fuente real (Remote ID / ADS-B / puente), no simulado
   tsLive?: number; // epoch ms del último dato real recibido (para edad del dato)
@@ -179,6 +181,7 @@ export class SimEngine {
         airborne: false,
         authRef: f.authRef,
         zoneId: f.zoneId,
+        sector: f.sector ?? 'S1',
         manned: f.manned,
         history: [],
       });
