@@ -600,6 +600,17 @@ export default function SimuladorPage() {
     try { await enaeAuth.auth.signOut(); } catch { /* sin sesión */ }
     if (typeof window !== 'undefined') window.location.reload();
   };
+  // salir de la sesión/ejercicio y volver al lobby (sin cerrar sesión del portal) para cargar otro
+  const leaveToLobby = () => {
+    setMode('lobby');
+    setSessionId(null);
+    setPositionId(null);
+    setSessionCode('');
+    setSelected(null);
+    setCsMenu(null);
+    setPeers(1);
+    setRoster([]);
+  };
 
   useEffect(() => {
     let raf = 0;
@@ -3033,11 +3044,11 @@ export default function SimuladorPage() {
                 return (
                 <>
                   <div className="flex justify-between"><span className="text-[#7aa]">AERONAVE</span><span className="font-bold">{selTrack.callsign} <span style={{ color: AMBER }}>{selTrack.pmode ?? 'AUTO'}</span></span></div>
-                  <div className="grid grid-cols-3 gap-1 text-[10px]">
-                    <div>ALT <b>{Math.round(selTrack.alt)}M</b></div>
+                  <div className="grid grid-cols-2 gap-1 text-[10px]">
+                    <div>ALT <b>{Math.round(selTrack.alt)} M</b></div>
                     <div>RMB <b>{String(Math.round(hd)).padStart(3, '0')}°</b></div>
-                    <div>VEL <b>{Math.round(selTrack.speedKt)}KT</b> <span className="text-[#7aa]">{ms} M/S</span></div>
                   </div>
+                  <div className="text-[10px]">VEL <b>{Math.round(selTrack.speedKt)} KT</b> · <b>{ms} M/S</b></div>
                   {/* rosa de 360° — clic fija rumbo (GUIDED) */}
                   <div className="flex justify-center py-1">
                     <svg width={118} height={118} style={{ cursor: 'crosshair' }}
@@ -3850,6 +3861,7 @@ export default function SimuladorPage() {
             onClick={() => (recording ? stopRec() : startRec())} />
           <MB label="ACC" onClick={accView} />
           <MB label="ATMCSUP" active={wins.instructor.open} onClick={() => setWin('instructor', { open: !wins.instructor.open })} />
+          <MB label="◀ SALIR SES" color={AMBER} onClick={leaveToLobby} />
           <MB label="LOGOUT" color={RED} onClick={doLogout} />
         </div>
       </div>
