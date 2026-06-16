@@ -86,7 +86,8 @@ function computeConflicts(tracks: ConflictTrack[], zones: ConflictZone[], horizo
     warnings.set(cs, a);
   };
   const flying = tracks.filter((t) => t.airborne && t.speedKt > 0);
-  const H = Math.max(180, horizonMin * 60); // horizonte de conflicto ≥3 min (anticipación), aunque el vector mostrado sea menor
+  const H = Math.max(180, horizonMin * 60); // horizonte STCA (aeronave-aeronave) ≥3 min
+  const Hz = Math.max(60, horizonMin * 60); // horizonte de zona = vector mostrado (evita falsos SALE por rutas que rozan el borde)
   const STEP = 6;
   for (let i = 0; i < flying.length; i++) {
     for (let j = i + 1; j < flying.length; j++) {
@@ -118,7 +119,7 @@ function computeConflicts(tracks: ConflictTrack[], zones: ConflictZone[], horizo
     if (own) {
       const insideH = pointInPoly([tr.lng, tr.lat], own.ring);
       if (insideH && inBand(own, tr.alt)) {
-        for (let t = STEP; t <= H; t += STEP) {
+        for (let t = STEP; t <= Hz; t += STEP) {
           const p = predictPos(tr, t, tr.crs);
           if (!pointInPoly(p, own.ring)) {
             add(tr.callsign, `SALE ${own.id ?? own.name} ${t}s`);
@@ -142,7 +143,7 @@ function computeConflicts(tracks: ConflictTrack[], zones: ConflictZone[], horizo
       let near = false; // prefiltro barato: sólo predecir si la zona está cerca (<10 NM)
       for (const v of z.ring) { if (distMeters([tr.lng, tr.lat], v) < 18520) { near = true; break; } }
       if (!near) continue;
-      for (let t = STEP; t <= H; t += STEP) {
+      for (let t = STEP; t <= Hz; t += STEP) {
         const p = predictPos(tr, t, tr.crs);
         if (pointInPoly(p, z.ring) && inBand(z, tr.alt)) {
           add(tr.callsign, `ENTRA ${z.id ?? z.name} ${t}s`);
@@ -1045,9 +1046,9 @@ export default function SimuladorPage() {
         ctx.closePath();
         ctx.stroke();
       }
-      // pista perdida: anillo rojo punteado = última posición conocida
-      if (tr.status === 'LOST') {
-        ctx.strokeStyle = RED; ctx.lineWidth = 1.4; ctx.setLineDash([3, 3]);
+      // pista perdida: anillo rojo punteado parpadeante = última posición conocida
+      if (tr.status === 'LOST' && Math.floor(Date.now() / 500) % 2 === 0) {
+        ctx.strokeStyle = RED; ctx.lineWidth = 1.6; ctx.setLineDash([3, 3]);
         ctx.beginPath(); ctx.arc(x, y, 11, 0, Math.PI * 2); ctx.stroke();
         ctx.setLineDash([]);
       }
@@ -2432,6 +2433,7 @@ export default function SimuladorPage() {
   const liveCount = tracks.filter((t) => t.live).length;
   const hfsList = wins.hfs.open ? hfsScan(tracks as HfsTrack[], sep.h, sep.v) : [];
   // MSAW activo: alguna aeronave en vuelo bajo el mínimo de un sector MSA
+  const contingency = tracks.some((t) => t.status === 'LOST' || t.status === 'EMERG'); // pista perdida o emergencia activa
   const msawActive = tracks.some((t) => t.airborne && t.status !== 'LANDED' &&
     eng.scenario.zones.some((z) => z.kind === 'MSA' && z.minAlt != null && t.alt < z.minAlt &&
       (z.appearAt == null || eng.t >= z.appearAt) && pointInPoly([t.lng, t.lat], z.ring as LL[])));
@@ -2599,6 +2601,7 @@ export default function SimuladorPage() {
           <TSeg label="CONF" color={GREEN} />
           <TSeg label="APW" color={anyAlarm ? RED : GREEN} />
           <TSeg label="C2" color={tracks.some((t) => t.alerts.includes('C2')) ? RED : GREEN} />
+          {contingency && <TSeg label="CONTINGENCIA" color={RED} />}
           <TSeg label="PSR T" />
           <TSeg label="OPTIONS" />
           <TSeg label={`RANGE: ${rangeNm} NM`} />

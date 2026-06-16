@@ -294,46 +294,52 @@ export const SCENARIO_DEMO_DGAC: Scenario = {
   center: [-70.68, -33.225],
   rangeNm: 10,
   briefing:
-    'Demostración guionada (≈4 min). DEMO1 realiza un mapeo ordenado dentro de la zona segregada (operación nominal). ' +
-    'A ~70 s, DEMO2 (E-O) y DEMO3 (N-S) convergen a la misma altura sobre el centro: se dispara la alerta de conflicto ' +
-    'STCA (línea roja + alarma) — medir con RBL y resolver. A ~110 s, DEMO4 sufre PÉRDIDA DE ENLACE C2 y deriva fuera de ' +
-    'su zona segregada hacia la PROHIBIDA: el sistema marca FUERA DE ZONA y emite automáticamente un mensaje AFTN ALR ' +
-    '(INCERFA). El enlace se restablece a ~200 s. Secuencia ideal para mostrar imagen de tráfico, conformance, safety nets y AFTN.',
+    'Demostración guionada (≈4 min). DEMO1 realiza un mapeo ordenado, holgado dentro de la zona segregada (operación nominal, ' +
+    'verde). A ~70 s DEMO2 (E-O) y DEMO3 (N-S) convergen a la misma altura sobre el centro: se dispara la alerta de conflicto ' +
+    'STCA (línea roja + alarma) — medir con RBL y resolver; ambas continúan dentro de su zona. A ~110 s DEMO4 sufre PÉRDIDA ' +
+    'DE ENLACE C2 y deriva fuera de su zona hacia la PROHIBIDA: el sistema la marca PISTA PERDIDA (LOST) y emite un AFTN ALERFA. ' +
+    'Secuencia para mostrar imagen de tráfico nominal, conformance, safety nets (STCA) y gestión de contingencia.',
   zones: [
     { id: 'ZS1', name: 'SEGREGADA COLINA (UAS-26-9001)', ring: Z_DEMO_SEG, floor: 0, ceiling: 120, kind: 'SEGREGATED' },
     { id: 'ZP1', name: 'PROHIBIDA SCUA (NOTAM)', ring: Z_DEMO_PROH, floor: 0, ceiling: 999, kind: 'PROHIBITED' },
   ],
   flights: [
     {
-      callsign: 'DEMO1', acType: 'M350', speedKt: 30, batteryMin: 45, startT: 5, authRef: 'UAS-26-9001', zoneId: 'ZS1',
+      // nominal: mapeo en bucle, bien al interior de la zona (no roza el borde) → opera verde y arriba
+      callsign: 'DEMO1', acType: 'M350', speedKt: 30, batteryMin: 60, startT: 5, authRef: 'UAS-26-9001', zoneId: 'ZS1',
       route: [
-        { lat: -33.26, lng: -70.72, alt: 0 }, { lat: -33.20, lng: -70.71, alt: 100 },
-        { lat: -33.20, lng: -70.66, alt: 100 }, { lat: -33.26, lng: -70.67, alt: 80 }, { lat: -33.26, lng: -70.72, alt: 0 },
+        { lat: -33.245, lng: -70.705, alt: 0 }, { lat: -33.205, lng: -70.705, alt: 100 },
+        { lat: -33.205, lng: -70.675, alt: 100 }, { lat: -33.245, lng: -70.675, alt: 100 },
+        { lat: -33.245, lng: -70.705, alt: 60 }, { lat: -33.245, lng: -70.705, alt: 0 },
       ],
     },
     {
-      callsign: 'DEMO2', acType: 'M300', speedKt: 35, batteryMin: 40, startT: 10, authRef: 'UAS-26-9002', zoneId: 'ZS1',
+      // conflicto E-O: cruza el centro a 100 m; permanece dentro de la zona y arriba
+      callsign: 'DEMO2', acType: 'M300', speedKt: 35, batteryMin: 50, startT: 12, authRef: 'UAS-26-9002', zoneId: 'ZS1',
       route: [
-        { lat: -33.225, lng: -70.73, alt: 100 }, { lat: -33.225, lng: -70.68, alt: 100 }, { lat: -33.225, lng: -70.63, alt: 100 },
+        { lat: -33.225, lng: -70.705, alt: 100 }, { lat: -33.225, lng: -70.68, alt: 100 },
+        { lat: -33.225, lng: -70.655, alt: 100 }, { lat: -33.225, lng: -70.705, alt: 0 },
       ],
     },
     {
-      callsign: 'DEMO3', acType: 'WINGTRA', speedKt: 35, batteryMin: 40, startT: 10, authRef: 'UAS-26-9003', zoneId: 'ZS1',
+      // conflicto N-S: cruza el centro a 100 m a la misma hora que DEMO2 → STCA; dentro de la zona y arriba
+      callsign: 'DEMO3', acType: 'WINGTRA', speedKt: 35, batteryMin: 50, startT: 12, authRef: 'UAS-26-9003', zoneId: 'ZS1',
       route: [
-        { lat: -33.27, lng: -70.68, alt: 100 }, { lat: -33.225, lng: -70.68, alt: 100 }, { lat: -33.18, lng: -70.68, alt: 100 },
+        { lat: -33.252, lng: -70.68, alt: 100 }, { lat: -33.225, lng: -70.68, alt: 100 },
+        { lat: -33.198, lng: -70.68, alt: 100 }, { lat: -33.252, lng: -70.68, alt: 0 },
       ],
     },
     {
-      callsign: 'DEMO4', acType: 'M30T', speedKt: 28, batteryMin: 35, startT: 30, authRef: 'UAS-26-9004', zoneId: 'ZS1',
+      // contingencia: vuela cerca del borde este; al perder C2 la deriva la saca de la zona → PISTA PERDIDA
+      callsign: 'DEMO4', acType: 'M30T', speedKt: 28, batteryMin: 40, startT: 30, authRef: 'UAS-26-9004', zoneId: 'ZS1',
       route: [
-        { lat: -33.26, lng: -70.645, alt: 0 }, { lat: -33.23, lng: -70.635, alt: 70 },
-        { lat: -33.20, lng: -70.635, alt: 70 }, { lat: -33.26, lng: -70.645, alt: 0 },
+        { lat: -33.255, lng: -70.64, alt: 0 }, { lat: -33.225, lng: -70.635, alt: 70 },
+        { lat: -33.20, lng: -70.63, alt: 70 }, { lat: -33.255, lng: -70.64, alt: 0 },
       ],
     },
   ],
   events: [
-    { t: 110, flight: 'DEMO4', type: 'C2LOSS', duration: 90 },
-    { t: 230, flight: 'DEMO2', type: 'LOWBAT' },
+    { t: 110, flight: 'DEMO4', type: 'C2LOSS', duration: 120 },
   ],
 };
 

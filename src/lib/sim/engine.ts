@@ -213,7 +213,7 @@ export class SimEngine {
     if (this.msgs.length > 60) this.msgs.pop();
   }
 
-  private msgsForFlight(f: SimFlight, kind: 'FPL' | 'DEP' | 'ARR' | 'ALR') {
+  private msgsForFlight(f: SimFlight, kind: 'FPL' | 'DEP' | 'ARR' | 'ALR' | 'ALERFA') {
     const cs = f.callsign;
     const eet = Math.round((f.batteryMin * 0.8) / 60 * 100) / 100;
     const eetHHMM = '00' + String(Math.max(10, Math.round(f.batteryMin * 0.6))).padStart(2, '0');
@@ -233,6 +233,11 @@ export class SimEngine {
       case 'ALR':
         this.addMsg('ALR', cs,
           `(ALR-INCERFA/SCUACNDX/PERDIDA ENLACE C2\n-${cs}-ZZZZ-AUT ${f.authRef}\n-ULTIMA POSICION CONOCIDA EN ZONA DE OPERACION\n-REQ VIGILAR CONFORMANCE Y CONFIRMAR RTH)`,
+          'FF');
+        break;
+      case 'ALERFA':
+        this.addMsg('ALR', cs,
+          `(ALR-ALERFA/SCUACNDX/PISTA PERDIDA\n-${cs}-ZZZZ-AUT ${f.authRef}\n-AERONAVE FUERA DE ZONA / SIN ENLACE - ULTIMA POSICION CONOCIDA\n-ACTIVAR FASE DE ALERTA Y COORDINACION)`,
           'FF');
         break;
     }
@@ -357,7 +362,7 @@ export class SimEngine {
             tr.speedKt = 0;
             if (!tr.alerts.includes('LOST')) tr.alerts.push('LOST');
             this.addLog(`${f.callsign} PISTA PERDIDA — ${insideFinal ? 'SIN ENLACE AL FINALIZAR' : 'FUERA DE ZONA'}`, 'ALARM');
-            this.msgsForFlight(f, 'ALR');
+            this.msgsForFlight(f, 'ALERFA');
           }
         } else {
           tr.wpIdx++;
@@ -391,7 +396,7 @@ export class SimEngine {
           tr.speedKt = 0;
           tr.alerts.push('LOST');
           this.addLog(`${f.callsign} PISTA PERDIDA — FUERA DE ZONA SIN ENLACE C2`, 'ALARM');
-          this.msgsForFlight(f, 'ALR');
+          this.msgsForFlight(f, 'ALERFA');
         }
       }
 
