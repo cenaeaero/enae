@@ -1690,8 +1690,9 @@ export default function SimuladorPage() {
       const rect = cv.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
-      // 1) data block de pista (prioridad sobre la etiqueta RBL): clic = menú, arrastre = mover
-      if (!zoneDrawing && !routeDrawing && !rblMode) {
+      // 1) data block de pista (prioridad sobre la etiqueta RBL): arrastre = mover, clic = menú.
+      // Permitido también en modo RBL: el RBL se crea pinchando los SÍMBOLOS, no las etiquetas.
+      if (!zoneDrawing && !routeDrawing) {
         const cs = findLabelAt(mx, my);
         if (cs) {
           const off = labelOffOf(cs);
@@ -1745,7 +1746,7 @@ export default function SimuladorPage() {
     if (rblLabelDrag.current) { rblLabelDrag.current = null; return; } // soltó etiqueta RBL
     if (labelDrag.current) {
       const ld = labelDrag.current; labelDrag.current = null;
-      if (!ld.moved) { setSelected(ld.cs); setCsMenu({ cs: ld.cs, x: e.clientX, y: e.clientY }); } // clic = menú de callsign
+      if (!ld.moved) { setSelected(ld.cs); if (!rblMode) setCsMenu({ cs: ld.cs, x: e.clientX, y: e.clientY }); } // clic = menú (salvo en modo RBL)
       return; // si se movió, fue arrastre del data block
     }
     if (leaderClick.current) { // clic en la línea guía sin arrastre = rotar 45°
