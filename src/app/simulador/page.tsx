@@ -9,7 +9,7 @@ import { SimEngine, type TrackState, type Zone, type Scenario, type SimEvent } f
 import { SCENARIOS } from '@/lib/sim/scenarios';
 import {
   simDb, createSession, joinSession, publishState, subscribeState,
-  subscribeActions, logAction, logEvent, countPositions, fetchEvalData,
+  subscribeActions, logAction, logEvent, countPositions, fetchEvalData, listPositions,
   subscribeLiveTracks,
   simConfigOk,
   saveBase, listBases, loadBaseData, deleteBase, updateBase, saveExercise, listExercises, loadExerciseData, deleteExercise, updateExercise,
@@ -292,7 +292,7 @@ function Win({
   );
 }
 
-type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone' | 'eval' | 'aftn' | 'layers' | 'zonemaker' | 'exercise' | 'fpl' | 'meteo' | 'cpdlc' | 'arr' | 'aux' | 'hfs' | 'pilot';
+type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone' | 'eval' | 'aftn' | 'layers' | 'zonemaker' | 'exercise' | 'fpl' | 'meteo' | 'cpdlc' | 'arr' | 'aux' | 'hfs' | 'pilot' | 'positions';
 
 interface EvalRow {
   position_id: string | null;
@@ -400,6 +400,7 @@ export default function SimuladorPage() {
   const [rings, setRings] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
   const [csMenu, setCsMenu] = useState<{ cs: string; x: number; y: number } | null>(null); // menú de campo callsign
+  const [inputWin, setInputWin] = useState<{ title: string; value: string; placeholder?: string; onOk: (v: string) => void } | null>(null); // diálogo de entrada estilado (reemplaza window.prompt)
   const [clock, setClock] = useState('--:--:--');
   const [wins, setWins] = useState<Record<WinId, { x: number; y: number; open: boolean }>>({
     flights: { x: 150, y: 60, open: true },
@@ -421,6 +422,7 @@ export default function SimuladorPage() {
     aux: { x: 1120, y: 470, open: false },
     hfs: { x: 360, y: 300, open: false },
     pilot: { x: 80, y: 300, open: false },
+    positions: { x: 150, y: 60, open: false },
   });
   const [evalRows, setEvalRows] = useState<EvalRow[]>([]);
   const [evalBusy, setEvalBusy] = useState(false);
@@ -447,6 +449,7 @@ export default function SimuladorPage() {
   const [lobbyErr, setLobbyErr] = useState('');
   const [lobbyBusy, setLobbyBusy] = useState(false);
   const [peers, setPeers] = useState(1);
+  const [roster, setRoster] = useState<{ role: string; name: string }[]>([]); // puestos conectados (POSICIONES)
   const lastPubRef = useRef(0);
   const lastNetRef = useRef(0); // epoch ms del último estado recibido por Realtime (alumno)
 
@@ -1590,6 +1593,15 @@ export default function SimuladorPage() {
     return () => clearInterval(iv);
   }, [wins.hfs.open, drawHfs]);
 
+  // POSICIONES: cargar el roster de puestos conectados mientras la ventana está abierta
+  useEffect(() => {
+    if (!wins.positions.open || !sessionId) return;
+    const load = () => listPositions(sessionId).then(setRoster).catch(() => {});
+    load();
+    const iv = setInterval(load, 5000);
+    return () => clearInterval(iv);
+  }, [wins.positions.open, sessionId]);
+
   // re-vincular cuando el canvas aparece tras login/lobby (auth y mode cambian el árbol)
   useEffect(() => {
     const cv = canvasRef.current;
@@ -1857,8 +1869,9 @@ export default function SimuladorPage() {
         return Math.abs(px - mx) < 60 && Math.abs(py - my) < 10;
       });
       if (hit) { setFreetexts((fs) => fs.filter((f) => f.id !== hit.id)); return; }
-      const txt = (typeof window !== 'undefined' ? window.prompt('TEXTO LIBRE:') : '') || '';
-      if (txt.trim()) setFreetexts((fs) => [...fs, { id: 'FT' + fs.length + '-' + Math.round(mx), ll, txt: txt.trim().toUpperCase() }]);
+      setInputWin({ title: 'TEXTO LIBRE', value: '', placeholder: 'anotación', onOk: (txt) => {
+        if (txt.trim()) setFreetexts((fs) => [...fs, { id: 'FT' + fs.length + '-' + Math.round(mx), ll, txt: txt.trim().toUpperCase() }]);
+      } });
       return;
     }
     selectAt(mx, my);
@@ -2903,6 +2916,26 @@ export default function SimuladorPage() {
             </div>
           </Win>
         )}
+        {inputWin && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,.45)' }}
+            onPointerDown={(e) => { if (e.target === e.currentTarget) setInputWin(null); }}>
+            <div style={{ ...bevelOut, width: 320 }} className="font-mono">
+              <div className="px-1 py-0.5 text-center text-[12px] font-bold tracking-widest text-black" style={{ background: '#a8a8a8', borderBottom: '1px solid #5a5a5a' }}>
+                {inputWin.title}
+              </div>
+              <div className="p-3 space-y-2" style={{ background: '#c9c9c9' }}>
+                <input autoFocus value={inputWin.value} placeholder={inputWin.placeholder}
+                  onChange={(e) => setInputWin((w) => (w ? { ...w, value: e.target.value } : w))}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { inputWin.onOk(inputWin.value); setInputWin(null); } if (e.key === 'Escape') setInputWin(null); }}
+                  style={{ ...bevelIn, background: '#000', color: GREEN }} className="w-full px-2 py-1 text-[12px] uppercase outline-none" />
+                <div className="flex justify-end gap-2">
+                  <MB label="CANCELAR" onClick={() => setInputWin(null)} />
+                  <MB label="ACEPTAR" onClick={() => { inputWin.onOk(inputWin.value); setInputWin(null); }} />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         {csMenu && (() => {
           const close = () => setCsMenu(null);
           const item = (label: string, fn: () => void, color?: string) => (
@@ -2946,6 +2979,34 @@ export default function SimuladorPage() {
             </div>
           );
         })()}
+        {wins.positions.open && (
+          <Win title="POSICIONES / USUARIOS" x={wins.positions.x} y={wins.positions.y} w={300}
+            onClose={() => setWin('positions', { open: false })}
+            onDrag={(x, y) => setWin('positions', { x, y })}>
+            <div className="p-2 font-mono text-[11px] space-y-1" style={{ background: '#000', color: '#b9e8c9' }}>
+              <div className="text-[#7aa] tracking-wider">SECTORES DE CONTROL</div>
+              {SECTORS.map((s) => {
+                const n = activeTracks.filter((t) => (t.sector ?? 'S1') === s).length;
+                return (
+                  <div key={s} className="flex justify-between" style={{ color: s === myPos ? GREEN : '#b9e8c9' }}>
+                    <span>{s}{s === myPos ? ' ◀ MÍA' : ''}</span><span>{n} traza{n === 1 ? '' : 's'}</span>
+                  </div>
+                );
+              })}
+              {(() => { const ga = activeTracks.filter((t) => !SECTORS.includes(t.sector ?? 'S1')).length; return ga > 0 ? (
+                <div className="flex justify-between text-[#fff]"><span>NO CONTROLADO (GA)</span><span>{ga}</span></div>
+              ) : null; })()}
+              <div className="text-[#7aa] tracking-wider pt-1">PUESTOS CONECTADOS{roster.length ? ` (${roster.length})` : ''}</div>
+              {roster.length === 0 && <div className="text-[#666] text-[10px]">{sessionId ? '— sin puestos —' : 'Modo local (sin sesión multi-puesto).'}</div>}
+              {roster.map((p, i) => (
+                <div key={i} className="flex justify-between">
+                  <span style={{ color: CYAN }}>{p.role === 'instructor' ? 'SUPERVISOR' : p.role === 'controller' ? 'CONTROLADOR' : p.role === 'aftn' ? 'AFTN' : p.role === 'pilot' ? 'PILOTO' : p.role.toUpperCase()}</span>
+                  <span>{p.name || '—'}</span>
+                </div>
+              ))}
+            </div>
+          </Win>
+        )}
         {wins.pilot.open && (
           <Win title="PILOTO — ESTACIÓN RPS" x={wins.pilot.x} y={wins.pilot.y} w={250}
             onClose={() => setWin('pilot', { open: false })}
@@ -3679,7 +3740,8 @@ export default function SimuladorPage() {
           <MB label={alarmMute ? 'RBL MUTE' : 'RBL ALM'} active={alarmMute} color={anyAlarm && !alarmMute ? RED : undefined} onClick={() => setAlarmMute((m) => !m)} />
           <MB label="OVERLAP" onClick={() => { setLabelOffsets({}); setRblLabelOffsets({}); }} />
           <MB label="LAST POS" active={showTrails} onClick={() => setShowTrails(!showTrails)} />
-          <MB label="USERS" onClick={() => setWin('flights', { open: !wins.flights.open })} active={wins.flights.open} />
+          <MB label="VUELOS" onClick={() => setWin('flights', { open: !wins.flights.open })} active={wins.flights.open} />
+          <MB label="USUARIOS" onClick={() => setWin('positions', { open: !wins.positions.open })} active={wins.positions.open} />
           <span className="mx-0.5 font-mono text-[10px] font-bold">{rangeNm} NM</span>
           <MB label="−" onClick={() => setRangeNm(Math.min(96, rangeNm * 2))} />
           <MB label="+" onClick={() => setRangeNm(Math.max(3, Math.round(rangeNm / 2)))} />
@@ -3720,14 +3782,13 @@ export default function SimuladorPage() {
           <MB label="MTCD" active={mtcd} color={mtcd ? undefined : RED} onClick={() => setMtcd((v) => !v)} />
           <MB label="HFS" active={wins.hfs.open} onClick={() => setWin('hfs', { open: !wins.hfs.open })} />
           <MB label="FREETEXT" active={freetextMode} onClick={() => setFreetextMode((v) => !v)} />
-          <MB label="FINDER" onClick={() => {
-            const q = (typeof window !== 'undefined' ? window.prompt('BUSCAR PISTA (C/S):', finder) : '') || '';
+          <MB label="FINDER" onClick={() => setInputWin({ title: 'BUSCAR PISTA (C/S)', value: finder, placeholder: 'C/S', onOk: (q) => {
             if (!q.trim()) return;
             setFinder(q.toUpperCase());
             const hit = Array.from(eng.tracks.values()).find((t) => t.callsign.toUpperCase().includes(q.trim().toUpperCase()));
             if (!hit) { eng.addLog(`BUSCADOR: SIN COINCIDENCIA "${q.trim().toUpperCase()}"`, 'WARN'); return; }
             setSelected(hit.callsign); centerOn(hit);
-          }} />
+          } })} />
           <MB label="RADAR" onClick={() => setWin('stations', { open: !wins.stations.open })} active={wins.stations.open} />
           <MB label="SECTORS" active={wins.sectors.open} onClick={() => setWin('sectors', { open: !wins.sectors.open })} />
           <MB label="ZONE INFO" active={wins.zone.open} onClick={() => setWin('zone', { open: !wins.zone.open })} />

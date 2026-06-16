@@ -209,6 +209,16 @@ export async function fetchEvalData(sessionId: string) {
   };
 }
 
+// roster de puestos conectados a la sesión (sectores/controladores, AFTN, pilotos)
+export async function listPositions(sessionId: string): Promise<{ role: string; name: string }[]> {
+  const { data } = await simDb()
+    .from('sim_positions')
+    .select('role,student_name')
+    .eq('session_id', sessionId)
+    .order('role');
+  return (data ?? []).map((p) => ({ role: (p as { role: string }).role, name: (p as { student_name?: string }).student_name ?? '' }));
+}
+
 export async function countPositions(sessionId: string): Promise<number> {
   const { count } = await simDb()
     .from('sim_positions')

@@ -338,15 +338,15 @@ export const SCENARIO_DEMO_DGAC: Scenario = {
       ],
     },
     {
-      // HELICÓPTERO TRIPULADO: cruza la zona segregada a 100 m (dentro de la banda) → INCURSIÓN (rojo);
-      // ATERRIZA dentro 30 s y vuelve a DESPEGAR; al salir de la zona = blanco. Sin batería, símbolo cuadrado.
+      // HELICÓPTERO TRIPULADO: ATERRIZA en helipuerto FUERA de toda zona (al oeste), espera y DESPEGA;
+      // luego cruza la zona segregada a 100 m → INCURSIÓN (rojo) y regresa al oeste (blanco). No toca la prohibida.
       callsign: 'CC-ABC', acType: 'H125', speedKt: 70, batteryMin: 999, startT: 70, authRef: 'HELI VFR', zoneId: '', sector: 'GA', manned: true,
       route: [
-        { lat: -33.205, lng: -70.80, alt: 100 },
+        { lat: -33.205, lng: -70.82, alt: 100 },
+        { lat: -33.205, lng: -70.79, alt: 0, hold: 30 },
         { lat: -33.205, lng: -70.70, alt: 100 },
-        { lat: -33.205, lng: -70.66, alt: 0, hold: 30 },
-        { lat: -33.205, lng: -70.60, alt: 100 },
-        { lat: -33.205, lng: -70.56, alt: 100 },
+        { lat: -33.205, lng: -70.64, alt: 100 },
+        { lat: -33.205, lng: -70.82, alt: 100 },
       ],
     },
   ],
