@@ -323,13 +323,15 @@ export class SimEngine {
         } else continue;
       }
 
-      // batería
-      tr.batteryPct = Math.max(0, tr.batteryPct - (dt / 60 / f.batteryMin) * 100);
-      if (tr.batteryPct <= 20 && !tr.alerts.includes('BAT')) {
-        tr.alerts.push('BAT');
-        this.addLog(`${f.callsign} BATERÍA ${Math.round(tr.batteryPct)}%`, 'WARN');
+      // batería — sólo aplica a UAS; el tráfico tripulado (GA) no usa batería
+      if (!tr.manned) {
+        tr.batteryPct = Math.max(0, tr.batteryPct - (dt / 60 / f.batteryMin) * 100);
+        if (tr.batteryPct <= 20 && !tr.alerts.includes('BAT')) {
+          tr.alerts.push('BAT');
+          this.addLog(`${f.callsign} BATERÍA ${Math.round(tr.batteryPct)}%`, 'WARN');
+        }
       }
-      if (tr.batteryPct <= 0) {
+      if (!tr.manned && tr.batteryPct <= 0) {
         tr.status = 'LANDED';
         tr.speedKt = 0;
         tr.alt = 0;
@@ -351,7 +353,12 @@ export class SimEngine {
           // si cruzó el límite o está en contingencia → PISTA PERDIDA (sin confirmación de aterrizaje)
           const zc = this.scenario.zones.find((z) => z.id === f.zoneId);
           const insideFinal = !zc || pointInRing(tr.lng, tr.lat, zc.ring);
-          if (tr.status === 'NORMAL' && insideFinal) {
+          if (tr.manned) {
+            // tráfico tripulado: transita y sale del área (no "aterriza" en la operación UAS)
+            tr.status = 'LANDED';
+            tr.speedKt = 0;
+            this.addLog(`${f.callsign} TRÁFICO TRIPULADO SALIÓ DEL ÁREA`, 'INFO');
+          } else if (tr.status === 'NORMAL' && insideFinal) {
             tr.status = 'LANDED';
             tr.speedKt = 0;
             tr.alt = 0;

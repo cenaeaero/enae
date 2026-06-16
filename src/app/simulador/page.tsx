@@ -1100,7 +1100,7 @@ export default function SimuladorPage() {
         ctx.fillText(`${tr.callsign}  ${String(Math.round(tr.alt)).padStart(3, '0')}M`, lx, yy);
         if (lblMode >= 1) {
           yy += lh;
-          ctx.fillText(`${Math.round(tr.speedKt)}KT ${Math.round(tr.batteryPct)}%`, lx, yy);
+          ctx.fillText(tr.manned ? `${Math.round(tr.speedKt)}KT GA` : `${Math.round(tr.speedKt)}KT ${Math.round(tr.batteryPct)}%`, lx, yy);
         }
         if (lblMode >= 2) {
           yy += lh;
@@ -1376,7 +1376,7 @@ export default function SimuladorPage() {
       ctx.strokeStyle = 'rgba(120,140,130,.5)'; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(lx - 2, ly + 2); ctx.stroke();
       ctx.font = 'bold 9px monospace'; ctx.fillStyle = col;
       ctx.fillText(`${tr.callsign} ${String(Math.round(tr.alt)).padStart(3, '0')}M`, lx, ly);
-      ctx.fillText(`${Math.round(tr.speedKt)}KT ${Math.round(tr.batteryPct)}%`, lx, ly + 10);
+      ctx.fillText(tr.manned ? `${Math.round(tr.speedKt)}KT GA` : `${Math.round(tr.speedKt)}KT ${Math.round(tr.batteryPct)}%`, lx, ly + 10);
     }
     ctx.fillStyle = auxFollow ? AMBER : '#7aa'; ctx.font = '9px monospace';
     ctx.fillText(auxFollow && selected ? `VENTANA 2 · ${auxRange} NM · SIGUE ${selected}` : `VENTANA 2 · ${auxRange} NM · N↑`, 6, h - 6);
@@ -2699,7 +2699,7 @@ export default function SimuladorPage() {
                   <span>{t.authRef.slice(-4)}</span>
                   <span>{Math.round(t.alt)}M</span>
                   <span>{Math.round(t.speedKt)}KT</span>
-                  <span>{Math.round(t.batteryPct)}%</span>
+                  <span>{t.manned ? 'GA' : `${Math.round(t.batteryPct)}%`}</span>
                   <span>{t.status === 'NORMAL' && t.airborne ? 'VUELO' : t.airborne ? t.status : 'ESPERA'}</span>
                 </div>
               ))}
