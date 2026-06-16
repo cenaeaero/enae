@@ -2691,7 +2691,9 @@ export default function SimuladorPage() {
           )}
           {quickLook && <TSeg label="QUICK-LOOK" color={AMBER} />}
           <Bar />
-          <TSeg label="MET CAVOK" color="#6b7a72" />
+          <button onClick={() => setWin('meteo', { open: !wins.meteo.open })} title="Meteorología (METAR/QNH)">
+            <TSeg label="MET" bg={wins.meteo.open ? '#4a4a4a' : undefined} />
+          </button>
         </div>
         <div className="text-[11px] font-bold font-mono px-2 truncate" style={{ color: GREEN }}>
           CONDOR UTM · POS CONTROLADOR · {eng.scenario.name}
