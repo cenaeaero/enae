@@ -66,6 +66,7 @@ export interface TrackState {
   // ── control del piloto (Remote Pilot Station, estilo ArduPilot) ──
   pmode?: 'AUTO' | 'LOITER' | 'RTL' | 'GUIDED'; // modo de vuelo (AUTO = sigue ruta)
   holdUntil?: number; // en tierra hasta este t de sim (espera en waypoint con hold)
+  vs?: number; // razón vertical (m/s): >0 subiendo, <0 bajando
   altCmd?: number; // altitud comandada (m)
   hdgCmd?: number; // rumbo comandado (°)
   spdCmd?: number; // velocidad comandada (kt)
@@ -339,6 +340,7 @@ export class SimEngine {
     for (const f of this.scenario.flights) {
       const tr = this.tracks.get(f.callsign)!;
       if (tr.status === 'LANDED' || tr.status === 'LOST') continue; // aterrizada o pista perdida: congelada en su última posición
+      const altBefore = tr.alt; // para calcular la razón vertical (subiendo/bajando)
 
       // despegue
       if (!tr.airborne) {
@@ -482,6 +484,10 @@ export class SimEngine {
           this.msgsForFlight(f, 'ALERFA');
         }
       }
+
+      // razón vertical (suavizada): para indicar subiendo/bajando
+      const vsNow = dt > 0 ? (tr.alt - altBefore) / dt : 0;
+      tr.vs = (tr.vs ?? 0) * 0.6 + vsNow * 0.4;
 
       // trail
       if (tr.airborne && tr.status !== 'LANDED' && tr.status !== 'LOST') {

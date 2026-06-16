@@ -2830,7 +2830,7 @@ export default function SimuladorPage() {
                   <span>{t.callsign}</span>
                   <span>{t.acType}</span>
                   <span>{t.authRef.slice(-4)}</span>
-                  <span>{Math.round(t.alt)}M</span>
+                  <span>{Math.round(t.alt)}M{(t.vs ?? 0) > 0.3 ? ' ▲' : (t.vs ?? 0) < -0.3 ? ' ▼' : ''}</span>
                   <span>{Math.round(t.speedKt)}KT</span>
                   <span>{t.manned ? 'GA' : `${Math.round(t.batteryPct)}%`}</span>
                   <span>{t.status === 'NORMAL' && t.airborne ? 'VUELO' : t.airborne ? t.status : 'ESPERA'}</span>
