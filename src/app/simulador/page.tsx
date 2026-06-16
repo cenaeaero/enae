@@ -1630,15 +1630,19 @@ export default function SimuladorPage() {
     const cv = canvasRef.current;
     if (!cv || !showLabels) return null;
     const lh = labelFont + 1;
+    let best: string | null = null, bestD = Infinity;
     for (const tr of eng.tracks.values()) {
       if (!tr.airborne || tr.status === 'LANDED') continue;
       const [x, y] = project(tr.lng, tr.lat, cv.width, cv.height);
       const off = labelOffOf(tr.callsign);
       const lx = x + off.dx;
       const ly = y + off.dy;
-      if (mx >= lx - 4 && mx <= lx + 150 && my >= ly - lh - 6 && my <= ly + lh * 3) return tr.callsign;
+      if (mx >= lx - 4 && mx <= lx + 150 && my >= ly - lh - 6 && my <= ly + lh * 3) {
+        const d = Math.hypot(mx - lx, my - ly); // la etiqueta cuyo ancla está más cerca del cursor
+        if (d < bestD) { bestD = d; best = tr.callsign; }
+      }
     }
-    return null;
+    return best;
   };
 
   // arrastre del mapa (descentrado/pan) y arrastre del data block (etiqueta).
@@ -1686,14 +1690,7 @@ export default function SimuladorPage() {
       const rect = cv.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
-      // 1) etiqueta de RBL (manual o auto-conflicto) — arrastrable en cualquier modo
-      const rid = findRblLabelAt(mx, my);
-      if (rid) {
-        const off = rblOffOf(rid);
-        rblLabelDrag.current = { id: rid, sx: e.clientX, sy: e.clientY, ox: off.dx, oy: off.dy };
-        return;
-      }
-      // 2) data block de pista (si no se está dibujando): clic = menú, arrastre = mover
+      // 1) data block de pista (prioridad sobre la etiqueta RBL): clic = menú, arrastre = mover
       if (!zoneDrawing && !routeDrawing && !rblMode) {
         const cs = findLabelAt(mx, my);
         if (cs) {
@@ -1701,7 +1698,16 @@ export default function SimuladorPage() {
           labelDrag.current = { cs, sx: e.clientX, sy: e.clientY, ox: off.dx, oy: off.dy, moved: false };
           return;
         }
-        // 3) línea guía: clic (sin arrastre) rota la etiqueta 45°
+      }
+      // 2) etiqueta de RBL (manual o auto-conflicto) — arrastrable en cualquier modo
+      const rid = findRblLabelAt(mx, my);
+      if (rid) {
+        const off = rblOffOf(rid);
+        rblLabelDrag.current = { id: rid, sx: e.clientX, sy: e.clientY, ox: off.dx, oy: off.dy };
+        return;
+      }
+      // 3) línea guía: clic (sin arrastre) rota la etiqueta 45°
+      if (!zoneDrawing && !routeDrawing && !rblMode) {
         const lcs = findLeaderAt(mx, my);
         if (lcs) leaderClick.current = lcs;
       }
