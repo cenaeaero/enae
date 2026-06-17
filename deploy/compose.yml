@@ -10,7 +10,8 @@ services:
         NEXT_PUBLIC_SIM_SUPABASE_KEY: ${NEXT_PUBLIC_SIM_SUPABASE_KEY}
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-    image: condor/consola:local
+    image: localhost/condor-consola:local
+    pull_policy: never
     restart: unless-stopped
     expose:
       - "3000"
