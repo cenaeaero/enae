@@ -50,7 +50,22 @@ export async function DELETE(request: Request) {
   const id = new URL(request.url).searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
 
-  const { data: prof } = await supabaseAdmin.from("profiles").select("user_id").eq("id", id).maybeSingle();
+  const { data: prof } = await supabaseAdmin
+    .from("profiles").select("user_id, email").eq("id", id).maybeSingle();
+
+  // Borra las inscripciones del alumno para no dejar filas huérfanas.
+  // Las tablas hijas (notas, exámenes, pagos, diplomas, etc.) caen por ON DELETE CASCADE.
+  // 1) ligadas por profile_id
+  await supabaseAdmin.from("registrations").delete().eq("profile_id", id);
+  // 2) huérfanas por email (profile_id ya NULL de borrados anteriores)
+  if (prof?.email) {
+    await supabaseAdmin
+      .from("registrations")
+      .delete()
+      .is("profile_id", null)
+      .ilike("email", prof.email);
+  }
+
   await supabaseAdmin.from("profiles").delete().eq("id", id);
   if (prof?.user_id) {
     try { await supabaseAdmin.auth.admin.deleteUser(prof.user_id); } catch {}
