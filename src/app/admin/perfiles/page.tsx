@@ -66,6 +66,13 @@ export default function AdminPerfilesPage() {
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    first_name: "", last_name: "", email: "", rut: "", phone: "", organization: "",
+    role: "student", send_credentials: true,
+  });
+  const [creating, setCreating] = useState(false);
+  const [createMsg, setCreateMsg] = useState("");
 
   useEffect(() => {
     loadProfiles();
@@ -200,6 +207,30 @@ export default function AdminPerfilesPage() {
     setSaving(false);
   }
 
+  async function createProfile() {
+    if (!createForm.first_name.trim() || !createForm.last_name.trim() || !createForm.email.trim()) {
+      setCreateMsg("Nombre, apellido y email son obligatorios");
+      return;
+    }
+    setCreating(true); setCreateMsg("");
+    const res = await fetch("/api/admin/perfiles", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(createForm),
+    });
+    const data = await res.json();
+    setCreating(false);
+    if (!res.ok) { setCreateMsg(data.error || "Error al crear el perfil"); return; }
+    setShowCreate(false);
+    setCreateForm({ first_name: "", last_name: "", email: "", rut: "", phone: "", organization: "", role: "student", send_credentials: true });
+    await loadProfiles();
+    if (data.tempPassword) {
+      alert(`✓ Perfil creado.\n\nClave temporal: ${data.tempPassword}\n${createForm.send_credentials ? `Se envió email a ${data.profile?.email}.` : "No se enviaron credenciales por email."}\n\nGuárdala por si el correo no llega.`);
+    } else {
+      alert("✓ Perfil creado (la cuenta de login ya existía; se vinculó el perfil).");
+    }
+  }
+
   async function deleteProfile(id: string) {
     setDeleting(true);
     const res = await fetch(`/api/admin/perfiles?id=${id}`, { method: "DELETE" });
@@ -239,10 +270,66 @@ export default function AdminPerfilesPage() {
         <h1 className="text-2xl font-bold text-[#003366]">
           Perfiles de Usuarios
         </h1>
-        <span className="text-sm text-gray-400">
-          {filtered.length} perfil{filtered.length !== 1 ? "es" : ""}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-400">
+            {filtered.length} perfil{filtered.length !== 1 ? "es" : ""}
+          </span>
+          <button
+            onClick={() => { setShowCreate(true); setCreateMsg(""); }}
+            className="text-sm bg-[#0072CE] hover:bg-[#005BA1] text-white font-medium px-4 py-2 rounded-lg transition"
+          >
+            + Nuevo perfil
+          </button>
+        </div>
       </div>
+
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !creating && setShowCreate(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-[#003366] mb-1">Nuevo perfil</h2>
+            <p className="text-xs text-gray-500 mb-4">
+              Crea la cuenta del usuario. Si el email coincide con inscripciones existentes, quedan vinculadas automáticamente.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <CreateField label="Nombre *" value={createForm.first_name} onChange={(v) => setCreateForm({ ...createForm, first_name: v })} />
+              <CreateField label="Apellido *" value={createForm.last_name} onChange={(v) => setCreateForm({ ...createForm, last_name: v })} />
+              <div className="col-span-2">
+                <CreateField label="Email (login) *" value={createForm.email} type="email" onChange={(v) => setCreateForm({ ...createForm, email: v })} />
+              </div>
+              <CreateField label="RUT / DNI" value={createForm.rut} onChange={(v) => setCreateForm({ ...createForm, rut: v })} />
+              <CreateField label="Teléfono" value={createForm.phone} onChange={(v) => setCreateForm({ ...createForm, phone: v })} />
+              <div className="col-span-2">
+                <CreateField label="Organización" value={createForm.organization} onChange={(v) => setCreateForm({ ...createForm, organization: v })} />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 uppercase mb-1">Rol</label>
+                <select
+                  value={createForm.role}
+                  onChange={(e) => setCreateForm({ ...createForm, role: e.target.value })}
+                  className="w-full border border-gray-200 rounded px-2.5 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#0072CE] focus:border-[#0072CE]"
+                >
+                  {roleOptions.map((r) => (<option key={r} value={r}>{roleLabels[r]}</option>))}
+                </select>
+              </div>
+              <label className="flex items-center gap-2 text-sm text-gray-700 mt-5">
+                <input type="checkbox" checked={createForm.send_credentials} onChange={(e) => setCreateForm({ ...createForm, send_credentials: e.target.checked })} />
+                Enviar credenciales por email
+              </label>
+            </div>
+            {createMsg && <p className="text-sm text-red-600 mt-3">{createMsg}</p>}
+            <div className="flex gap-2 mt-5 justify-end">
+              <button onClick={() => setShowCreate(false)} disabled={creating}
+                className="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded transition">
+                Cancelar
+              </button>
+              <button onClick={createProfile} disabled={creating}
+                className="text-sm bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white font-medium px-4 py-2 rounded transition">
+                {creating ? "Creando…" : "Crear perfil"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filter tabs */}
       <div className="flex gap-2 mb-4 flex-wrap">
@@ -512,6 +599,30 @@ export default function AdminPerfilesPage() {
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+function CreateField({
+  label,
+  value,
+  onChange,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+}) {
+  return (
+    <div>
+      <label className="block text-xs text-gray-500 uppercase mb-1">{label}</label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full border border-gray-200 rounded px-2.5 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#0072CE] focus:border-[#0072CE]"
+      />
     </div>
   );
 }

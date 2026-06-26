@@ -80,7 +80,7 @@ export async function POST(request: Request) {
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const body = await request.json();
-  const { email, first_name, last_name, rut, phone, role, company_id, send_credentials } = body;
+  const { email, first_name, last_name, rut, phone, role, company_id, organization, send_credentials } = body;
 
   if (!email || !first_name || !last_name || !role) {
     return NextResponse.json({ error: "email, first_name, last_name y role requeridos" }, { status: 400 });
@@ -119,11 +119,17 @@ export async function POST(request: Request) {
     }
   }
 
+  // Normaliza organización (trim + UPPERCASE) para no duplicar empresas por mayúsculas
+  const orgClean = typeof organization === "string" && organization.trim()
+    ? organization.trim().replace(/\s+/g, " ").toUpperCase()
+    : null;
+
   const profilePayload: Record<string, any> = {
     user_id: userId,
     first_name, last_name, email: normalizedEmail,
     rut: rut || null, phone: phone || null,
     role, company_id: company_id || null,
+    organization: orgClean,
   };
 
   const { data: profile, error: pErr } = await supabaseAdmin
