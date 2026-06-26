@@ -3,13 +3,17 @@ import { supabaseAdmin } from "@/lib/supabase-service";
 import { requireAdmin } from "@/lib/auth-instructor";
 
 // ============================================================================
-// Inscripciones huérfanas: filas en `registrations` con profile_id = NULL.
-// No aparecen en el listado de alumnos (que se arma desde `profiles`), pero el
-// chequeo de "ya inscrito" sí las ve, así que bloquean reinscripciones.
-// Suelen quedar de borrados antiguos de perfil (ON DELETE SET NULL dejaba la
-// inscripción colgando). Esta vista las hace visibles y borrables sin SQL.
-// La eliminación es DESTRUCTIVA (cascade), por eso el POST recalcula la huella
-// académica en el servidor y rechaza borrar lo que tenga datos.
+// Inscripciones huérfanas: filas en `registrations` SIN alumno recuperable.
+//
+// OJO: profile_id = NULL es el estado NORMAL — las inscripciones nunca guardan
+// profile_id al crearse y el portal del alumno encuentra sus cursos POR EMAIL
+// (src/app/tpems/page.tsx). Por eso una inscripción con profile_id NULL pero con
+// un perfil que coincide por email es un alumno ACTIVO, no una huérfana.
+//
+// Huérfana REAL = profile_id IS NULL **Y** no existe ningún perfil con ese email
+// (lower). Esas son invisibles e irrecuperables, y son las que pueden bloquear
+// una reinscripción. La eliminación es DESTRUCTIVA (cascade), por eso el POST
+// recalcula la huella académica Y reconfirma que no haya perfil por email.
 // ============================================================================
 
 async function selectIds(table: string, col: string, filter?: (q: any) => any) {
@@ -39,7 +43,7 @@ export async function GET() {
   const auth = await requireAdmin();
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-  const [{ data: regs }, { data: courses }] = await Promise.all([
+  const [{ data: regs }, { data: courses }, { data: profs }] = await Promise.all([
     supabaseAdmin
       .from("registrations")
       .select(
@@ -48,10 +52,22 @@ export async function GET() {
       .is("profile_id", null)
       .order("created_at", { ascending: false }),
     supabaseAdmin.from("courses").select("id, title, code"),
+    supabaseAdmin.from("profiles").select("email"),
   ]);
 
   const courseById: Record<string, { title: string; code: string | null }> = {};
   for (const c of courses || []) courseById[c.id] = { title: c.title, code: c.code };
+
+  // Emails con perfil (lower). Una inscripción profile_id NULL cuyo email SÍ
+  // tiene perfil es un alumno activo vinculado por correo -> NO es huérfana.
+  const profileEmails = new Set<string>();
+  for (const p of profs || []) {
+    const e = (p.email || "").trim().toLowerCase();
+    if (e) profileEmails.add(e);
+  }
+  const trueOrphans = (regs || []).filter(
+    (r) => !profileEmails.has((r.email || "").trim().toLowerCase()),
+  );
 
   // ---------- huella académica por inscripción ----------
   const [grades, exams, progress, diplomas, dgac, payApproved] = await Promise.all([
@@ -78,7 +94,7 @@ export async function GET() {
     return { blockers, safeToDelete: blockers.length === 0 };
   }
 
-  const registrations = (regs || []).map((r) => ({
+  const registrations = trueOrphans.map((r) => ({
     id: r.id,
     name: `${r.last_name || ""}, ${r.first_name || ""}`,
     email: r.email,
@@ -111,7 +127,7 @@ export async function POST(req: Request) {
 
   const { data: reg, error } = await supabaseAdmin
     .from("registrations")
-    .select("id, profile_id, folio_enae, final_score, grade_status")
+    .select("id, profile_id, email, folio_enae, final_score, grade_status")
     .eq("id", id)
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -119,6 +135,18 @@ export async function POST(req: Request) {
   // Seguridad: esta vista solo opera sobre huérfanas
   if (reg.profile_id) {
     return NextResponse.json({ error: "Esta inscripción ya tiene perfil; gestiónala desde Perfiles/Duplicados" }, { status: 400 });
+  }
+  // Reconfirmar que NO exista perfil por email: si existe, es un alumno activo
+  // vinculado por correo (el portal lo encuentra) y NO debe borrarse aquí.
+  if (reg.email) {
+    const { data: prof } = await supabaseAdmin
+      .from("profiles").select("id").ilike("email", reg.email).maybeSingle();
+    if (prof) {
+      return NextResponse.json(
+        { error: "Existe un perfil con ese email: es un alumno activo (vinculado por correo), no una huérfana." },
+        { status: 409 },
+      );
+    }
   }
 
   // recalcular huella en el servidor (no confiar en el cliente)
