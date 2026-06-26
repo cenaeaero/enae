@@ -58,8 +58,9 @@ export default function HuerfanosPage() {
     <div className="max-w-6xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-[#003366]">Inscripciones huérfanas</h1>
       <p className="text-sm text-gray-500 mt-1">
-        Inscripciones sin perfil asociado (<code className="text-xs">profile_id</code> vacío). No aparecen en el listado de alumnos,
-        pero pueden bloquear una reinscripción al mismo curso. La eliminación está bloqueada cuando hay datos académicos
+        Inscripciones sin alumno recuperable: <strong>no tienen perfil ni por cuenta ni por email</strong>. No aparecen en el
+        listado de alumnos y pueden bloquear una reinscripción al mismo curso. (Las inscripciones que sí tienen perfil por
+        correo son alumnos activos y no se listan aquí.) La eliminación está bloqueada cuando hay datos académicos
         (exámenes, notas, diplomas, certificados, pagos).
       </p>
 
