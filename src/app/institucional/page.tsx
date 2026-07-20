@@ -60,11 +60,12 @@ export default function InstitucionalPage() {
             </h2>
             <p className="text-gray-600 leading-relaxed mb-6">
               ENAE es una escuela de formación aeronáutica certificada por la
-              Dirección General de Aeronáutica Civil (DGAC) bajo el AOC 1521.
-              Desde nuestras instalaciones en el Aeródromo Eulogio Sánchez
-              (Tobalaba), Santiago de Chile, ofrecemos programas de formación
-              profesional en aviación con un enfoque práctico y orientado a la
-              industria.
+              Dirección General de Aeronáutica Civil (DGAC) bajo el AOC 1521,
+              con un Sistema de Gestión de Calidad certificado bajo la norma
+              ISO 9001:2015. Desde nuestras instalaciones en el Aeródromo
+              Eulogio Sánchez (Tobalaba), Santiago de Chile, ofrecemos
+              programas de formación profesional en aviación con un enfoque
+              práctico y orientado a la industria.
             </p>
             <p className="text-gray-600 leading-relaxed mb-6">
               A diferencia de la formación tradicional en aula, nuestros
@@ -112,7 +113,7 @@ export default function InstitucionalPage() {
           <h2 className="text-2xl font-bold text-[#003366] mb-10">
             Certificaciones y Reconocimientos
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             <div className="p-6">
               <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl">🏛️</span>
@@ -120,6 +121,19 @@ export default function InstitucionalPage() {
               <h3 className="font-semibold text-[#003366] mb-2">DGAC Chile</h3>
               <p className="text-sm text-gray-600">
                 Certificado AOC 1521 - Centro de instrucción autorizado
+              </p>
+            </div>
+            <div className="p-6">
+              <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl">✅</span>
+              </div>
+              <h3 className="font-semibold text-[#003366] mb-2">ISO 9001:2015</h3>
+              <p className="text-sm text-gray-600">
+                Sistema de Gestión de Calidad certificado para la instrucción
+                teórica y práctica de pilotos a distancia UAS/RPAS
+              </p>
+              <p className="text-xs text-gray-400 mt-2">
+                Cert. N° ESC/QMS/G26/5904 · SAARA · Acreditado UAF (IAF)
               </p>
             </div>
             <div className="p-6">
