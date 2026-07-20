@@ -39,6 +39,11 @@ type DgacProcedure = {
   apendice_c_uploaded_at: string | null;
   pago_tasa: boolean;
   coordinacion_examen: boolean;
+  cedula_identidad: boolean;
+  examen_practico: boolean;
+  unidad_coordinada: boolean;
+  unidad_contacto: string | null;
+  solicitud_teoricos_at: string | null;
   exam_datetime: string | null;
   exam_unit_city: string | null;
 };
@@ -57,9 +62,14 @@ const fieldLabels: Record<string, string> = {
   dgac_credential_number: "N° Credencial DGAC",
   registro_sipa: "Registro SIPA",
   solicitud_credencial: "Solicitud de credencial",
-  apendice_c: "Apendice C, Certificado ENAE y CI",
+  apendice_c: "Apendice C y Certificado ENAE",
+  cedula_identidad: "Cedula de Identidad",
   pago_tasa: "Pago Tasa Aeronautica",
+  examen_practico: "Examen Practico de Vuelo",
   coordinacion_examen: "Coordinacion Examen DGAC",
+  unidad_coordinada: "Pre-coordinacion con Unidad DGAC",
+  unidad_contacto: "Contacto Unidad DGAC",
+  solicitud_teoricos_at: "Solicitud a Teoricos DGAC",
   exam_datetime: "Fecha y Hora del Examen",
   exam_unit_city: "Unidad y Ciudad",
 };
@@ -138,6 +148,9 @@ export default function RegistroDetailPage() {
   const [habilitationText, setHabilitationText] = useState("");
   const [apendiceAdminMsg, setApendiceAdminMsg] = useState("");
   const [apendiceAdminUploading, setApendiceAdminUploading] = useState(false);
+  const [ccAlumno, setCcAlumno] = useState(true);
+  const [sendingSolicitud, setSendingSolicitud] = useState(false);
+  const [solicitudMsg, setSolicitudMsg] = useState("");
 
   const loadData = useCallback(async () => {
     // Load registration
@@ -508,6 +521,34 @@ export default function RegistroDetailPage() {
       setCertMsg(`Error: ${err.message || "Sin conexion"}`);
     }
     setSendingCert(false);
+  }
+
+  async function enviarSolicitudTeoricos(esApertura: boolean) {
+    if (!procedure) return;
+    const destino = esApertura
+      ? "solicitar a Teóricos DGAC la apertura del examen en el portal SIPA"
+      : "solicitar a Teóricos DGAC el agendamiento del examen en Santiago";
+    if (!confirm(`Se enviará un correo a teoricosag@dgac.gob.cl para ${destino}${ccAlumno ? ", con copia al alumno" : ""}. ¿Continuar?`)) return;
+    setSendingSolicitud(true);
+    setSolicitudMsg("");
+    try {
+      const res = await fetch("/api/admin/dgac/solicitar-examen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registration_ids: [id], cc_alumnos: ccAlumno }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        const detail = Array.isArray(json.missing) && json.missing.length > 0 ? ` — ${json.missing.join("; ")}` : "";
+        setSolicitudMsg(`Error: ${json.error || "No se pudo enviar"}${detail}`);
+      } else {
+        setSolicitudMsg(`Solicitud enviada a ${json.sent_to}.`);
+        setProcedure((p) => p ? { ...p, solicitud_teoricos_at: new Date().toISOString() } : null);
+      }
+    } catch (err: any) {
+      setSolicitudMsg(`Error: ${err.message || "Sin conexion"}`);
+    }
+    setSendingSolicitud(false);
   }
 
   async function markAsAlumni() {
@@ -1151,9 +1192,11 @@ export default function RegistroDetailPage() {
                 <>
                   <ToggleField label="1. Registro SIPA" value={procedure.registro_sipa} saving={saving === "registro_sipa"} onChange={(v) => updateField("registro_sipa", v)} />
                   <ToggleField label="2. Solicitud de credencial" value={procedure.solicitud_credencial} saving={saving === "solicitud_credencial"} onChange={(v) => updateField("solicitud_credencial", v)} />
-                  <ToggleField label="3. Apendice C, Certificado de ENAE y Cedula de Identidad" value={procedure.apendice_c} saving={saving === "apendice_c"} onChange={(v) => updateField("apendice_c", v)} />
-                  <ToggleField label="4. Pago Tasa Aeronautica" value={procedure.pago_tasa} saving={saving === "pago_tasa"} onChange={(v) => updateField("pago_tasa", v)} />
-                  <ToggleField label="5. Coordinacion Examen DGAC" value={procedure.coordinacion_examen} saving={saving === "coordinacion_examen"} onChange={(v) => updateField("coordinacion_examen", v)} />
+                  <ToggleField label="3. Apendice C y Certificado de ENAE" value={procedure.apendice_c} saving={saving === "apendice_c"} onChange={(v) => updateField("apendice_c", v)} />
+                  <ToggleField label="4. Cedula de Identidad" value={procedure.cedula_identidad} saving={saving === "cedula_identidad"} onChange={(v) => updateField("cedula_identidad", v)} />
+                  <ToggleField label="5. Pago Tasa Aeronautica" value={procedure.pago_tasa} saving={saving === "pago_tasa"} onChange={(v) => updateField("pago_tasa", v)} />
+                  <ToggleField label="6. Examen Practico de Vuelo" value={procedure.examen_practico} saving={saving === "examen_practico"} onChange={(v) => updateField("examen_practico", v)} />
+                  <ToggleField label="7. Coordinacion Examen DGAC" value={procedure.coordinacion_examen} saving={saving === "coordinacion_examen"} onChange={(v) => updateField("coordinacion_examen", v)} />
                 </>
               )}
               {procedure.procedure_type === "renovacion" && (
@@ -1168,7 +1211,7 @@ export default function RegistroDetailPage() {
               <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">
-                    {procedure.procedure_type === "nueva" ? "6." : "2."} Fecha y Hora del Examen
+                    {procedure.procedure_type === "nueva" ? "8." : "2."} Fecha y Hora del Examen
                   </label>
                   <input
                     type="datetime-local"
@@ -1180,7 +1223,7 @@ export default function RegistroDetailPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">
-                    {procedure.procedure_type === "nueva" ? "7." : "3."} Unidad y Ciudad
+                    {procedure.procedure_type === "nueva" ? "9." : "3."} Unidad y Ciudad
                   </label>
                   <select
                     value={procedure.exam_unit_city || ""}
@@ -1198,6 +1241,77 @@ export default function RegistroDetailPage() {
                 </div>
               </div>
             )}
+
+            {/* Coordinación con Teóricos DGAC */}
+            {(procedure.procedure_type === "nueva" || procedure.procedure_type === "renovacion") && (() => {
+              const ciudad = (procedure.exam_unit_city || "").trim();
+              const esProvincia = ciudad !== "" && ciudad.toLowerCase() !== "santiago";
+              const datosListos = !!procedure.folio_number && !!procedure.exam_datetime && !!ciudad;
+              const puedeEnviar = datosListos && (!esProvincia || procedure.unidad_coordinada);
+              return (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <p className="text-sm font-medium text-gray-700 mb-1">Coordinación Examen con Teóricos DGAC</p>
+                  <p className="text-xs text-gray-500 mb-3">
+                    {esProvincia
+                      ? `Examen en ${ciudad}: primero coordina con la unidad DGAC local (link de agenda o correo) y luego solicita a Teóricos la apertura del examen en el portal SIPA.`
+                      : "Examen en Santiago: la solicitud de agendamiento se envía directamente a Teóricos Licencias (teoricosag@dgac.gob.cl)."}
+                  </p>
+
+                  {esProvincia && (
+                    <div className="mb-3 space-y-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Contacto de la unidad DGAC (link de agenda o correo)</label>
+                        <input
+                          type="text"
+                          value={procedure.unidad_contacto || ""}
+                          onChange={(e) => setProcedure((p) => p ? { ...p, unidad_contacto: e.target.value } : null)}
+                          onBlur={(e) => updateField("unidad_contacto", e.target.value)}
+                          className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-[#0072CE]"
+                          placeholder="https://... o correo@dgac.gob.cl"
+                        />
+                      </div>
+                      <ToggleField
+                        label="Pre-coordinación con la unidad realizada (respuesta recibida)"
+                        value={procedure.unidad_coordinada}
+                        saving={saving === "unidad_coordinada"}
+                        onChange={(v) => updateField("unidad_coordinada", v)}
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-4 flex-wrap">
+                    <label className="flex items-center gap-2 text-sm text-gray-600">
+                      <input type="checkbox" checked={ccAlumno} onChange={(e) => setCcAlumno(e.target.checked)} className="rounded" />
+                      Enviar copia al alumno
+                    </label>
+                    <button
+                      onClick={() => enviarSolicitudTeoricos(esProvincia)}
+                      disabled={sendingSolicitud || !puedeEnviar}
+                      className="bg-[#0072CE] hover:bg-[#005fa3] text-white px-5 py-2 rounded-lg text-sm font-medium transition disabled:opacity-50"
+                      title={!datosListos ? "Faltan N° de Folio, fecha del examen o unidad/ciudad" : (esProvincia && !procedure.unidad_coordinada ? "Primero marca la pre-coordinación con la unidad" : "")}
+                    >
+                      {sendingSolicitud
+                        ? "Enviando..."
+                        : esProvincia
+                          ? "Solicitar apertura en SIPA a Teóricos"
+                          : "Enviar solicitud a Teóricos DGAC"}
+                    </button>
+                    {procedure.solicitud_teoricos_at && (
+                      <span className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1">
+                        Solicitud enviada el {new Date(procedure.solicitud_teoricos_at).toLocaleString("es-CL")}
+                      </span>
+                    )}
+                  </div>
+                  {!datosListos && (
+                    <p className="text-xs text-amber-600 mt-2">Para enviar la solicitud completa el N° de Folio, la fecha y hora del examen y la unidad/ciudad.</p>
+                  )}
+                  {solicitudMsg && (
+                    <p className={`text-xs mt-2 ${solicitudMsg.startsWith("Error") ? "text-red-600" : "text-green-700"}`}>{solicitudMsg}</p>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Apéndice C firmado subido por el alumno */}
             <div className="mt-4 pt-4 border-t border-gray-100">
               <div className="flex items-center justify-between gap-3 flex-wrap">
