@@ -1158,6 +1158,19 @@ export default function RegistroDetailPage() {
               </span>
             </div>
 
+            {/* Datos que ya están en el perfil del alumno: a un clic para el SIPA, sin re-tipear */}
+            <div className="mb-6 bg-gray-50 border border-gray-100 rounded-lg p-4">
+              <p className="text-xs font-medium text-gray-500 mb-3">Datos del alumno para el SIPA — clic para copiar</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3">
+                <CopyField label="Nombre" value={`${profile.first_name} ${profile.last_name}`.trim()} />
+                <CopyField label="RUT / Pasaporte" value={profile.rut} />
+                <CopyField label="Email" value={profile.email} />
+                <CopyField label="Teléfono" value={profile.phone} />
+                <CopyField label="Dirección" value={[profile.address, profile.city, profile.state].filter(Boolean).join(", ")} />
+                <CopyField label="Folio ENAE" value={profile.folio_enae} />
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">N° Credencial DGAC</label>
@@ -1215,7 +1228,7 @@ export default function RegistroDetailPage() {
                   </label>
                   <input
                     type="datetime-local"
-                    value={procedure.exam_datetime ? procedure.exam_datetime.slice(0, 16) : ""}
+                    value={procedure.exam_datetime ? toLocalInputValue(procedure.exam_datetime) : ""}
                     onChange={(e) => setProcedure((p) => p ? { ...p, exam_datetime: e.target.value } : null)}
                     onBlur={(e) => updateField("exam_datetime", e.target.value ? new Date(e.target.value).toISOString() : null)}
                     className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-[#0072CE]"
@@ -1473,6 +1486,33 @@ export default function RegistroDetailPage() {
   );
 }
 
+function CopyField({ label, value }: { label: string; value?: string | null }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (!value) return;
+        navigator.clipboard.writeText(value);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }}
+      className="text-left group cursor-pointer"
+      title={value ? "Copiar al portapapeles" : ""}
+    >
+      <p className="text-[10px] uppercase tracking-wide text-gray-400">{label}</p>
+      <p className="text-sm text-gray-800">
+        {value || "—"}{" "}
+        {value && (
+          <span className={`text-[10px] ${copied ? "text-green-600" : "text-gray-300 group-hover:text-[#0072CE]"}`}>
+            {copied ? "✓ copiado" : "⧉"}
+          </span>
+        )}
+      </p>
+    </button>
+  );
+}
+
 function ReadField({ label, value }: { label: string; value?: string | null }) {
   return (
     <div>
@@ -1517,5 +1557,18 @@ function formatHistoryValue(field: string, value: string | null): string {
     const labels: Record<string, string> = { nueva: "Credencial Nueva", renovacion: "Renovacion", actualizacion: "Actualizacion" };
     return labels[value] || value;
   }
+  if (field === "exam_datetime") {
+    const d = new Date(value);
+    if (!isNaN(d.getTime())) return d.toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" });
+  }
   return value;
+}
+
+// datetime-local trabaja en hora local del navegador; el valor guardado es UTC.
+// Sin esta conversión el input muestra la hora UTC (ej: 12:00 Chile → 16:00).
+function toLocalInputValue(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
