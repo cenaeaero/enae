@@ -31,6 +31,7 @@ const CHECKLIST_FIELDS = [
 export default function CoordinacionDgacPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [ccAlumnos, setCcAlumnos] = useState(true);
   const [sending, setSending] = useState(false);
@@ -91,8 +92,17 @@ export default function CoordinacionDgacPage() {
     setLoading(false);
   }
 
-  const enProceso = rows.filter((r) => !r.dgac_credential_number);
-  const completados = rows.filter((r) => !!r.dgac_credential_number);
+  // Búsqueda por nombre, RUT, folio, curso, email o ciudad (sin acentos)
+  const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const matchesSearch = (r: Row) => {
+    const q = normalize(search.trim());
+    if (!q) return true;
+    const haystack = normalize(`${r.name} ${r.rut || ""} ${r.folio_number || ""} ${r.course} ${r.email} ${r.exam_unit_city || ""}`);
+    return q.split(/\s+/).every((term) => haystack.includes(term));
+  };
+
+  const enProceso = rows.filter((r) => !r.dgac_credential_number && matchesSearch(r));
+  const completados = rows.filter((r) => !!r.dgac_credential_number && matchesSearch(r));
 
   function toggleSelect(regId: string) {
     setSelected((prev) => {
@@ -175,7 +185,19 @@ export default function CoordinacionDgacPage() {
       {/* En proceso */}
       <div className="bg-white rounded-lg border border-gray-200 mb-8">
         <div className="p-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
-          <h2 className="font-semibold text-gray-800">En proceso ({enProceso.length})</h2>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h2 className="font-semibold text-gray-800">En proceso ({enProceso.length})</h2>
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar por nombre, RUT, folio, curso..."
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-72 focus:outline-none focus:ring-2 focus:ring-[#0072CE]"
+            />
+            {search && (
+              <button onClick={() => setSearch("")} className="text-xs text-gray-400 hover:text-gray-600">Limpiar</button>
+            )}
+          </div>
           <div className="flex items-center gap-4 flex-wrap">
             <label className="flex items-center gap-2 text-sm text-gray-600">
               <input type="checkbox" checked={ccAlumnos} onChange={(e) => setCcAlumnos(e.target.checked)} className="rounded" />
