@@ -48,7 +48,7 @@ export async function sendStudentCredentials(
           <p style="margin-top: 20px; color: #6b7280; font-size: 14px;">Si tienes dudas, contactanos en <a href="mailto:${ADMIN_EMAIL}">${ADMIN_EMAIL}</a></p>
         </div>
         <div style="background: #001d3d; padding: 15px; text-align: center;">
-          <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegacion Aerea | AOC 1521 DGAC</p>
+          <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegacion Aerea | AOC 1521 DGAC | Certificada ISO 9001:2015</p>
         </div>
       </div>
     `,
@@ -135,7 +135,7 @@ ${ADMIN_EMAIL}
 </tr>
 <tr>
 <td style="background-color:#f4f4f4;padding:20px 30px;text-align:center;font-size:12px;color:#888888;border-top:1px solid #e0e0e0;">
-<p style="margin:0 0 5px;">Escuela de Navegacion Aerea SpA | AOC 1521 DGAC</p>
+<p style="margin:0 0 5px;">Escuela de Navegacion Aerea SpA | AOC 1521 DGAC | Certificada ISO 9001:2015</p>
 <p style="margin:0;">Contacto: <a href="mailto:${ADMIN_EMAIL}" style="color:#003366;">${ADMIN_EMAIL}</a></p>
 </td>
 </tr>
@@ -175,7 +175,7 @@ export async function sendReturningStudentWelcome(
           <p style="margin-top: 20px; color: #6b7280; font-size: 14px;">Si tienes dudas, contactanos en <a href="mailto:${ADMIN_EMAIL}">${ADMIN_EMAIL}</a></p>
         </div>
         <div style="background: #001d3d; padding: 15px; text-align: center;">
-          <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegacion Aerea | AOC 1521 DGAC</p>
+          <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegacion Aerea | AOC 1521 DGAC | Certificada ISO 9001:2015</p>
         </div>
       </div>
     `,
@@ -277,7 +277,7 @@ export async function sendStudentPaymentReceipt(
       '<p style="color: #6b7280; font-size: 13px; margin-top: 20px;">Si tienes dudas, contactanos en <a href="mailto:' + ADMIN_EMAIL + '">' + ADMIN_EMAIL + "</a></p>" +
       "</div>" +
       '<div style="background: #001d3d; padding: 15px; text-align: center;">' +
-      '<p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegacion Aerea | AOC 1521 DGAC</p>' +
+      '<p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegacion Aerea | AOC 1521 DGAC | Certificada ISO 9001:2015</p>' +
       "</div></div>",
   });
 }
@@ -358,7 +358,7 @@ export async function sendStudentExamReset(
           <p style="color: #6b7280; font-size: 14px;">Si tienes dudas, contactanos en <a href="mailto:${ADMIN_EMAIL}">${ADMIN_EMAIL}</a></p>
         </div>
         <div style="background: #001d3d; padding: 15px; text-align: center;">
-          <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegacion Aerea | AOC 1521 DGAC</p>
+          <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegacion Aerea | AOC 1521 DGAC | Certificada ISO 9001:2015</p>
         </div>
       </div>
     `,
@@ -390,7 +390,7 @@ export async function sendStudentCourseAccess(
           <p style="color: #6b7280; font-size: 14px;">Si tienes dudas, contactanos en <a href="mailto:${ADMIN_EMAIL}">${ADMIN_EMAIL}</a></p>
         </div>
         <div style="background: #001d3d; padding: 15px; text-align: center;">
-          <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegacion Aerea | AOC 1521 DGAC</p>
+          <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegacion Aerea | AOC 1521 DGAC | Certificada ISO 9001:2015</p>
         </div>
       </div>
     `,
@@ -441,7 +441,7 @@ export async function sendStaffMessageToStudent(
           </p>
         </div>
         <div style="background: #001d3d; padding: 12px; text-align: center;">
-          <p style="color: #93C5FD; margin: 0; font-size: 11px;">Escuela de Navegación Aérea | AOC 1521 DGAC</p>
+          <p style="color: #93C5FD; margin: 0; font-size: 11px;">Escuela de Navegación Aérea | AOC 1521 DGAC | Certificada ISO 9001:2015</p>
         </div>
       </div>
     `,
@@ -493,7 +493,7 @@ export async function sendStudentMessageNotification(
           </p>
         </div>
         <div style="background: #001d3d; padding: 12px; text-align: center;">
-          <p style="color: #93C5FD; margin: 0; font-size: 11px;">Escuela de Navegación Aérea | AOC 1521 DGAC</p>
+          <p style="color: #93C5FD; margin: 0; font-size: 11px;">Escuela de Navegación Aérea | AOC 1521 DGAC | Certificada ISO 9001:2015</p>
         </div>
       </div>
     `,
@@ -535,7 +535,7 @@ export async function sendDgacCertificate(
           </p>
         </div>
         <div style="background: #001d3d; padding: 15px; text-align: center;">
-          <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegación Aérea | AOC 1521 DGAC</p>
+          <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegación Aérea | AOC 1521 DGAC | Certificada ISO 9001:2015</p>
         </div>
       </div>
     `,
@@ -593,7 +593,7 @@ export async function sendGradeNotificationToStudent(
           </p>
         </div>
         <div style="background: #001d3d; padding: 15px; text-align: center;">
-          <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegación Aérea | AOC 1521 DGAC</p>
+          <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegación Aérea | AOC 1521 DGAC | Certificada ISO 9001:2015</p>
         </div>
       </div>
     `,
@@ -732,7 +732,7 @@ export async function sendSynchronousClassInvitation(args: {
           </p>
         </div>
         <div style="background: #001d3d; padding: 15px; text-align: center;">
-          <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegación Aérea | AOC 1521 DGAC</p>
+          <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegación Aérea | AOC 1521 DGAC | Certificada ISO 9001:2015</p>
         </div>
       </div>
     `,
@@ -788,7 +788,7 @@ export function buildSolicitudExamenEmail(args: {
       <div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;">
         <div style="background: #003366; padding: 20px; text-align: center;">
           <h1 style="color: white; margin: 0; font-size: 20px;">Escuela de Navegación Aérea - ENAE</h1>
-          <p style="color: #93C5FD; margin: 5px 0 0; font-size: 12px;">www.enae.cl</p>
+          <p style="color: #93C5FD; margin: 5px 0 0; font-size: 12px;">www.enae.cl · Certificada ISO 9001:2015</p>
         </div>
         <div style="padding: 30px; background: #f9fafb;">
           <p style="color: #111827;">Estimados Teóricos Licencias, DGAC:</p>
@@ -807,10 +807,10 @@ export function buildSolicitudExamenEmail(args: {
           </table>
           ${mensajeExtra ? `<p style="color: #4b5563; font-size: 14px; padding: 10px; background: #f3f4f6; border-radius: 4px;">${mensajeExtra}</p>` : ""}
           <p style="color: #374151;">Quedamos atentos a su confirmación.</p>
-          <p style="color: #374151;">Atentamente,<br/><strong>Escuela de Navegación Aérea - ENAE</strong><br/>${ADMIN_EMAIL}</p>
+          <p style="color: #374151;">Atentamente,<br/><strong>Escuela de Navegación Aérea - ENAE</strong><br/>${ADMIN_EMAIL}<br/><span style="font-size: 12px; color: #6b7280;">Certificada ISO 9001:2015 — Cert. N° ESC/QMS/G26/5904 (SAARA · UAF/IAF)</span></p>
         </div>
         <div style="background: #001d3d; padding: 15px; text-align: center;">
-          <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegación Aérea | AOC 1521 DGAC</p>
+          <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegación Aérea | AOC 1521 DGAC | Certificada ISO 9001:2015</p>
         </div>
       </div>
     `;

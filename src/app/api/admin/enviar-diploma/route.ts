@@ -90,6 +90,7 @@ Te felicitamos por tu compromiso y dedicacion.
 --
 Escuela de Navegacion Aerea SpA
 AOC 1521 - DGAC Chile
+Certificada ISO 9001:2015
 ${ADMIN_EMAIL}
     `.trim();
 
@@ -138,7 +139,7 @@ ${d.final_score !== null ? `<p style="margin:5px 0 0;color:#333;font-size:14px;"
 </tr>
 <tr>
 <td style="background-color:#f4f4f4;padding:20px 30px;text-align:center;font-size:12px;color:#888888;border-top:1px solid #e0e0e0;">
-<p style="margin:0 0 5px;">Escuela de Navegacion Aerea SpA | AOC 1521 DGAC</p>
+<p style="margin:0 0 5px;">Escuela de Navegacion Aerea SpA | AOC 1521 DGAC | Certificada ISO 9001:2015</p>
 <p style="margin:0;">Contacto: <a href="mailto:${ADMIN_EMAIL}" style="color:#003366;">${ADMIN_EMAIL}</a></p>
 </td>
 </tr>
