@@ -151,6 +151,8 @@ export default function RegistroDetailPage() {
   const [ccAlumno, setCcAlumno] = useState(true);
   const [sendingSolicitud, setSendingSolicitud] = useState(false);
   const [solicitudMsg, setSolicitudMsg] = useState("");
+  const [draft, setDraft] = useState<{ subject: string; html: string; to: string; cc: string[] } | null>(null);
+  const [loadingDraft, setLoadingDraft] = useState(false);
 
   const loadData = useCallback(async () => {
     // Load registration
@@ -213,6 +215,30 @@ export default function RegistroDetailPage() {
       setEditForm(p);
       setFolioEnae((prof as any)?.folio_enae || "");
       if (prof) setProfileId(prof.id);
+
+      // Respaldo vía API admin (service role): si RLS le ocultó el perfil al
+      // navegador, RUT y folio ENAE quedan vacíos aunque existan en la BD.
+      if (!prof?.rut || !(prof as any)?.folio_enae) {
+        try {
+          const res = await fetch(`/api/admin/dgac?registration_id=${id}`);
+          const json = await res.json();
+          const s = json?.student;
+          if (s) {
+            const merge = (base: ProfileData): ProfileData => ({
+              ...base,
+              rut: base.rut || s.rut || "",
+              folio_enae: base.folio_enae || s.folio_enae || "",
+              phone: base.phone || s.phone || "",
+              address: base.address || s.address || "",
+              city: base.city || s.city || "",
+              state: base.state || s.state || "",
+            });
+            setProfile(merge);
+            setEditForm(merge);
+            if (s.folio_enae) setFolioEnae((prev) => prev || s.folio_enae);
+          }
+        } catch { /* sin respaldo, se muestran los datos disponibles */ }
+      }
     }
 
     // Load grades
@@ -523,12 +549,32 @@ export default function RegistroDetailPage() {
     setSendingCert(false);
   }
 
-  async function enviarSolicitudTeoricos(esApertura: boolean) {
+  // Paso 1: generar el borrador del correo (no envía nada)
+  async function verBorradorTeoricos() {
     if (!procedure) return;
-    const destino = esApertura
-      ? "solicitar a Teóricos DGAC la apertura del examen en el portal SIPA"
-      : "solicitar a Teóricos DGAC el agendamiento del examen en Santiago";
-    if (!confirm(`Se enviará un correo a teoricosag@dgac.gob.cl para ${destino}${ccAlumno ? ", con copia al alumno" : ""}. ¿Continuar?`)) return;
+    setLoadingDraft(true);
+    setSolicitudMsg("");
+    try {
+      const res = await fetch("/api/admin/dgac/solicitar-examen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registration_ids: [id], cc_alumnos: ccAlumno, preview: true }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        const detail = Array.isArray(json.missing) && json.missing.length > 0 ? ` — ${json.missing.join("; ")}` : "";
+        setSolicitudMsg(`Error: ${json.error || "No se pudo generar el borrador"}${detail}`);
+      } else {
+        setDraft({ subject: json.subject, html: json.html, to: json.to, cc: json.cc || [] });
+      }
+    } catch (err: any) {
+      setSolicitudMsg(`Error: ${err.message || "Sin conexion"}`);
+    }
+    setLoadingDraft(false);
+  }
+
+  // Paso 2: envío real, confirmado desde el modal del borrador
+  async function confirmarEnvioTeoricos() {
     setSendingSolicitud(true);
     setSolicitudMsg("");
     try {
@@ -544,6 +590,7 @@ export default function RegistroDetailPage() {
       } else {
         setSolicitudMsg(`Solicitud enviada a ${json.sent_to}.`);
         setProcedure((p) => p ? { ...p, solicitud_teoricos_at: new Date().toISOString() } : null);
+        setDraft(null);
       }
     } catch (err: any) {
       setSolicitudMsg(`Error: ${err.message || "Sin conexion"}`);
@@ -1298,16 +1345,16 @@ export default function RegistroDetailPage() {
                       Enviar copia al alumno
                     </label>
                     <button
-                      onClick={() => enviarSolicitudTeoricos(esProvincia)}
-                      disabled={sendingSolicitud || !puedeEnviar}
+                      onClick={verBorradorTeoricos}
+                      disabled={loadingDraft || sendingSolicitud || !puedeEnviar}
                       className="bg-[#0072CE] hover:bg-[#005fa3] text-white px-5 py-2 rounded-lg text-sm font-medium transition disabled:opacity-50"
                       title={!datosListos ? "Faltan N° de Folio, fecha del examen o unidad/ciudad" : (esProvincia && !procedure.unidad_coordinada ? "Primero marca la pre-coordinación con la unidad" : "")}
                     >
-                      {sendingSolicitud
-                        ? "Enviando..."
+                      {loadingDraft
+                        ? "Generando borrador..."
                         : esProvincia
-                          ? "Solicitar apertura en SIPA a Teóricos"
-                          : "Enviar solicitud a Teóricos DGAC"}
+                          ? "Ver borrador: apertura en SIPA"
+                          : "Ver borrador: solicitud a Teóricos"}
                     </button>
                     {procedure.solicitud_teoricos_at && (
                       <span className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1">
@@ -1479,6 +1526,41 @@ export default function RegistroDetailPage() {
                 </span>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Modal: borrador del correo a Teóricos DGAC */}
+      {draft && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => !sendingSolicitud && setDraft(null)}>
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b border-gray-100">
+              <h3 className="font-semibold text-gray-800">Borrador — revisa antes de enviar</h3>
+              <div className="mt-2 text-xs text-gray-600 space-y-0.5">
+                <p><span className="font-medium">Para:</span> {draft.to}</p>
+                <p><span className="font-medium">CC:</span> {draft.cc.length > 0 ? draft.cc.join(", ") : "—"}</p>
+                <p><span className="font-medium">Asunto:</span> {draft.subject}</p>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto p-2 bg-gray-50">
+              <iframe srcDoc={draft.html} title="Borrador correo Teóricos DGAC" className="w-full h-[50vh] bg-white border border-gray-200 rounded" sandbox="" />
+            </div>
+            <div className="p-4 border-t border-gray-100 flex justify-end gap-3">
+              <button
+                onClick={() => setDraft(null)}
+                disabled={sendingSolicitud}
+                className="px-5 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarEnvioTeoricos}
+                disabled={sendingSolicitud}
+                className="px-5 py-2 rounded-lg text-sm font-medium text-white bg-[#0072CE] hover:bg-[#005fa3] transition disabled:opacity-50"
+              >
+                {sendingSolicitud ? "Enviando..." : "Confirmar y enviar"}
+              </button>
+            </div>
           </div>
         </div>
       )}
