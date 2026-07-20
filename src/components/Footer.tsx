@@ -1,5 +1,47 @@
 import Link from "next/link";
 
+// Sello circular AOC 1521 - DGAC Chile (vector, estilo del footer)
+function SealAoc() {
+  return (
+    <svg viewBox="0 0 96 96" className="w-16 h-16" role="img" aria-label="AOC 1521 - DGAC Chile">
+      <title>Centro de instrucción autorizado - AOC 1521 - DGAC Chile</title>
+      <circle cx="48" cy="48" r="45" fill="none" stroke="#93C5FD" strokeWidth="2" />
+      <circle cx="48" cy="48" r="33" fill="none" stroke="#93C5FD" strokeWidth="0.75" />
+      <defs>
+        <path id="aocRing" d="M 48 87 a 39 39 0 1 1 0 -78 a 39 39 0 1 1 0 78" fill="none" />
+      </defs>
+      <text fontSize="6.5" fill="#93C5FD" letterSpacing="1">
+        <textPath href="#aocRing" startOffset="50%" textAnchor="middle">CENTRO DE INSTRUCCIÓN AUTORIZADO</textPath>
+      </text>
+      <text x="48" y="44" textAnchor="middle" fontSize="14" fontWeight="bold" fill="#DBEAFE">AOC</text>
+      <text x="48" y="57" textAnchor="middle" fontSize="12" fontWeight="bold" fill="#DBEAFE">1521</text>
+      <text x="48" y="67" textAnchor="middle" fontSize="6.5" fill="#93C5FD" letterSpacing="0.5">DGAC CHILE</text>
+      <text x="48" y="87" textAnchor="middle" fontSize="7" fill="#93C5FD">★</text>
+    </svg>
+  );
+}
+
+// Sello circular ISO 9001:2015 (vector, estilo del footer)
+function SealIso() {
+  return (
+    <svg viewBox="0 0 96 96" className="w-16 h-16" role="img" aria-label="Certificación ISO 9001:2015">
+      <title>ISO 9001:2015 - Sistema de Gestión de Calidad - Cert. N° ESC/QMS/G26/5904</title>
+      <circle cx="48" cy="48" r="45" fill="none" stroke="#93C5FD" strokeWidth="2" />
+      <circle cx="48" cy="48" r="33" fill="none" stroke="#93C5FD" strokeWidth="0.75" />
+      <defs>
+        <path id="isoRing" d="M 48 87 a 39 39 0 1 1 0 -78 a 39 39 0 1 1 0 78" fill="none" />
+      </defs>
+      <text fontSize="6.5" fill="#93C5FD" letterSpacing="1">
+        <textPath href="#isoRing" startOffset="50%" textAnchor="middle">SISTEMA DE GESTIÓN DE CALIDAD</textPath>
+      </text>
+      <text x="48" y="42" textAnchor="middle" fontSize="14" fontWeight="bold" fill="#DBEAFE">ISO</text>
+      <text x="48" y="54" textAnchor="middle" fontSize="10" fontWeight="bold" fill="#DBEAFE">9001:2015</text>
+      <path d="M 42 60 l 4 4 l 8.5 -8" fill="none" stroke="#93C5FD" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <text x="48" y="87" textAnchor="middle" fontSize="7" fill="#93C5FD">★</text>
+    </svg>
+  );
+}
+
 export default function Footer() {
   return (
     <footer className="bg-[#001d3d] text-white">
@@ -19,7 +61,13 @@ export default function Footer() {
               Escuela de Navegación Aérea. Formando a los aviadores del
               mañana desde el Aeródromo Eulogio Sánchez, Tobalaba.
             </p>
-            <p className="text-blue-300 text-xs mt-3">AOC 1521 - DGAC Chile</p>
+            <div className="flex items-center gap-4 mt-4">
+              <SealAoc />
+              <SealIso />
+            </div>
+            <p className="text-blue-300/70 text-[11px] mt-2">
+              AOC 1521 - DGAC Chile · ISO 9001:2015 Cert. N° ESC/QMS/G26/5904
+            </p>
           </div>
 
           {/* Quick links */}
