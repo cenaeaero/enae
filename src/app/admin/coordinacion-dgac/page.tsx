@@ -41,21 +41,24 @@ export default function CoordinacionDgacPage() {
 
   async function load() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("dgac_procedures")
-      .select("*, registrations(id, first_name, last_name, email, is_alumni, courses(title, code))")
-      .order("created_at", { ascending: false });
-    if (error) {
-      setMessage(`Error cargando trámites: ${error.message}`);
+    // Vía API admin (service role): el navegador no ve profiles por RLS,
+    // y los RUT aparecían como "falta" aunque estén registrados.
+    let data: any[] = [];
+    let rutByEmail: Record<string, string> = {};
+    try {
+      const res = await fetch("/api/admin/dgac/coordinacion");
+      const json = await res.json();
+      if (!res.ok) {
+        setMessage(`Error cargando trámites: ${json.error || res.status}`);
+        setLoading(false);
+        return;
+      }
+      data = json.procedures || [];
+      rutByEmail = json.rut_by_email || {};
+    } catch (err: any) {
+      setMessage(`Error cargando trámites: ${err.message || "Sin conexión"}`);
       setLoading(false);
       return;
-    }
-
-    const emails = Array.from(new Set((data || []).map((p: any) => p.registrations?.email).filter(Boolean)));
-    const rutByEmail: Record<string, string> = {};
-    if (emails.length > 0) {
-      const { data: profs } = await supabase.from("profiles").select("email, rut").in("email", emails);
-      for (const p of profs || []) if (p.email) rutByEmail[p.email.toLowerCase()] = p.rut;
     }
 
     // Un trámite por inscripción (el más reciente, ya vienen ordenados desc)

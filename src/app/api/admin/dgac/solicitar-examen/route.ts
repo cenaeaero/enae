@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-service";
 import { createSupabaseServer } from "@/lib/supabase-server";
-import { sendSolicitudExamenTeoricos, TEORICOS_DGAC_EMAIL, type SolicitudExamenStudent } from "@/lib/email";
+import { buildSolicitudExamenEmail, sendSolicitudExamenTeoricos, TEORICOS_DGAC_EMAIL, type SolicitudExamenStudent } from "@/lib/email";
 
 async function verifyAdmin() {
   const supabase = await createSupabaseServer();
@@ -23,7 +23,8 @@ async function verifyAdmin() {
   return profile?.role === "admin" ? user : null;
 }
 
-// POST { registration_ids: string[], cc_alumnos?: boolean, mensaje_extra?: string }
+// POST { registration_ids: string[], cc_alumnos?: boolean, mensaje_extra?: string, preview?: boolean }
+// preview=true → valida y devuelve el borrador (asunto, destinatarios, HTML) sin enviar nada.
 // Envía UN solo correo a Teóricos Licencias DGAC con los datos de todos los
 // alumnos seleccionados (Nombre, RUT/Pasaporte, N° Folio, fecha, unidad).
 // Santiago → agendamiento directo. Provincia → apertura en SIPA, exige que la
@@ -101,6 +102,16 @@ export async function POST(request: Request) {
     }
     if (anySantiago && anyProvincia) {
       return NextResponse.json({ error: "No mezclar alumnos de Santiago con alumnos de provincia en un mismo envío: son solicitudes distintas (agendamiento vs apertura en SIPA)." }, { status: 400 });
+    }
+
+    if (body.preview === true) {
+      const draft = buildSolicitudExamenEmail({
+        students,
+        ccAlumnos,
+        esApertura: anyProvincia,
+        mensajeExtra: mensajeExtra || undefined,
+      });
+      return NextResponse.json({ preview: true, ...draft, count: students.length, es_apertura: anyProvincia });
     }
 
     await sendSolicitudExamenTeoricos({

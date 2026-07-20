@@ -52,7 +52,26 @@ export async function GET(request: Request) {
       history = data || [];
     }
 
-    return NextResponse.json({ procedure: procedure || null, history });
+    // Datos del alumno vía service role: el navegador consulta profiles con la
+    // clave anónima y RLS puede ocultarle la fila (RUT y folio ENAE no tienen
+    // respaldo en registrations, por eso aparecían vacíos).
+    let student: any = null;
+    const { data: reg } = await supabaseAdmin
+      .from("registrations")
+      .select("email")
+      .eq("id", registrationId)
+      .maybeSingle();
+    if (reg?.email) {
+      const { data: prof } = await supabaseAdmin
+        .from("profiles")
+        .select("rut, folio_enae, phone, address, city, state")
+        .ilike("email", reg.email)
+        .limit(1)
+        .maybeSingle();
+      student = prof || null;
+    }
+
+    return NextResponse.json({ procedure: procedure || null, history, student });
   } catch (err: any) {
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }

@@ -750,16 +750,16 @@ export type SolicitudExamenStudent = {
   email: string | null;
 };
 
-// Solicitud de agendamiento / apertura de examen de Operador RPAS a
-// Teóricos Licencias DGAC. Un solo correo puede incluir varios alumnos.
+// Construye el correo (asunto, destinatarios, HTML) sin enviarlo — se usa
+// también para el borrador que se muestra al admin antes de confirmar.
 // esApertura=true → provincia (ya pre-coordinado con la unidad, se pide
 // abrir la opción de rendir en el portal SIPA); false → Santiago directo.
-export async function sendSolicitudExamenTeoricos(args: {
+export function buildSolicitudExamenEmail(args: {
   students: SolicitudExamenStudent[];
   ccAlumnos: boolean;
   esApertura: boolean;
   mensajeExtra?: string;
-}) {
+}): { subject: string; html: string; to: string; cc: string[] } {
   const { students, ccAlumnos, esApertura, mensajeExtra } = args;
 
   const rows = students.map((s) => `
@@ -784,13 +784,7 @@ export async function sendSolicitudExamenTeoricos(args: {
     for (const s of students) if (s.email) cc.push(s.email);
   }
 
-  await transporter.sendMail({
-    from: `"Escuela de Navegación Aérea - ENAE" <${FROM}>`,
-    to: TEORICOS_DGAC_EMAIL,
-    cc: Array.from(new Set(cc.map((e) => e.toLowerCase()))),
-    replyTo: ADMIN_EMAIL,
-    subject,
-    html: `
+  const html = `
       <div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;">
         <div style="background: #003366; padding: 20px; text-align: center;">
           <h1 style="color: white; margin: 0; font-size: 20px;">Escuela de Navegación Aérea - ENAE</h1>
@@ -819,6 +813,30 @@ export async function sendSolicitudExamenTeoricos(args: {
           <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegación Aérea | AOC 1521 DGAC</p>
         </div>
       </div>
-    `,
+    `;
+
+  return {
+    subject,
+    html,
+    to: TEORICOS_DGAC_EMAIL,
+    cc: Array.from(new Set(cc.map((e) => e.toLowerCase()))),
+  };
+}
+
+// Envía la solicitud construida por buildSolicitudExamenEmail.
+export async function sendSolicitudExamenTeoricos(args: {
+  students: SolicitudExamenStudent[];
+  ccAlumnos: boolean;
+  esApertura: boolean;
+  mensajeExtra?: string;
+}) {
+  const { subject, html, to, cc } = buildSolicitudExamenEmail(args);
+  await transporter.sendMail({
+    from: `"Escuela de Navegación Aérea - ENAE" <${FROM}>`,
+    to,
+    cc,
+    replyTo: ADMIN_EMAIL,
+    subject,
+    html,
   });
 }
