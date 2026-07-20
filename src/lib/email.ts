@@ -738,3 +738,87 @@ export async function sendSynchronousClassInvitation(args: {
     `,
   });
 }
+
+export const TEORICOS_DGAC_EMAIL = process.env.TEORICOS_DGAC_EMAIL || "teoricosag@dgac.gob.cl";
+
+export type SolicitudExamenStudent = {
+  name: string;
+  rut: string; // RUT o Pasaporte
+  folio: string;
+  examDatetime: string; // ISO
+  unitCity: string;
+  email: string | null;
+};
+
+// Solicitud de agendamiento / apertura de examen de Operador RPAS a
+// Teóricos Licencias DGAC. Un solo correo puede incluir varios alumnos.
+// esApertura=true → provincia (ya pre-coordinado con la unidad, se pide
+// abrir la opción de rendir en el portal SIPA); false → Santiago directo.
+export async function sendSolicitudExamenTeoricos(args: {
+  students: SolicitudExamenStudent[];
+  ccAlumnos: boolean;
+  esApertura: boolean;
+  mensajeExtra?: string;
+}) {
+  const { students, ccAlumnos, esApertura, mensajeExtra } = args;
+
+  const rows = students.map((s) => `
+    <tr>
+      <td style="border: 1px solid #d1d5db; padding: 8px 10px;">${s.name}</td>
+      <td style="border: 1px solid #d1d5db; padding: 8px 10px;">${s.rut}</td>
+      <td style="border: 1px solid #d1d5db; padding: 8px 10px; text-align: center;">${s.folio}</td>
+      <td style="border: 1px solid #d1d5db; padding: 8px 10px;">${new Date(s.examDatetime).toLocaleString("es-CL", { dateStyle: "long", timeStyle: "short", timeZone: "America/Santiago" })}</td>
+      <td style="border: 1px solid #d1d5db; padding: 8px 10px;">${s.unitCity}</td>
+    </tr>`).join("");
+
+  const intro = esApertura
+    ? "Junto con saludar, y habiendo realizado la pre-coordinación con la unidad correspondiente, solicitamos la apertura de la opción de rendir el examen teórico de Operador RPAS en el portal SIPA para el/los siguiente(s) alumno(s) de nuestra escuela:"
+    : "Junto con saludar, solicitamos agendar hora para rendir el examen teórico de Operador RPAS para el/los siguiente(s) alumno(s) de nuestra escuela:";
+
+  const subject = esApertura
+    ? `ENAE - Solicitud apertura examen Operador RPAS en SIPA (${students.length} alumno${students.length > 1 ? "s" : ""})`
+    : `ENAE - Solicitud agendamiento examen Operador RPAS (${students.length} alumno${students.length > 1 ? "s" : ""})`;
+
+  const cc = [ADMIN_EMAIL];
+  if (ccAlumnos) {
+    for (const s of students) if (s.email) cc.push(s.email);
+  }
+
+  await transporter.sendMail({
+    from: `"Escuela de Navegación Aérea - ENAE" <${FROM}>`,
+    to: TEORICOS_DGAC_EMAIL,
+    cc: Array.from(new Set(cc.map((e) => e.toLowerCase()))),
+    replyTo: ADMIN_EMAIL,
+    subject,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;">
+        <div style="background: #003366; padding: 20px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 20px;">Escuela de Navegación Aérea - ENAE</h1>
+          <p style="color: #93C5FD; margin: 5px 0 0; font-size: 12px;">www.enae.cl</p>
+        </div>
+        <div style="padding: 30px; background: #f9fafb;">
+          <p style="color: #111827;">Estimados Teóricos Licencias, DGAC:</p>
+          <p style="color: #374151;">${intro}</p>
+          <table style="border-collapse: collapse; width: 100%; margin: 20px 0; font-size: 14px; color: #111827;">
+            <thead>
+              <tr style="background: #003366; color: white;">
+                <th style="border: 1px solid #d1d5db; padding: 8px 10px; text-align: left;">Nombre</th>
+                <th style="border: 1px solid #d1d5db; padding: 8px 10px; text-align: left;">RUT / Pasaporte</th>
+                <th style="border: 1px solid #d1d5db; padding: 8px 10px;">N° Folio</th>
+                <th style="border: 1px solid #d1d5db; padding: 8px 10px; text-align: left;">Fecha y hora solicitada</th>
+                <th style="border: 1px solid #d1d5db; padding: 8px 10px; text-align: left;">Unidad / Ciudad</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+          ${mensajeExtra ? `<p style="color: #4b5563; font-size: 14px; padding: 10px; background: #f3f4f6; border-radius: 4px;">${mensajeExtra}</p>` : ""}
+          <p style="color: #374151;">Quedamos atentos a su confirmación.</p>
+          <p style="color: #374151;">Atentamente,<br/><strong>Escuela de Navegación Aérea - ENAE</strong><br/>${ADMIN_EMAIL}</p>
+        </div>
+        <div style="background: #001d3d; padding: 15px; text-align: center;">
+          <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegación Aérea | AOC 1521 DGAC</p>
+        </div>
+      </div>
+    `,
+  });
+}

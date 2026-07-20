@@ -31,6 +31,7 @@ const navSections: NavSection[] = [
       { href: "/admin/diplomas", label: "Diplomas", icon: "📜" },
       { href: "/admin/certificados", label: "Certificados", icon: "🏅" },
       { href: "/admin/apendice-c", label: "Apéndice C", icon: "📄" },
+      { href: "/admin/coordinacion-dgac", label: "Coordinación DGAC", icon: "🛩️" },
     ],
   },
   {
