@@ -4,7 +4,9 @@
 
 export type ItemDef = { key: string; label: string; detail?: string; hours: string };
 export type Phase = { title: string; items: ItemDef[] };
-export type ItemState = { done: boolean | null; hours: string; ops: string };
+// done: true = SÍ (cumplido), false = NO, null = sin marcar
+// na: true = No Aplica (el ejercicio no se realizó; se excluye de la nota)
+export type ItemState = { done: boolean | null; na?: boolean; hours: string; ops: string };
 
 export const PHASES: Phase[] = [
   {
@@ -47,6 +49,22 @@ export const ALL_KEYS = PHASES.flatMap((p) => p.items.map((i) => i.key));
 
 export function emptyItems(): Record<string, ItemState> {
   const m: Record<string, ItemState> = {};
-  for (const ph of PHASES) for (const it of ph.items) m[it.key] = { done: null, hours: it.hours, ops: "" };
+  for (const ph of PHASES) for (const it of ph.items) m[it.key] = { done: null, na: false, hours: it.hours, ops: "" };
   return m;
+}
+
+// Nota práctica automática: % de ejercicios cumplidos (SÍ) sobre los que
+// APLICAN (se excluyen los marcados "No Aplica"). Devuelve null si no hay
+// ejercicios aplicables. Redondeada al entero.
+export function computePracticalScore(items: Record<string, ItemState>): number | null {
+  let aplicables = 0;
+  let cumplidos = 0;
+  for (const key of ALL_KEYS) {
+    const st = items[key];
+    if (!st || st.na) continue;       // No Aplica → fuera del cálculo
+    aplicables++;
+    if (st.done === true) cumplidos++;
+  }
+  if (aplicables === 0) return null;
+  return Math.round((cumplidos / aplicables) * 100);
 }

@@ -44,7 +44,7 @@ export default function AssignmentDetail({ params }: { params: Promise<{ id: str
   }
   useEffect(() => { load(); }, [id]);
 
-  async function save(markCompleted = false) {
+  async function save(markCompleted = false, notify = false) {
     setSaving(true);
     setMsg("");
     const res = await fetch(`/api/instructor/asignaciones/${id}`, {
@@ -60,12 +60,15 @@ export default function AssignmentDetail({ params }: { params: Promise<{ id: str
         location_name: locationName || null,
         location_url: locationUrl || null,
         markCompleted,
+        notify,
       }),
     });
     const data = await res.json();
     setSaving(false);
     if (res.ok) {
-      setMsg(markCompleted ? "✓ Marcado como completado. El admin fue notificado." : "✓ Guardado y admin notificado.");
+      setMsg(notify ? "✓ Guardado. Aviso enviado al alumno con la fecha, hora y lugar."
+        : markCompleted ? "✓ Marcado como completado. El admin fue notificado."
+        : "✓ Cambios guardados.");
       load();
     } else {
       setMsg(data.error || "Error");
@@ -164,6 +167,13 @@ export default function AssignmentDetail({ params }: { params: Promise<{ id: str
           </div>
         </div>
         <p className="text-[11px] text-gray-400 mt-2">El alumno verá la fecha, hora, lugar y el link del mapa en su portal, junto con tus datos de contacto.</p>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <button onClick={() => save(false, true)} disabled={saving}
+            className="text-xs bg-[#003366] hover:bg-[#00254d] disabled:opacity-50 text-white font-medium px-4 py-2 rounded">
+            ✉️ Guardar y avisar al alumno
+          </button>
+          {a?.notified_at && <span className="text-xs text-green-600">✓ Avisado el {new Date(a.notified_at).toLocaleString("es-CL")}</span>}
+        </div>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg p-6 mt-4">

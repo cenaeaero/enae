@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
-import { PHASES, ALL_KEYS, emptyItems, type ItemState } from "@/lib/practical-eval-format";
+import { PHASES, ALL_KEYS, emptyItems, computePracticalScore, type ItemState } from "@/lib/practical-eval-format";
 
 export default function EvaluacionPracticaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -61,13 +61,15 @@ export default function EvaluacionPracticaPage({ params }: { params: Promise<{ i
     setItems((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
   }
 
-  const doneCount = ALL_KEYS.filter((k) => items[k]?.done === true).length;
+  const doneCount = ALL_KEYS.filter((k) => items[k]?.done === true || items[k]?.na).length;
+  const score = computePracticalScore(items);
 
   async function save(complete: boolean) {
     if (complete) {
-      const faltantes = ALL_KEYS.filter((k) => items[k]?.done == null);
-      if (faltantes.length > 0 && !confirm(`Hay ${faltantes.length} ejercicio(s) sin marcar SÍ/NO. ¿Completar de todas formas?`)) return;
+      const faltantes = ALL_KEYS.filter((k) => items[k]?.done == null && !items[k]?.na);
+      if (faltantes.length > 0 && !confirm(`Hay ${faltantes.length} ejercicio(s) sin marcar SÍ/NO/N-A. ¿Completar de todas formas?`)) return;
       if (!preSolo && !confirm("No has registrado el resultado del Chequeo Pre-Solo. ¿Completar de todas formas?")) return;
+      if (!confirm(`La nota práctica calculada es ${score != null ? score + "%" : "—"} y se registrará automáticamente en las evaluaciones del alumno. ¿Continuar?`)) return;
     }
     setSaving(true);
     setMsg("");
@@ -91,7 +93,9 @@ export default function EvaluacionPracticaPage({ params }: { params: Promise<{ i
     if (!res.ok) { setMsg(`Error: ${data.error || "No se pudo guardar"}`); return; }
     setStatus(data.evaluation?.status === "completed" ? "completed" : "draft");
     setCompletedAt(data.evaluation?.completed_at || null);
-    setMsg(complete ? "✓ Evaluación completada y guardada." : "✓ Borrador guardado.");
+    setMsg(complete
+      ? `✓ Evaluación completada. Nota práctica ${data.score != null ? data.score + "%" : "—"} registrada en las evaluaciones del alumno.`
+      : "✓ Borrador guardado.");
   }
 
   if (loading) return <p className="text-center py-16 text-gray-400">Cargando…</p>;
@@ -114,6 +118,7 @@ export default function EvaluacionPracticaPage({ params }: { params: Promise<{ i
             ) : (
               <span className="text-[10px] bg-amber-500/20 text-amber-200 px-2 py-0.5 rounded">Borrador · {doneCount}/{ALL_KEYS.length} ejercicios</span>
             )}
+            <span className="block text-[11px] text-blue-100 mt-1">Nota práctica: <strong className="text-white">{score != null ? `${score}%` : "—"}</strong></span>
           </div>
         </div>
         <div className="p-5 grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -166,7 +171,7 @@ export default function EvaluacionPracticaPage({ params }: { params: Promise<{ i
                   <th className="px-5 py-2">Ejercicio</th>
                   <th className="px-3 py-2 w-28">Horas</th>
                   <th className="px-3 py-2 w-36">Despegues / Aterrizajes</th>
-                  <th className="px-3 py-2 w-32 text-center">Cumplido</th>
+                  <th className="px-3 py-2 w-40 text-center">Cumplido</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -187,13 +192,18 @@ export default function EvaluacionPracticaPage({ params }: { params: Promise<{ i
                           className="w-28 border border-gray-200 rounded px-2 py-1 text-xs" />
                       </td>
                       <td className="px-3 py-2.5 text-center whitespace-nowrap">
-                        <button onClick={() => setItem(it.key, { done: true })}
-                          className={`text-xs font-semibold px-3 py-1 rounded-l border ${st?.done === true ? "bg-green-600 text-white border-green-600" : "bg-white text-gray-500 border-gray-300 hover:bg-green-50"}`}>
+                        <button onClick={() => setItem(it.key, { done: true, na: false })}
+                          className={`text-xs font-semibold px-2.5 py-1 rounded-l border ${st?.done === true && !st?.na ? "bg-green-600 text-white border-green-600" : "bg-white text-gray-500 border-gray-300 hover:bg-green-50"}`}>
                           SÍ
                         </button>
-                        <button onClick={() => setItem(it.key, { done: false })}
-                          className={`text-xs font-semibold px-3 py-1 rounded-r border -ml-px ${st?.done === false ? "bg-red-600 text-white border-red-600" : "bg-white text-gray-500 border-gray-300 hover:bg-red-50"}`}>
+                        <button onClick={() => setItem(it.key, { done: false, na: false })}
+                          className={`text-xs font-semibold px-2.5 py-1 border -ml-px ${st?.done === false && !st?.na ? "bg-red-600 text-white border-red-600" : "bg-white text-gray-500 border-gray-300 hover:bg-red-50"}`}>
                           NO
+                        </button>
+                        <button onClick={() => setItem(it.key, { na: true, done: null })}
+                          className={`text-xs font-semibold px-2.5 py-1 rounded-r border -ml-px ${st?.na ? "bg-gray-500 text-white border-gray-500" : "bg-white text-gray-400 border-gray-300 hover:bg-gray-100"}`}
+                          title="No Aplica — el ejercicio no se realizó y no cuenta en la nota">
+                          N/A
                         </button>
                       </td>
                     </tr>

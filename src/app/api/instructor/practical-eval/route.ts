@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-service";
 import { requireInstructor } from "@/lib/auth-instructor";
+import { computePracticalScore } from "@/lib/practical-eval-format";
 
 // Evaluación práctica en línea (formato ENAE-CHL-N1), una por asignación.
 // El instructor dueño (o un admin) puede leerla y editarla.
@@ -8,7 +9,7 @@ import { requireInstructor } from "@/lib/auth-instructor";
 async function checkOwnership(assignmentId: string, auth: { isAdmin?: boolean; email: string | null }) {
   const { data: a } = await supabaseAdmin
     .from("instructor_assignments")
-    .select("id, instructor_email, city, scheduled_date, start_time, location_name, location_url, registrations(first_name, last_name, email, folio_enae)")
+    .select("id, instructor_email, registration_id, city, scheduled_date, start_time, location_name, location_url, registrations(first_name, last_name, email, folio_enae, course_id)")
     .eq("id", assignmentId)
     .maybeSingle();
   if (!a) return { ok: false as const, status: 404, error: "Asignación no encontrada" };
@@ -90,6 +91,9 @@ export async function PUT(request: Request) {
     record.completed_at = now;
   }
 
+  // Nota práctica automática a partir de los ejercicios (excluye "No Aplica")
+  const score = computePracticalScore(record.items || {});
+
   const { data, error } = await supabaseAdmin
     .from("practical_evaluations")
     .upsert(record, { onConflict: "assignment_id" })
@@ -97,5 +101,35 @@ export async function PUT(request: Request) {
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ evaluation: data });
+  // Al COMPLETAR, vuelca la nota práctica automáticamente a la asignación y al
+  // libro de notas del alumno (sección de evaluaciones / calificaciones).
+  if (body.complete === true && score != null) {
+    const regId = own.assignment.registration_id;
+    const courseId = own.assignment.registrations?.course_id;
+
+    await supabaseAdmin
+      .from("instructor_assignments")
+      .update({ grade_practical: score })
+      .eq("id", assignmentId);
+
+    if (regId && courseId) {
+      const { data: gitems } = await supabaseAdmin
+        .from("grade_items")
+        .select("id, name, is_practical")
+        .eq("course_id", courseId);
+      const norm = (s: string) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+      const pracItem = (gitems || []).find((i: any) => i.is_practical || /practic|vuelo/.test(norm(i.name)));
+      if (pracItem) {
+        await supabaseAdmin.from("student_grades").upsert({
+          registration_id: regId,
+          grade_item_id: pracItem.id,
+          score,
+          comments: `Nota práctica automática (formato N1) — instructor ${own.assignment.instructor_email}`,
+          graded_at: now,
+        }, { onConflict: "registration_id,grade_item_id" });
+      }
+    }
+  }
+
+  return NextResponse.json({ evaluation: data, score });
 }
