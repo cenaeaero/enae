@@ -60,6 +60,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if ("kind"              in body) updates.kind              = body.kind;
   if ("city"              in body) updates.city              = body.city;
   if ("scheduled_date"    in body) updates.scheduled_date    = body.scheduled_date || null;
+  if ("start_time"        in body) updates.start_time        = body.start_time || null;
+  if ("location_name"     in body) updates.location_name     = body.location_name || null;
+  if ("location_url"      in body) updates.location_url      = body.location_url || null;
 
   const markCompleted = body.markCompleted === true;
   if (markCompleted) {

@@ -22,6 +22,9 @@ export default function AssignmentDetail({ params }: { params: Promise<{ id: str
   const [obs, setObs] = useState("");
   const [city, setCity] = useState("");
   const [date, setDate] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [locationName, setLocationName] = useState("");
+  const [locationUrl, setLocationUrl] = useState("");
 
   async function load() {
     const res = await fetch(`/api/instructor/asignaciones/${id}`).then((r) => r.json());
@@ -32,6 +35,9 @@ export default function AssignmentDetail({ params }: { params: Promise<{ id: str
       setObs(res.assignment.observations || "");
       setCity(res.assignment.city || "");
       setDate(res.assignment.scheduled_date || "");
+      setStartTime(res.assignment.start_time || "");
+      setLocationName(res.assignment.location_name || "");
+      setLocationUrl(res.assignment.location_url || "");
     }
     setDocuments(res.documents || []);
     setLoading(false);
@@ -50,6 +56,9 @@ export default function AssignmentDetail({ params }: { params: Promise<{ id: str
         observations: obs || null,
         city: city || null,
         scheduled_date: date || null,
+        start_time: startTime || null,
+        location_name: locationName || null,
+        location_url: locationUrl || null,
         markCompleted,
       }),
     });
@@ -117,6 +126,7 @@ export default function AssignmentDetail({ params }: { params: Promise<{ id: str
           <Info label="Folio" value={r?.folio_enae || "—"} />
           <Info label="Empresa" value={r?.organization || "—"} />
           <Info label="Email" value={r?.email} />
+          <Info label="Teléfono" value={r?.phone || "—"} />
           <Info label="Curso" value={r?.courses?.title || "—"} />
           <Info label="Código" value={r?.courses?.code || "—"} />
           <Info label="Sesión" value={r?.sessions?.dates || "—"} />
@@ -126,7 +136,7 @@ export default function AssignmentDetail({ params }: { params: Promise<{ id: str
 
       <div className="bg-white border border-gray-200 rounded-lg p-6 mt-4">
         <h2 className="text-sm font-semibold text-[#003366] mb-3">Detalles de la clase</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
             <label className="block text-xs text-gray-500 mb-1">Ciudad</label>
             <input type="text" value={city} onChange={(e) => setCity(e.target.value)} className="w-full border border-gray-300 rounded px-3 py-2 text-sm"/>
@@ -135,7 +145,25 @@ export default function AssignmentDetail({ params }: { params: Promise<{ id: str
             <label className="block text-xs text-gray-500 mb-1">Fecha</label>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full border border-gray-300 rounded px-3 py-2 text-sm"/>
           </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Hora de inicio</label>
+            <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-full border border-gray-300 rounded px-3 py-2 text-sm"/>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Lugar de la práctica</label>
+            <input type="text" placeholder="Ej: Aeródromo Eulogio Sánchez, Tobalaba" value={locationName} onChange={(e) => setLocationName(e.target.value)} className="w-full border border-gray-300 rounded px-3 py-2 text-sm"/>
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-xs text-gray-500 mb-1">Link de Google Maps</label>
+            <div className="flex gap-2">
+              <input type="url" placeholder="https://maps.app.goo.gl/..." value={locationUrl} onChange={(e) => setLocationUrl(e.target.value)} className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm"/>
+              {locationUrl && (
+                <a href={locationUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-[#0072CE] hover:underline self-center whitespace-nowrap">📍 Abrir mapa</a>
+              )}
+            </div>
+          </div>
         </div>
+        <p className="text-[11px] text-gray-400 mt-2">El alumno verá la fecha, hora, lugar y el link del mapa en su portal, junto con tus datos de contacto.</p>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg p-6 mt-4">

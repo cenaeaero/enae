@@ -624,6 +624,9 @@ function AssignStudentsModal({ instructor, courses, onClose, onDone }: {
   const [kind, setKind] = useState<"theoretical" | "practical" | "both">("practical");
   const [city, setCity] = useState("");
   const [date, setDate] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [locationName, setLocationName] = useState("");
+  const [locationUrl, setLocationUrl] = useState("");
   const [term, setTerm] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -664,6 +667,9 @@ function AssignStudentsModal({ instructor, courses, onClose, onDone }: {
           instructor_email: instructor.email,
           registration_id: regId,
           kind, city: city || null, scheduled_date: date || null,
+          start_time: startTime || null,
+          location_name: locationName || null,
+          location_url: locationUrl || null,
         }),
       });
       if (res.ok) ok++; else fail++;
@@ -704,9 +710,26 @@ function AssignStudentsModal({ instructor, courses, onClose, onDone }: {
               <input type="text" value={city} onChange={(e) => setCity(e.target.value)}
                 className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
             </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Fecha</label>
+                <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Hora inicio</label>
+                <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)}
+                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
+              </div>
+            </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Fecha</label>
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+              <label className="block text-xs text-gray-500 mb-1">Lugar de la práctica</label>
+              <input type="text" placeholder="Ej: Aeródromo Eulogio Sánchez" value={locationName} onChange={(e) => setLocationName(e.target.value)}
+                className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Link de Google Maps</label>
+              <input type="url" placeholder="https://maps.app.goo.gl/..." value={locationUrl} onChange={(e) => setLocationUrl(e.target.value)}
                 className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
             </div>
           </div>

@@ -8,7 +8,7 @@ import { requireInstructor } from "@/lib/auth-instructor";
 async function checkOwnership(assignmentId: string, auth: { isAdmin?: boolean; email: string | null }) {
   const { data: a } = await supabaseAdmin
     .from("instructor_assignments")
-    .select("id, instructor_email, city, scheduled_date, registrations(first_name, last_name, email)")
+    .select("id, instructor_email, city, scheduled_date, start_time, location_name, location_url, registrations(first_name, last_name, email, folio_enae)")
     .eq("id", assignmentId)
     .maybeSingle();
   if (!a) return { ok: false as const, status: 404, error: "Asignación no encontrada" };
@@ -38,15 +38,22 @@ export async function GET(request: Request) {
   // Datos por defecto desde la asignación y el perfil del alumno
   const reg = own.assignment.registrations;
   let rut: string | null = null;
+  let phone: string | null = null;
   if (reg?.email) {
-    const { data: prof } = await supabaseAdmin.from("profiles").select("rut").ilike("email", reg.email).limit(1).maybeSingle();
+    const { data: prof } = await supabaseAdmin.from("profiles").select("rut, phone").ilike("email", reg.email).limit(1).maybeSingle();
     rut = prof?.rut || null;
+    phone = prof?.phone || null;
   }
   const defaults = {
     student_name: reg ? `${reg.first_name || ""} ${reg.last_name || ""}`.trim() : "",
     student_document: rut || "",
+    student_folio: reg?.folio_enae || "",
+    student_phone: phone || "",
     city: own.assignment.city || "",
     eval_date: own.assignment.scheduled_date || null,
+    start_time: own.assignment.start_time || "",
+    location_name: own.assignment.location_name || "",
+    location_url: own.assignment.location_url || "",
   };
 
   return NextResponse.json({ evaluation: evaluation || null, defaults });
