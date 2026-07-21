@@ -41,6 +41,7 @@ type StudentAssignment = {
   evaluation_file_url: string | null;
   completed_at: string | null;
   instructor_assignment_documents?: { id: string; file_name: string; file_path: string; uploaded_at: string }[];
+  practical_evaluations?: { id: string; status: string; pre_solo_result: string | null; completed_at: string | null } | { id: string; status: string; pre_solo_result: string | null; completed_at: string | null }[] | null;
   registrations?: {
     id: string; first_name: string; last_name: string; email: string;
     organization?: string | null;
@@ -145,8 +146,13 @@ export default function AdminInstructoresPage() {
   const myFees = useMemo(
     () => fees.filter((f) => f.instructor_email === selectedEmail),
     [fees, selectedEmail]);
+  const practicalEval = (a: StudentAssignment) => {
+    const pe = a.practical_evaluations;
+    if (!pe) return null;
+    return Array.isArray(pe) ? (pe[0] || null) : pe;
+  };
   const myEvals = useMemo(
-    () => myAssignments.filter((a) => a.grade_theoretical != null || a.grade_practical != null || a.evaluation_file_url || a.observations || (a.instructor_assignment_documents || []).length > 0),
+    () => myAssignments.filter((a) => a.grade_theoretical != null || a.grade_practical != null || a.evaluation_file_url || a.observations || (a.instructor_assignment_documents || []).length > 0 || practicalEval(a)),
     [myAssignments]);
 
   const kpi = useMemo(() => ({
@@ -527,6 +533,7 @@ export default function AdminInstructoresPage() {
                           <th className="px-5 py-2">Teórico</th>
                           <th className="px-5 py-2">Práctico</th>
                           <th className="px-5 py-2">Observaciones</th>
+                          <th className="px-5 py-2">Formato N1</th>
                           <th className="px-5 py-2">Hoja</th>
                           <th className="px-5 py-2">Documentos</th>
                           <th className="px-5 py-2">Completado</th>
@@ -546,6 +553,19 @@ export default function AdminInstructoresPage() {
                             <td className="px-5 py-2.5 text-xs">{a.grade_theoretical != null ? <strong>{a.grade_theoretical}%</strong> : "—"}</td>
                             <td className="px-5 py-2.5 text-xs">{a.grade_practical != null ? <strong>{a.grade_practical}%</strong> : "—"}</td>
                             <td className="px-5 py-2.5 text-xs text-gray-600 max-w-[240px]"><span className="line-clamp-2 italic">{a.observations || "—"}</span></td>
+                            <td className="px-5 py-2.5 text-xs whitespace-nowrap">
+                              {(() => {
+                                const pe = practicalEval(a);
+                                if (!pe) return <span className="text-gray-400">—</span>;
+                                return (
+                                  <a href={`/instructor/asignaciones/${a.id}/evaluacion`} target="_blank" rel="noopener noreferrer"
+                                    className={`px-2 py-0.5 rounded hover:underline ${pe.status === "completed" ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}
+                                    title={pe.pre_solo_result ? `Pre-Solo: ${pe.pre_solo_result}` : ""}>
+                                    {pe.status === "completed" ? "✓ Completada" : "Borrador"}
+                                  </a>
+                                );
+                              })()}
+                            </td>
                             <td className="px-5 py-2.5 text-xs">
                               {a.evaluation_file_url ? <button onClick={() => openFile("instructor-evaluations", a.evaluation_file_url!)} className="text-[#0072CE] hover:underline">Ver hoja</button> : "—"}
                             </td>

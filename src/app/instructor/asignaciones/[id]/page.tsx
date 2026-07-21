@@ -156,6 +156,17 @@ export default function AssignmentDetail({ params }: { params: Promise<{ id: str
         </div>
       </div>
 
+      <div className="bg-[#003366] rounded-lg p-5 mt-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-bold text-white">Evaluación práctica en línea · ENAE-CHL-N1</h2>
+          <p className="text-xs text-blue-200 mt-0.5">Registra el cumplimiento de ejercicios por fase (Pre-Solo, Progreso, Final y Chequeo) directamente en la plataforma.</p>
+        </div>
+        <Link href={`/instructor/asignaciones/${id}/evaluacion`}
+          className="bg-white hover:bg-blue-50 text-[#003366] text-sm font-semibold px-5 py-2 rounded">
+          📋 Abrir formulario
+        </Link>
+      </div>
+
       <div className="bg-white border border-gray-200 rounded-lg p-6 mt-4">
         <h2 className="text-sm font-semibold text-[#003366] mb-3">Hoja de evaluación</h2>
         <p className="text-xs text-gray-500 mb-2">
