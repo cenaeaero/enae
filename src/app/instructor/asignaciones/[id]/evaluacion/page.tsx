@@ -170,7 +170,7 @@ export default function EvaluacionPracticaPage({ params }: { params: Promise<{ i
               <thead>
                 <tr className="text-left text-[11px] text-gray-500 border-b border-gray-100">
                   <th className="px-5 py-2">Ejercicio</th>
-                  <th className="px-3 py-2 w-56 text-center">Evaluación</th>
+                  <th className="px-3 py-2 w-64 text-center">Evaluación · nota 0 a 100%</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -196,11 +196,11 @@ export default function EvaluacionPracticaPage({ params }: { params: Promise<{ i
                         ) : (
                           <div className="flex items-center justify-center gap-1.5">
                             <input type="number" min={0} max={100} step={1} inputMode="numeric"
-                              placeholder="0-100"
+                              placeholder="0 – 100"
                               disabled={st?.na}
                               value={st?.grade ?? ""}
                               onChange={(e) => setItem(it.key, { grade: e.target.value === "" ? null : Number(e.target.value), na: false })}
-                              className="w-16 border border-gray-300 rounded px-2 py-1 text-sm text-center disabled:bg-gray-100 disabled:text-gray-400" />
+                              className="w-24 border border-gray-300 rounded px-2 py-1 text-sm text-center placeholder:text-gray-300 disabled:bg-gray-100 disabled:text-gray-400" />
                             <span className="text-xs text-gray-400">%</span>
                             <button onClick={() => setItem(it.key, { na: !st?.na, grade: null })}
                               className={`text-xs font-semibold px-2.5 py-1 rounded border ${st?.na ? "bg-gray-500 text-white border-gray-500" : "bg-white text-gray-400 border-gray-300 hover:bg-gray-100"}`}
