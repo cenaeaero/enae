@@ -3,13 +3,20 @@ import { supabaseAdmin } from "@/lib/supabase-service";
 import { requireInstructor } from "@/lib/auth-instructor";
 
 async function fetchAssignment(id: string) {
+  // OJO: rut NO existe en registrations (vive en profiles) — se adjunta abajo.
   const { data } = await supabaseAdmin
     .from("instructor_assignments")
     .select(
-      "*, registrations(id, first_name, last_name, email, rut, folio_enae, organization, company, course_id, status, final_score, grade_status, courses(title, code, duration, modality, has_dgac_certificate), sessions(dates, location, modality))"
+      "*, registrations(id, first_name, last_name, email, folio_enae, organization, company, course_id, status, final_score, grade_status, courses(title, code, duration, modality, has_dgac_certificate), sessions(dates, location, modality))"
     )
     .eq("id", id)
     .maybeSingle();
+  if (data?.registrations?.email) {
+    const { data: prof } = await supabaseAdmin
+      .from("profiles").select("rut, phone").ilike("email", data.registrations.email).limit(1).maybeSingle();
+    (data.registrations as any).rut = prof?.rut || null;
+    (data.registrations as any).phone = prof?.phone || null;
+  }
   return data;
 }
 

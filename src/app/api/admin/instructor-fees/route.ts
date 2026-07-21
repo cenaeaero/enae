@@ -39,12 +39,43 @@ export async function POST(request: Request) {
     }).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Notifica al instructor
+  // Notifica al instructor con los datos de los alumnos incluidos
   try {
+    const assignmentIds: string[] = Array.isArray(body.assignment_ids) && body.assignment_ids.length > 0
+      ? body.assignment_ids
+      : (body.assignment_id ? [body.assignment_id] : []);
+
+    const students: { name: string; email: string | null; phone: string | null; course?: string | null; date?: string | null }[] = [];
+    if (assignmentIds.length > 0) {
+      const { data: asgs } = await supabaseAdmin
+        .from("instructor_assignments")
+        .select("id, scheduled_date, registrations(first_name, last_name, email, courses(title))")
+        .in("id", assignmentIds);
+      const emails = (asgs || []).map((a: any) => a.registrations?.email).filter(Boolean);
+      const phoneByEmail: Record<string, string | null> = {};
+      if (emails.length > 0) {
+        const { data: profs } = await supabaseAdmin.from("profiles").select("email, phone").in("email", emails);
+        for (const p of profs || []) if (p.email) phoneByEmail[p.email.toLowerCase()] = p.phone;
+      }
+      for (const a of (asgs || []) as any[]) {
+        const r = a.registrations;
+        if (!r) continue;
+        students.push({
+          name: `${r.last_name || ""}, ${r.first_name || ""}`.replace(/^, /, "").trim(),
+          email: r.email || null,
+          phone: phoneByEmail[(r.email || "").toLowerCase()] || null,
+          course: r.courses?.title || null,
+          date: a.scheduled_date || null,
+        });
+      }
+    }
+
     const { sendInstructorFeeProposedNotification } = await import("@/lib/email");
     await sendInstructorFeeProposedNotification({
       instructorEmail: body.instructor_email,
       amount: Number(body.amount),
+      students,
+      notes: body.notes || null,
     });
   } catch (e) { console.error(e); }
 

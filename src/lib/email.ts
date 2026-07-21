@@ -637,17 +637,42 @@ export async function sendAdminInstructorGradeNotification(args: {
 export async function sendInstructorFeeProposedNotification(args: {
   instructorEmail: string;
   amount: number;
+  students?: { name: string; email: string | null; phone: string | null; course?: string | null; date?: string | null }[];
+  notes?: string | null;
 }) {
+  const students = args.students || [];
+  const studentRows = students.map((s) => `
+    <tr>
+      <td style="border:1px solid #d1d5db;padding:7px 10px;">${s.name}</td>
+      <td style="border:1px solid #d1d5db;padding:7px 10px;">${s.email || "—"}</td>
+      <td style="border:1px solid #d1d5db;padding:7px 10px;">${s.phone || "—"}</td>
+      <td style="border:1px solid #d1d5db;padding:7px 10px;">${[s.course, s.date].filter(Boolean).join(" · ") || "—"}</td>
+    </tr>`).join("");
+
   await transporter.sendMail({
     from: `"ENAE Sistema" <${FROM}>`,
     to: args.instructorEmail,
-    subject: `ENAE: Honorario propuesto $${args.amount.toLocaleString("es-CL")} CLP`,
+    subject: `ENAE: Honorario propuesto $${args.amount.toLocaleString("es-CL")} CLP${students.length > 0 ? ` · ${students.length} alumno${students.length > 1 ? "s" : ""}` : ""}`,
     html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px;">
+      <div style="font-family: Arial, sans-serif; max-width: 640px;">
         <h2 style="color:#003366;">Honorario propuesto</h2>
-        <p>El admin de ENAE ha propuesto un honorario de <strong>$${args.amount.toLocaleString("es-CL")} CLP</strong> para una de tus clases.</p>
+        <p>El admin de ENAE ha propuesto un honorario de <strong>$${args.amount.toLocaleString("es-CL")} CLP</strong>${students.length > 0 ? ` por la instrucción de ${students.length} alumno${students.length > 1 ? "s" : ""}` : " para una de tus clases"}.</p>
+        ${students.length > 0 ? `
+        <table style="border-collapse:collapse;width:100%;margin:16px 0;font-size:13px;color:#111827;">
+          <thead>
+            <tr style="background:#003366;color:white;">
+              <th style="border:1px solid #d1d5db;padding:7px 10px;text-align:left;">Alumno</th>
+              <th style="border:1px solid #d1d5db;padding:7px 10px;text-align:left;">Email</th>
+              <th style="border:1px solid #d1d5db;padding:7px 10px;text-align:left;">Teléfono</th>
+              <th style="border:1px solid #d1d5db;padding:7px 10px;text-align:left;">Curso · Fecha</th>
+            </tr>
+          </thead>
+          <tbody>${studentRows}</tbody>
+        </table>` : ""}
+        ${args.notes ? `<p style="color:#4b5563;font-size:13px;background:#f3f4f6;border-radius:4px;padding:10px;">${args.notes}</p>` : ""}
         <p>Ingresa al portal para revisarlo y aprobarlo o rechazarlo.</p>
         <p><a href="${SITE_URL}/instructor/honorarios" style="display:inline-block;background:#0072CE;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;">Ir a Honorarios</a></p>
+        <p style="color:#9ca3af;font-size:11px;margin-top:20px;">Escuela de Navegación Aérea | AOC 1521 DGAC | Certificada ISO 9001:2015</p>
       </div>
     `,
   });
