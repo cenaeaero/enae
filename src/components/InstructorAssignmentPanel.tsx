@@ -29,11 +29,21 @@ const STATUS_LABEL: Record<string, string> = {
   cancelled: "Cancelado",
 };
 
+type InstructorProfile = {
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+};
+
 export default function InstructorAssignmentPanel({ registrationId }: { registrationId: string }) {
   const [items, setItems] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
-  const [email, setEmail] = useState("");
+  const [instructors, setInstructors] = useState<InstructorProfile[]>([]);
+  const [instructorsLoaded, setInstructorsLoaded] = useState(false);
+  const [selectedEmails, setSelectedEmails] = useState<Set<string>>(new Set());
+  const [otherEmail, setOtherEmail] = useState("");
+  const [showOther, setShowOther] = useState(false);
   const [kind, setKind] = useState<"theoretical" | "practical" | "both">("practical");
   const [city, setCity] = useState("");
   const [date, setDate] = useState("");
@@ -47,22 +57,56 @@ export default function InstructorAssignmentPanel({ registrationId }: { registra
   }
   useEffect(() => { load(); }, [registrationId]);
 
-  async function save() {
-    if (!email.trim()) { setError("Email es requerido"); return; }
-    setSaving(true); setError("");
-    const res = await fetch("/api/admin/instructor-assignments", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        instructor_email: email.trim().toLowerCase(),
-        registration_id: registrationId,
-        kind, city: city || null, scheduled_date: date || null,
-      }),
+  // Listado de instructores registrados (misma fuente que /admin/instructores)
+  useEffect(() => {
+    if (!adding || instructorsLoaded) return;
+    fetch("/api/admin/perfiles")
+      .then((r) => r.json())
+      .then((res) => {
+        const insts = (res.profiles || [])
+          .filter((p: any) => p.role === "instructor" && p.email)
+          .map((p: any) => ({ email: p.email, first_name: p.first_name, last_name: p.last_name }))
+          .sort((a: InstructorProfile, b: InstructorProfile) =>
+            `${a.first_name || ""} ${a.last_name || ""}`.localeCompare(`${b.first_name || ""} ${b.last_name || ""}`));
+        setInstructors(insts);
+        setInstructorsLoaded(true);
+      })
+      .catch(() => setInstructorsLoaded(true));
+  }, [adding, instructorsLoaded]);
+
+  function toggleEmail(email: string) {
+    setSelectedEmails((prev) => {
+      const next = new Set(prev);
+      if (next.has(email)) next.delete(email); else next.add(email);
+      return next;
     });
-    const data = await res.json();
+  }
+
+  async function save() {
+    const emails = new Set(selectedEmails);
+    if (showOther && otherEmail.trim()) emails.add(otherEmail.trim().toLowerCase());
+    if (emails.size === 0) { setError("Selecciona al menos un instructor"); return; }
+    setSaving(true); setError("");
+    const failures: string[] = [];
+    for (const em of emails) {
+      const res = await fetch("/api/admin/instructor-assignments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          instructor_email: em,
+          registration_id: registrationId,
+          kind, city: city || null, scheduled_date: date || null,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        failures.push(`${em}: ${data.error || "Error"}`);
+      }
+    }
     setSaving(false);
-    if (!res.ok) { setError(data.error || "Error"); return; }
-    setEmail(""); setCity(""); setDate(""); setKind("practical");
+    if (failures.length > 0) { setError(failures.join(" · ")); load(); return; }
+    setSelectedEmails(new Set()); setOtherEmail(""); setShowOther(false);
+    setCity(""); setDate(""); setKind("practical");
     setAdding(false);
     load();
   }
@@ -85,9 +129,37 @@ export default function InstructorAssignmentPanel({ registrationId }: { registra
       {adding && (
         <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
           {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            <input type="email" placeholder="Email instructor *" value={email} onChange={(e) => setEmail(e.target.value)}
-              className="border border-gray-300 rounded px-2 py-1.5 text-sm"/>
+
+          {/* Listado de instructores registrados (selección múltiple) */}
+          <p className="text-xs font-medium text-gray-600 mb-1">Instructores registrados</p>
+          {!instructorsLoaded ? (
+            <p className="text-xs text-gray-400 mb-2">Cargando instructores…</p>
+          ) : instructors.length === 0 ? (
+            <p className="text-xs text-amber-600 mb-2">
+              No hay instructores registrados. Créalos en <a href="/admin/instructores" className="underline">Instructores</a> o usa "otro email".
+            </p>
+          ) : (
+            <div className="bg-white border border-gray-200 rounded max-h-44 overflow-y-auto mb-2 divide-y divide-gray-100">
+              {instructors.map((p) => {
+                const name = `${p.first_name || ""} ${p.last_name || ""}`.trim();
+                return (
+                  <label key={p.email} className="flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer hover:bg-blue-50">
+                    <input type="checkbox" checked={selectedEmails.has(p.email)} onChange={() => toggleEmail(p.email)} className="rounded" />
+                    <span className="text-gray-800">{name || p.email}</span>
+                    {name && <span className="text-xs text-gray-400 truncate">{p.email}</span>}
+                  </label>
+                );
+              })}
+            </div>
+          )}
+          {!showOther ? (
+            <button onClick={() => setShowOther(true)} className="text-[11px] text-[#0072CE] hover:underline mb-2">+ Otro email (no registrado)</button>
+          ) : (
+            <input type="email" placeholder="otro@correo.cl" value={otherEmail} onChange={(e) => setOtherEmail(e.target.value)}
+              className="border border-gray-300 rounded px-2 py-1.5 text-sm w-full mb-2"/>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
             <select value={kind} onChange={(e) => setKind(e.target.value as any)} className="border border-gray-300 rounded px-2 py-1.5 text-sm">
               <option value="practical">Práctico</option>
               <option value="theoretical">Teórico</option>
@@ -101,12 +173,12 @@ export default function InstructorAssignmentPanel({ registrationId }: { registra
           <div className="flex gap-2 mt-2">
             <button onClick={save} disabled={saving}
               className="text-xs bg-[#0072CE] hover:bg-[#005fa3] text-white px-3 py-1.5 rounded">
-              {saving ? "Guardando…" : "Asignar"}
+              {saving ? "Guardando…" : `Asignar${selectedEmails.size + (showOther && otherEmail.trim() ? 1 : 0) > 0 ? ` (${selectedEmails.size + (showOther && otherEmail.trim() ? 1 : 0)})` : ""}`}
             </button>
             <button onClick={() => setAdding(false)} className="text-xs text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded">Cancelar</button>
           </div>
           <p className="text-[10px] text-gray-500 mt-2">
-            El instructor recibe la asignación automáticamente al loguearse en <code>/instructor</code>. Asegúrate que tenga rol "instructor" en su perfil.
+            Puedes seleccionar uno o más. Cada instructor recibe la asignación automáticamente al loguearse en <code>/instructor</code>. El tipo, ciudad y fecha aplican a todos los seleccionados.
           </p>
         </div>
       )}
