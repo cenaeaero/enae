@@ -35,6 +35,9 @@ export async function POST(request: Request) {
     kind: body.kind || "practical",
     city: body.city || null,
     scheduled_date: body.scheduled_date || null,
+    start_time: body.start_time || null,
+    location_name: body.location_name || null,
+    location_url: body.location_url || null,
     status: "assigned",
   };
   const { data, error } = await supabaseAdmin

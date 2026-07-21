@@ -80,6 +80,7 @@ export default function TpemsDashboard() {
 
   const [isSupervisor, setIsSupervisor] = useState(false);
   const [isInstructor, setIsInstructor] = useState(false);
+  const [practicas, setPracticas] = useState<any[]>([]);
 
   useEffect(() => {
     async function loadRegistrations() {
@@ -137,6 +138,12 @@ export default function TpemsDashboard() {
 
       }
       setLoading(false);
+
+      // Clases prácticas asignadas (instructor, fecha, hora, lugar, evaluación)
+      try {
+        const res = await fetch("/api/practica-alumno").then((r) => r.json());
+        setPracticas(res.practicas || []);
+      } catch { /* sin prácticas */ }
     }
 
     loadRegistrations();
@@ -162,6 +169,53 @@ export default function TpemsDashboard() {
               🧑‍🏫 Portal Instructor
             </Link>
           )}
+        </div>
+      )}
+
+      {practicas.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold text-[#003366] mb-3">🛩️ Tu Clase Práctica de Vuelo</h2>
+          <div className="space-y-3">
+            {practicas.map((p) => (
+              <div key={p.id} className="bg-white rounded-lg border border-gray-200 p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-[#003366]">{p.course || "Clase práctica"}</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1 mt-2 text-sm text-gray-700">
+                      <p>📅 <strong>{p.scheduled_date ? new Date(p.scheduled_date + "T12:00:00").toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "Fecha por confirmar"}</strong>{p.start_time ? ` · ${p.start_time} hrs` : ""}</p>
+                      <p>🧑‍🏫 Instructor: <strong>{p.instructor?.name}</strong></p>
+                      <p>📍 {p.location_name || p.city || "Lugar por confirmar"}{" "}
+                        {p.location_url && (
+                          <a href={p.location_url} target="_blank" rel="noopener noreferrer" className="text-[#0072CE] hover:underline">Ver mapa</a>
+                        )}
+                      </p>
+                      <p className="text-gray-500">
+                        {p.instructor?.phone && <span>📞 {p.instructor.phone} · </span>}
+                        <span className="break-all">{p.instructor?.email}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0 space-y-1.5">
+                    {p.evaluation ? (
+                      <>
+                        <Link href={`/tpems/practica/${p.id}`} className="block text-sm bg-[#0072CE] hover:bg-[#005fa3] text-white px-4 py-1.5 rounded">
+                          Ver evaluación
+                        </Link>
+                        {p.evaluation.status === "completed" && !p.evaluation.student_signed_at && (
+                          <span className="block text-[11px] text-amber-600 font-medium">✍️ Pendiente tu firma</span>
+                        )}
+                        {p.evaluation.student_signed_at && (
+                          <span className="block text-[11px] text-green-600">✓ Firmada</span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-xs text-gray-400">Evaluación aún no registrada</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
