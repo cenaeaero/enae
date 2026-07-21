@@ -109,7 +109,7 @@ export default function FormulariosImprimibles() {
                   </tr>
                   <tr className="bg-gray-100">
                     <th className="border border-gray-400 px-2 py-1 text-left">Ejercicio</th>
-                    <th className="border border-gray-400 px-2 py-1 text-center w-40">{phase.items[0]?.kind === "check" && phase.items.every((i) => i.kind === "check") ? "SÍ / NO / N/A" : "Nota (1–7) / N/A"}</th>
+                    <th className="border border-gray-400 px-2 py-1 text-center w-40">{phase.items.every((i) => i.kind === "check") ? "SÍ / NO / N/A" : "Nota (%) / N/A"}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -120,7 +120,7 @@ export default function FormulariosImprimibles() {
                         {it.detail && <span className="block text-[10px] text-gray-500">{it.detail}</span>}
                       </td>
                       <td className="border border-gray-400 px-2 py-1.5 text-center text-gray-400">
-                        {it.kind === "check" ? "⬜ SÍ  ⬜ NO  ⬜ N/A" : "______  ⬜ N/A"}
+                        {it.kind === "check" ? "⬜ SÍ  ⬜ NO  ⬜ N/A" : "______ %   ⬜ N/A"}
                       </td>
                     </tr>
                   ))}
@@ -137,7 +137,7 @@ export default function FormulariosImprimibles() {
                 </tr>
                 <tr>
                   <td className="border border-gray-400 px-2 py-1 bg-gray-50 font-semibold">Promedio maniobras</td>
-                  <td className="border border-gray-400 px-2 py-1">__________ &nbsp;&nbsp; Nota examen final: __________</td>
+                  <td className="border border-gray-400 px-2 py-1">________ %  (aprobación ≥ 80%) &nbsp;&nbsp; Examen NIST: ________ %</td>
                 </tr>
                 <tr>
                   <td className="border border-gray-400 px-2 py-1 bg-gray-50 font-semibold align-top">Observaciones</td>
