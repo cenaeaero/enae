@@ -4,21 +4,21 @@
 
 // kind:
 //   "check" → ítem de preparación (SÍ / NO / N-A), no lleva nota
-//   "grade" → maniobra evaluada con nota parcial 1.0–7.0 (promedia la nota práctica)
-//   "exam"  → examen final, nota aparte (no entra al promedio de maniobras)
+//   "grade" → maniobra evaluada con nota parcial en porcentaje (promedia la nota práctica)
+//   "exam"  → examen NIST, nota aparte (no entra al promedio de maniobras)
 export type ItemKind = "check" | "grade" | "exam";
 export type ItemDef = { key: string; label: string; detail?: string; kind: ItemKind };
 export type Phase = { title: string; items: ItemDef[] };
 
 // done: SÍ/NO/null (solo ítems "check")
-// grade: nota parcial 1.0–7.0 (ítems "grade"/"exam")
+// grade: nota parcial en porcentaje 0–100 (ítems "grade"/"exam")
 // na: No Aplica → se excluye del promedio
 export type ItemState = { done?: boolean | null; grade?: number | null; na?: boolean };
 
-// Escala de notas chilena
-export const GRADE_MIN = 1.0;
-export const GRADE_MAX = 7.0;
-export const GRADE_PASS = 4.0;
+// Escala de notas en porcentaje; aprobación con 80% del promedio de ejercicios
+export const GRADE_MIN = 0;
+export const GRADE_MAX = 100;
+export const GRADE_PASS = 80;
 
 export const PHASES: Phase[] = [
   {
@@ -50,9 +50,9 @@ export const PHASES: Phase[] = [
     ],
   },
   {
-    title: "EXAMEN FINAL",
+    title: "EXAMEN NIST (indicar en observaciones el nivel del ejercicio)",
     items: [
-      { key: "chequeo_final", kind: "exam", label: "Examen Final — Chequeo Final" },
+      { key: "chequeo_final", kind: "exam", label: "Examen NIST" },
     ],
   },
 ];
@@ -69,8 +69,9 @@ export function emptyItems(): Record<string, ItemState> {
   return m;
 }
 
-// Nota práctica = promedio de las notas de las maniobras 1–11 con nota ingresada
-// (los ítems "No Aplica" o sin nota se excluyen). Escala 1.0–7.0, 1 decimal.
+// Nota práctica = promedio (%) de las notas de las maniobras 1–11 con nota
+// ingresada (los ítems "No Aplica" o sin nota se excluyen). Redondeado a entero.
+// Aprobación con un promedio ≥ 80% (GRADE_PASS).
 export function computePracticalScore(items: Record<string, ItemState>): number | null {
   const notas: number[] = [];
   for (const key of GRADE_KEYS) {
@@ -79,7 +80,7 @@ export function computePracticalScore(items: Record<string, ItemState>): number 
     if (typeof st.grade === "number" && !isNaN(st.grade)) notas.push(st.grade);
   }
   if (notas.length === 0) return null;
-  return Math.round((notas.reduce((a, b) => a + b, 0) / notas.length) * 10) / 10;
+  return Math.round(notas.reduce((a, b) => a + b, 0) / notas.length);
 }
 
 // Nota del examen final (aparte del promedio de maniobras).

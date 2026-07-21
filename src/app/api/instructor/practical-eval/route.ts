@@ -3,12 +3,6 @@ import { supabaseAdmin } from "@/lib/supabase-service";
 import { requireInstructor } from "@/lib/auth-instructor";
 import { computePracticalScore, getExamScore } from "@/lib/practical-eval-format";
 
-// Convierte nota chilena 1.0–7.0 a porcentaje 0–100 para el libro de notas
-// (que trabaja en escala 0-100; el diploma muestra final_score%).
-function nota100(n: number): number {
-  return Math.round(((n - 1) / 6) * 100);
-}
-
 // Evaluación práctica en línea (formato ENAE-CHL-N1), una por asignación.
 // El instructor dueño (o un admin) puede leerla y editarla.
 
@@ -108,16 +102,15 @@ export async function PUT(request: Request) {
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Al COMPLETAR, vuelca el promedio de maniobras como nota práctica del alumno.
-  // Se guarda en escala 1-7 en la asignación (visible en el módulo práctico) y
-  // convertida a % en el libro de notas (que trabaja 0-100 para el diploma).
+  // Al COMPLETAR, vuelca el promedio de maniobras (%) como nota práctica del
+  // alumno, directo en la asignación y en el libro de notas (ambos en 0-100).
   if (body.complete === true && practicalAvg != null) {
     const regId = own.assignment.registration_id;
     const courseId = own.assignment.registrations?.course_id;
 
     await supabaseAdmin
       .from("instructor_assignments")
-      .update({ grade_practical: nota100(practicalAvg) })
+      .update({ grade_practical: practicalAvg })
       .eq("id", assignmentId);
 
     if (regId && courseId) {
@@ -131,8 +124,8 @@ export async function PUT(request: Request) {
         await supabaseAdmin.from("student_grades").upsert({
           registration_id: regId,
           grade_item_id: pracItem.id,
-          score: nota100(practicalAvg),
-          comments: `Promedio maniobras ${practicalAvg.toFixed(1)} (formato N1)${examScore != null ? ` · examen ${examScore.toFixed(1)}` : ""} — instructor ${own.assignment.instructor_email}`,
+          score: practicalAvg,
+          comments: `Promedio maniobras ${practicalAvg}% (formato N1)${examScore != null ? ` · examen NIST ${examScore}%` : ""} — instructor ${own.assignment.instructor_email}`,
           graded_at: now,
         }, { onConflict: "registration_id,grade_item_id" });
       }

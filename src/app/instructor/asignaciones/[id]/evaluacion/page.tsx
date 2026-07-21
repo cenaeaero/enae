@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
-import { PHASES, ALL_KEYS, GRADE_KEYS, emptyItems, computePracticalScore, getExamScore, type ItemState } from "@/lib/practical-eval-format";
+import { PHASES, ALL_KEYS, GRADE_KEYS, GRADE_PASS, emptyItems, computePracticalScore, getExamScore, type ItemState } from "@/lib/practical-eval-format";
 
 export default function EvaluacionPracticaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -61,8 +61,8 @@ export default function EvaluacionPracticaPage({ params }: { params: Promise<{ i
     setItems((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
   }
 
-  const score = computePracticalScore(items);       // promedio maniobras (1-7)
-  const examScore = getExamScore(items);            // nota examen final (1-7)
+  const score = computePracticalScore(items);       // promedio maniobras (%)
+  const examScore = getExamScore(items);            // nota examen NIST (%)
   const maniobrasEvaluadas = GRADE_KEYS.filter((k) => items[k]?.na || typeof items[k]?.grade === "number").length;
 
   async function save(complete: boolean) {
@@ -70,7 +70,7 @@ export default function EvaluacionPracticaPage({ params }: { params: Promise<{ i
       const faltantes = GRADE_KEYS.filter((k) => !items[k]?.na && typeof items[k]?.grade !== "number").length;
       if (faltantes > 0 && !confirm(`Hay ${faltantes} maniobra(s) sin nota ni N/A. ¿Completar de todas formas?`)) return;
       if (!preSolo && !confirm("No has registrado el resultado del Chequeo Pre-Solo. ¿Completar de todas formas?")) return;
-      if (!confirm(`Promedio de maniobras: ${score != null ? score.toFixed(1) : "—"}${examScore != null ? ` · Nota examen: ${examScore.toFixed(1)}` : ""}.\n\nEl promedio se registrará como nota práctica del alumno. ¿Continuar?`)) return;
+      if (!confirm(`Promedio de maniobras: ${score != null ? score + "%" : "—"} (${score != null && score >= GRADE_PASS ? "APROBADO" : "reprobado"}, aprobación ≥ ${GRADE_PASS}%)${examScore != null ? ` · Examen NIST: ${examScore}%` : ""}.\n\nEl promedio se registrará como nota práctica del alumno. ¿Continuar?`)) return;
     }
     setSaving(true);
     setMsg("");
@@ -95,7 +95,7 @@ export default function EvaluacionPracticaPage({ params }: { params: Promise<{ i
     setStatus(data.evaluation?.status === "completed" ? "completed" : "draft");
     setCompletedAt(data.evaluation?.completed_at || null);
     setMsg(complete
-      ? `✓ Evaluación completada. Promedio de maniobras ${data.practical_avg != null ? data.practical_avg.toFixed(1) : "—"} registrado como nota práctica del alumno.`
+      ? `✓ Evaluación completada. Promedio de maniobras ${data.practical_avg != null ? data.practical_avg + "%" : "—"} registrado como nota práctica del alumno.`
       : "✓ Borrador guardado.");
   }
 
@@ -119,7 +119,7 @@ export default function EvaluacionPracticaPage({ params }: { params: Promise<{ i
             ) : (
               <span className="text-[10px] bg-amber-500/20 text-amber-200 px-2 py-0.5 rounded">Borrador · {maniobrasEvaluadas}/{GRADE_KEYS.length} maniobras</span>
             )}
-            <span className="block text-[11px] text-blue-100 mt-1">Promedio maniobras: <strong className="text-white">{score != null ? score.toFixed(1) : "—"}</strong>{examScore != null ? <> · Examen: <strong className="text-white">{examScore.toFixed(1)}</strong></> : null}</span>
+            <span className="block text-[11px] text-blue-100 mt-1">Promedio maniobras: <strong className={score != null && score >= GRADE_PASS ? "text-green-300" : "text-white"}>{score != null ? `${score}%` : "—"}</strong>{score != null && <span className="ml-1">{score >= GRADE_PASS ? "✓ Aprobado" : `(mín. ${GRADE_PASS}%)`}</span>}{examScore != null ? <> · Examen NIST: <strong className="text-white">{examScore}%</strong></> : null}</span>
           </div>
         </div>
         <div className="p-5 grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -194,13 +194,14 @@ export default function EvaluacionPracticaPage({ params }: { params: Promise<{ i
                               title="No Aplica — no cuenta en el promedio">N/A</button>
                           </>
                         ) : (
-                          <div className="flex items-center justify-center gap-2">
-                            <input type="number" min={1} max={7} step={0.1} inputMode="decimal"
-                              placeholder="1-7"
+                          <div className="flex items-center justify-center gap-1.5">
+                            <input type="number" min={0} max={100} step={1} inputMode="numeric"
+                              placeholder="0-100"
                               disabled={st?.na}
                               value={st?.grade ?? ""}
                               onChange={(e) => setItem(it.key, { grade: e.target.value === "" ? null : Number(e.target.value), na: false })}
-                              className="w-20 border border-gray-300 rounded px-2 py-1 text-sm text-center disabled:bg-gray-100 disabled:text-gray-400" />
+                              className="w-16 border border-gray-300 rounded px-2 py-1 text-sm text-center disabled:bg-gray-100 disabled:text-gray-400" />
+                            <span className="text-xs text-gray-400">%</span>
                             <button onClick={() => setItem(it.key, { na: !st?.na, grade: null })}
                               className={`text-xs font-semibold px-2.5 py-1 rounded border ${st?.na ? "bg-gray-500 text-white border-gray-500" : "bg-white text-gray-400 border-gray-300 hover:bg-gray-100"}`}
                               title="No Aplica — no cuenta en el promedio">N/A</button>

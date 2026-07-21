@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
-import { PHASES, GRADE_KEYS, computePracticalScore, getExamScore, type ItemState } from "@/lib/practical-eval-format";
+import { PHASES, GRADE_KEYS, GRADE_PASS, computePracticalScore, getExamScore, type ItemState } from "@/lib/practical-eval-format";
 
 // Vista del ALUMNO: evaluación práctica ENAE-CHL-N1 (solo lectura) + firma electrónica.
 
@@ -84,10 +84,10 @@ export default function PracticaAlumnoPage({ params }: { params: Promise<{ id: s
             <h2 className="text-sm font-bold text-[#003366]">Evaluación registrada por el instructor</h2>
             <div className="flex items-center gap-2 flex-wrap">
               {ev.status === "completed" && score != null && (
-                <span className="text-xs px-2 py-0.5 rounded bg-[#003366] text-white">Promedio maniobras: {score.toFixed(1)}</span>
+                <span className={`text-xs px-2 py-0.5 rounded text-white ${score >= GRADE_PASS ? "bg-green-600" : "bg-red-600"}`}>Promedio maniobras: {score}% {score >= GRADE_PASS ? "✓" : ""}</span>
               )}
               {ev.status === "completed" && examScore != null && (
-                <span className="text-xs px-2 py-0.5 rounded bg-[#0072CE] text-white">Examen: {examScore.toFixed(1)}</span>
+                <span className="text-xs px-2 py-0.5 rounded bg-[#0072CE] text-white">Examen NIST: {examScore}%</span>
               )}
               <span className={`text-xs px-2 py-0.5 rounded ${ev.status === "completed" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
                 {ev.status === "completed" ? `✓ Completada${ev.completed_at ? " el " + new Date(ev.completed_at).toLocaleDateString("es-CL") : ""}` : `En proceso · ${evaluadas}/${GRADE_KEYS.length} maniobras`}
@@ -117,7 +117,7 @@ export default function PracticaAlumnoPage({ params }: { params: Promise<{ id: s
                           <span className="text-xs font-semibold bg-red-100 text-red-600 px-2.5 py-0.5 rounded">NO</span>
                         ) : <span className="text-xs text-gray-300">—</span>
                       ) : typeof st?.grade === "number" ? (
-                        <span className={`text-xs font-bold px-2.5 py-0.5 rounded ${st.grade >= 4 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>Nota {st.grade.toFixed(1)}</span>
+                        <span className={`text-xs font-bold px-2.5 py-0.5 rounded ${st.grade >= GRADE_PASS ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>{st.grade}%</span>
                       ) : (
                         <span className="text-xs text-gray-300">—</span>
                       )}
