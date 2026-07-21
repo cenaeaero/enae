@@ -23,7 +23,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!auth.isAdmin && a.instructor_email !== auth.email) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
-  return NextResponse.json({ assignment: a });
+
+  const { data: documents } = await supabaseAdmin
+    .from("instructor_assignment_documents")
+    .select("id, file_path, file_name, uploaded_at")
+    .eq("assignment_id", id)
+    .order("uploaded_at", { ascending: false });
+
+  return NextResponse.json({ assignment: a, documents: documents || [] });
 }
 
 // Instructor ingresa/edita notas + observaciones + marca completado

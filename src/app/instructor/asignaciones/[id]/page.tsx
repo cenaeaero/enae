@@ -14,6 +14,8 @@ export default function AssignmentDetail({ params }: { params: Promise<{ id: str
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
 
   const [gradeT, setGradeT] = useState("");
   const [gradeP, setGradeP] = useState("");
@@ -31,6 +33,7 @@ export default function AssignmentDetail({ params }: { params: Promise<{ id: str
       setCity(res.assignment.city || "");
       setDate(res.assignment.scheduled_date || "");
     }
+    setDocuments(res.documents || []);
     setLoading(false);
   }
   useEffect(() => { load(); }, [id]);
@@ -75,6 +78,29 @@ export default function AssignmentDetail({ params }: { params: Promise<{ id: str
     if (!a?.evaluation_file_url) return;
     const res = await fetch(`/api/instructor/upload?bucket=instructor-evaluations&path=${encodeURIComponent(a.evaluation_file_url)}`).then((r) => r.json());
     if (res.url) window.open(res.url, "_blank");
+  }
+
+  async function uploadDoc(f: File) {
+    setUploadingDoc(true);
+    const fd = new FormData();
+    fd.append("kind", "document");
+    fd.append("id", id);
+    fd.append("file", f);
+    const res = await fetch("/api/instructor/upload", { method: "POST", body: fd });
+    setUploadingDoc(false);
+    if (res.ok) { setMsg("✓ Documento subido"); load(); }
+    else { const d = await res.json().catch(() => ({})); setMsg(d.error || "Error al subir documento"); }
+  }
+
+  async function viewDoc(path: string) {
+    const res = await fetch(`/api/instructor/upload?bucket=instructor-documents&path=${encodeURIComponent(path)}`).then((r) => r.json());
+    if (res.url) window.open(res.url, "_blank");
+  }
+
+  async function deleteDoc(docId: string) {
+    if (!confirm("¿Eliminar este documento?")) return;
+    await fetch(`/api/instructor/upload?doc_id=${docId}`, { method: "DELETE" });
+    load();
   }
 
   if (loading) return <p className="text-center py-16 text-gray-400">Cargando…</p>;
@@ -146,6 +172,30 @@ export default function AssignmentDetail({ params }: { params: Promise<{ id: str
             <button onClick={viewEval} className="text-xs text-[#0072CE] hover:underline">Ver evaluación subida</button>
           )}
         </div>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-lg p-6 mt-4">
+        <h2 className="text-sm font-semibold text-[#003366] mb-1">Otros documentos</h2>
+        <p className="text-xs text-gray-500 mb-3">Sube documentos adicionales del alumno: bitácora de vuelo, registro fotográfico, checklist, informes, etc. (PDF, imagen, Word o Excel)</p>
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <input type="file" accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) { uploadDoc(f); e.target.value = ""; } }}
+            className="text-xs"/>
+          {uploadingDoc && <span className="text-xs text-gray-400">Subiendo…</span>}
+        </div>
+        {documents.length > 0 && (
+          <div className="divide-y divide-gray-50 border border-gray-100 rounded">
+            {documents.map((d) => (
+              <div key={d.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                <button onClick={() => viewDoc(d.file_path)} className="text-xs text-[#0072CE] hover:underline truncate text-left flex-1">
+                  📎 {d.file_name}
+                </button>
+                <span className="text-[10px] text-gray-400 whitespace-nowrap">{new Date(d.uploaded_at).toLocaleDateString("es-CL")}</span>
+                <button onClick={() => deleteDoc(d.id)} className="text-xs text-red-500 hover:underline shrink-0">eliminar</button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {msg && <div className="mt-4 bg-green-50 border border-green-200 text-green-800 px-3 py-2 rounded text-sm">{msg}</div>}

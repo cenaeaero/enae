@@ -11,7 +11,7 @@ export async function GET(request: Request) {
 
   let q = supabaseAdmin
     .from("instructor_assignments")
-    .select("*, registrations(id, first_name, last_name, email, course_id, courses(title, code))")
+    .select("*, registrations(id, first_name, last_name, email, course_id, courses(title, code)), instructor_assignment_documents(id, file_name, file_path, uploaded_at)")
     .order("created_at", { ascending: false });
   if (registrationId) q = q.eq("registration_id", registrationId);
 
