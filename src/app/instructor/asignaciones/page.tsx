@@ -9,6 +9,8 @@ type Row = {
   kind: string;
   city: string | null;
   scheduled_date: string | null;
+  start_time: string | null;
+  notified_at: string | null;
   status: string;
   grade_theoretical: number | null;
   grade_practical: number | null;
@@ -179,8 +181,9 @@ export default function AsignacionesPage() {
                   <td className="px-4 py-3 text-xs">{r.kind === "theoretical" ? "Teórico" : r.kind === "practical" ? "Práctico" : "Teórico + Práctico"}</td>
                   <td className={`px-4 py-3 text-xs ${proxima ? "font-semibold text-[#003366]" : "text-gray-600"}`}>
                     {r.city || "—"}<br/>
-                    {r.scheduled_date || ""}
+                    {r.scheduled_date || "—"}{r.start_time ? ` · ${r.start_time}` : ""}
                     {proxima && r.scheduled_date === hoy && <span className="ml-1.5 text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">HOY</span>}
+                    {r.notified_at && <span className="block mt-0.5 text-[10px] text-green-600" title={`Avisado el ${new Date(r.notified_at).toLocaleString("es-CL")}`}>✓ Avisado</span>}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`text-xs font-medium px-2 py-0.5 rounded ${STATUS_COLORS[r.status]}`}>
@@ -214,7 +217,7 @@ export default function AsignacionesPage() {
             count={sel.size}
             initial={{ city: first?.city || "", scheduled_date: first?.scheduled_date || "" }}
             onCancel={() => setShowSchedule(false)}
-            onSave={async (fields: ScheduleFields) => {
+            onSave={async (fields: ScheduleFields, notify: boolean) => {
               let ok = 0, fail = 0;
               for (const id of sel) {
                 const res = await fetch(`/api/instructor/asignaciones/${id}`, {
@@ -226,13 +229,14 @@ export default function AsignacionesPage() {
                     start_time: fields.start_time || null,
                     location_name: fields.location_name || null,
                     location_url: fields.location_url || null,
+                    notify,
                   }),
                 });
                 if (res.ok) ok++; else fail++;
               }
               setShowSchedule(false);
               setMsg(fail === 0
-                ? `✓ Clase programada para ${ok} alumno${ok !== 1 ? "s" : ""} (${fields.scheduled_date}${fields.start_time ? " · " + fields.start_time : ""}).`
+                ? `✓ Clase programada para ${ok} alumno${ok !== 1 ? "s" : ""} (${fields.scheduled_date}${fields.start_time ? " · " + fields.start_time : ""})${notify ? " y avisada por correo" : ""}.`
                 : `Error: ${fail} asignación(es) no se pudieron actualizar (${ok} ok).`);
               setSel(new Set());
               load();

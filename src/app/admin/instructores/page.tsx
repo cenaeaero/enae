@@ -35,6 +35,8 @@ type StudentAssignment = {
   kind: string;
   city: string | null;
   scheduled_date: string | null;
+  start_time: string | null;
+  notified_at: string | null;
   status: string;
   grade_theoretical: number | null;
   grade_practical: number | null;
@@ -484,8 +486,9 @@ export default function AdminInstructoresPage() {
                             <td className="px-5 py-2.5 text-xs text-gray-600">{a.registrations?.courses?.title || "—"}</td>
                             <td className="px-5 py-2.5 text-xs">{KIND_LABEL[a.kind] || a.kind}</td>
                             <td className={`px-5 py-2.5 text-xs ${proxima ? "font-semibold text-[#003366]" : "text-gray-600"}`}>
-                              {[a.city, a.scheduled_date].filter(Boolean).join(" · ") || "—"}
+                              {[a.city, a.scheduled_date].filter(Boolean).join(" · ") || "—"}{a.start_time ? ` · ${a.start_time}` : ""}
                               {proxima && a.scheduled_date === hoy && <span className="ml-1.5 text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">HOY</span>}
+                              {a.notified_at && <span className="block mt-0.5 text-[10px] text-green-600" title={`Avisado el ${new Date(a.notified_at).toLocaleString("es-CL")}`}>✓ Avisado</span>}
                             </td>
                             <td className="px-5 py-2.5">
                               <span className={`text-xs px-2 py-0.5 rounded ${
@@ -673,16 +676,27 @@ export default function AdminInstructoresPage() {
             count={selAsg.size}
             initial={{ city: first?.city || "", scheduled_date: first?.scheduled_date || "" }}
             onCancel={() => setShowSchedule(false)}
-            onSave={async (fields: ScheduleFields) => {
+            onSave={async (fields: ScheduleFields, notify: boolean) => {
+              const ids = Array.from(selAsg);
               const res = await fetch("/api/admin/instructor-assignments", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ ids: Array.from(selAsg), fields }),
+                body: JSON.stringify({ ids, fields }),
               });
               const d = await res.json();
               if (!res.ok) throw new Error(d.error || "No se pudo programar");
+              let avisados = 0;
+              if (notify) {
+                const nres = await fetch("/api/admin/notificar-practica", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ assignment_ids: ids, to_students: true, to_instructor: false }),
+                });
+                const nd = await nres.json().catch(() => ({}));
+                avisados = nd.sent_students || 0;
+              }
               setShowSchedule(false);
-              setMessage(`✓ Clase programada para ${selAsg.size} alumno${selAsg.size !== 1 ? "s" : ""} (${fields.scheduled_date}${fields.start_time ? " · " + fields.start_time : ""}).`);
+              setMessage(`✓ Clase programada para ${ids.length} alumno${ids.length !== 1 ? "s" : ""} (${fields.scheduled_date}${fields.start_time ? " · " + fields.start_time : ""})${notify ? ` · ${avisados} avisado${avisados !== 1 ? "s" : ""} por correo` : ""}.`);
               setSelAsg(new Set());
               loadAll();
             }}

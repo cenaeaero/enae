@@ -58,6 +58,7 @@ export async function POST(request: Request) {
   let sentStudents = 0;
   const failures: string[] = [];
 
+  const notifiedIds: string[] = [];
   if (toStudents) {
     for (const a of asgs as any[]) {
       const r = a.registrations;
@@ -70,9 +71,17 @@ export async function POST(request: Request) {
           schedule: scheduleOf(a),
         });
         sentStudents++;
+        notifiedIds.push(a.id);
       } catch (e: any) {
         failures.push(`${r.email}: ${e?.message || "error de envío"}`);
       }
+    }
+    // Sella la marca de aviso enviado (para los dashboards)
+    if (notifiedIds.length > 0) {
+      await supabaseAdmin
+        .from("instructor_assignments")
+        .update({ notified_at: new Date().toISOString() })
+        .in("id", notifiedIds);
     }
   }
 
