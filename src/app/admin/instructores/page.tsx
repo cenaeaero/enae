@@ -770,6 +770,7 @@ function NewFeeModal({ instructor, assignments, onClose, onDone }: {
         amount: n,
         assignment_id: single?.id || null,
         registration_id: single?.registration_id || null,
+        assignment_ids: seleccionadas.map((a) => a.id),
         notes: [notes, autoNota].filter(Boolean).join(" · ") || null,
       }),
     });
