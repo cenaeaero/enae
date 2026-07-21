@@ -764,6 +764,134 @@ export async function sendSynchronousClassInvitation(args: {
   });
 }
 
+// Mensaje del INSTRUCTOR al administrador (mesa de ayuda)
+export async function sendInstructorMessageToAdmin(args: {
+  instructorEmail: string;
+  instructorName: string;
+  subject: string;
+  message: string;
+}) {
+  await transporter.sendMail({
+    from: `"ENAE Sistema" <${FROM}>`,
+    to: ADMIN_EMAIL,
+    replyTo: args.instructorEmail,
+    subject: `Instructor · ${args.subject || "Consulta"} — ${args.instructorName}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px;">
+        <h2 style="color:#003366;">Mensaje de instructor</h2>
+        <p><strong>De:</strong> ${args.instructorName} &lt;${args.instructorEmail}&gt;</p>
+        <p><strong>Asunto:</strong> ${args.subject || "Consulta"}</p>
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin:16px 0;color:#111827;">
+          ${args.message.replace(/\n/g, "<br/>")}
+        </div>
+        <p style="font-size:12px;color:#6b7280;">Responde directamente a este correo para contactar al instructor.</p>
+      </div>
+    `,
+  });
+}
+
+export type PracticaScheduleInfo = {
+  date: string | null;       // YYYY-MM-DD
+  time: string | null;       // HH:mm
+  city: string | null;
+  locationName: string | null;
+  locationUrl: string | null;
+  course: string | null;
+};
+
+function formatPracticaFecha(s: PracticaScheduleInfo): string {
+  const fecha = s.date
+    ? new Date(s.date + "T12:00:00").toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+    : "por confirmar";
+  return `${fecha}${s.time ? ` · ${s.time} hrs` : ""}`;
+}
+
+function formatPracticaLugar(s: PracticaScheduleInfo): string {
+  return [s.locationName, s.city].filter(Boolean).join(", ") || "por confirmar";
+}
+
+// Al INSTRUCTOR: datos de los alumnos de su clase práctica
+export async function sendPracticaDataToInstructor(args: {
+  instructorEmail: string;
+  instructorName: string;
+  students: { name: string; email: string | null; phone: string | null; rut: string | null; schedule: PracticaScheduleInfo }[];
+}) {
+  const rows = args.students.map((st) => `
+    <tr>
+      <td style="border:1px solid #d1d5db;padding:7px 10px;">${st.name}</td>
+      <td style="border:1px solid #d1d5db;padding:7px 10px;">${st.rut || "—"}</td>
+      <td style="border:1px solid #d1d5db;padding:7px 10px;">${st.email || "—"}</td>
+      <td style="border:1px solid #d1d5db;padding:7px 10px;">${st.phone || "—"}</td>
+      <td style="border:1px solid #d1d5db;padding:7px 10px;">${formatPracticaFecha(st.schedule)}<br/><span style="color:#6b7280;">${formatPracticaLugar(st.schedule)}</span></td>
+    </tr>`).join("");
+
+  await transporter.sendMail({
+    from: `"ENAE Sistema" <${FROM}>`,
+    to: args.instructorEmail,
+    cc: ADMIN_EMAIL,
+    subject: `ENAE: Datos de tus alumnos para la clase práctica (${args.students.length})`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 700px;">
+        <h2 style="color:#003366;">Clase práctica — datos de tus alumnos</h2>
+        <p>Hola <strong>${args.instructorName}</strong>, estos son los datos de contacto de tu${args.students.length > 1 ? "s" : ""} ${args.students.length} alumno${args.students.length > 1 ? "s" : ""} asignado${args.students.length > 1 ? "s" : ""}:</p>
+        <table style="border-collapse:collapse;width:100%;margin:16px 0;font-size:13px;color:#111827;">
+          <thead>
+            <tr style="background:#003366;color:white;">
+              <th style="border:1px solid #d1d5db;padding:7px 10px;text-align:left;">Alumno</th>
+              <th style="border:1px solid #d1d5db;padding:7px 10px;text-align:left;">RUT</th>
+              <th style="border:1px solid #d1d5db;padding:7px 10px;text-align:left;">Email</th>
+              <th style="border:1px solid #d1d5db;padding:7px 10px;text-align:left;">Teléfono</th>
+              <th style="border:1px solid #d1d5db;padding:7px 10px;text-align:left;">Fecha · Lugar</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <p style="font-size:13px;color:#4b5563;">Recuerda registrar la evaluación práctica (formato ENAE-CHL-N1) en el <a href="${SITE_URL}/instructor">portal de instructor</a> al finalizar cada clase.</p>
+        <p style="color:#9ca3af;font-size:11px;margin-top:20px;">Escuela de Navegación Aérea | AOC 1521 DGAC | Certificada ISO 9001:2015</p>
+      </div>
+    `,
+  });
+}
+
+// Al ALUMNO: datos del instructor y de su clase práctica
+export async function sendPracticaDataToStudent(args: {
+  studentEmail: string;
+  studentName: string;
+  instructor: { name: string; email: string; phone: string | null };
+  schedule: PracticaScheduleInfo;
+}) {
+  const s = args.schedule;
+  await transporter.sendMail({
+    from: `"ENAE Training" <${FROM}>`,
+    to: args.studentEmail,
+    subject: `ENAE: Tu clase práctica de vuelo — ${s.date ? new Date(s.date + "T12:00:00").toLocaleDateString("es-CL") : "coordinación"}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #003366; padding: 20px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 22px;">🛩️ Tu Clase Práctica de Vuelo</h1>
+          ${s.course ? `<p style="color:#93C5FD;margin:5px 0 0;font-size:13px;">${s.course}</p>` : ""}
+        </div>
+        <div style="padding: 30px; background: #f9fafb;">
+          <p style="color:#111827;">Hola <strong>${args.studentName}</strong>,</p>
+          <p style="color:#374151;">Tu clase práctica quedó coordinada con los siguientes datos:</p>
+          <div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:20px;margin:16px 0;">
+            <p style="margin:6px 0;color:#374151;">📅 <strong>Fecha y hora:</strong> ${formatPracticaFecha(s)}</p>
+            <p style="margin:6px 0;color:#374151;">📍 <strong>Lugar:</strong> ${formatPracticaLugar(s)}
+              ${s.locationUrl ? ` — <a href="${s.locationUrl}" style="color:#0072CE;">Ver en Google Maps</a>` : ""}</p>
+            <p style="margin:14px 0 6px;color:#374151;">🧑‍🏫 <strong>Tu instructor:</strong> ${args.instructor.name}</p>
+            ${args.instructor.phone ? `<p style="margin:6px 0;color:#374151;">📞 ${args.instructor.phone}</p>` : ""}
+            <p style="margin:6px 0;color:#374151;">✉️ <a href="mailto:${args.instructor.email}" style="color:#0072CE;">${args.instructor.email}</a></p>
+          </div>
+          <p style="color:#374151;font-size:14px;">Llega con anticipación y coordina cualquier cambio directamente con tu instructor. Después de la clase podrás revisar y firmar tu evaluación práctica en el <a href="${SITE_URL}/tpems" style="color:#0072CE;">Portal de Alumno</a>.</p>
+        </div>
+        <div style="background: #001d3d; padding: 15px; text-align: center;">
+          <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegación Aérea | AOC 1521 DGAC | Certificada ISO 9001:2015</p>
+        </div>
+      </div>
+    `,
+  });
+}
+
 export const TEORICOS_DGAC_EMAIL = process.env.TEORICOS_DGAC_EMAIL || "teoricosag@dgac.gob.cl";
 
 export type SolicitudExamenStudent = {
