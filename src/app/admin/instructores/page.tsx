@@ -40,6 +40,7 @@ type StudentAssignment = {
   observations: string | null;
   evaluation_file_url: string | null;
   completed_at: string | null;
+  instructor_assignment_documents?: { id: string; file_name: string; file_path: string; uploaded_at: string }[];
   registrations?: {
     id: string; first_name: string; last_name: string; email: string;
     organization?: string | null;
@@ -127,8 +128,16 @@ export default function AdminInstructoresPage() {
     return m;
   }, [instructors, studentAssignments, fees]);
 
+  // Ordenados por fecha de clase: los más próximos primero, sin fecha al final
   const myAssignments = useMemo(
-    () => studentAssignments.filter((a) => a.instructor_email === selectedEmail),
+    () => studentAssignments
+      .filter((a) => a.instructor_email === selectedEmail)
+      .sort((a, b) => {
+        if (!a.scheduled_date && !b.scheduled_date) return 0;
+        if (!a.scheduled_date) return 1;
+        if (!b.scheduled_date) return -1;
+        return a.scheduled_date.localeCompare(b.scheduled_date);
+      }),
     [studentAssignments, selectedEmail]);
   const myCourses = useMemo(
     () => courseAssignments.filter((a) => a.instructor_email === selectedEmail),
@@ -137,7 +146,7 @@ export default function AdminInstructoresPage() {
     () => fees.filter((f) => f.instructor_email === selectedEmail),
     [fees, selectedEmail]);
   const myEvals = useMemo(
-    () => myAssignments.filter((a) => a.grade_theoretical != null || a.grade_practical != null || a.evaluation_file_url || a.observations),
+    () => myAssignments.filter((a) => a.grade_theoretical != null || a.grade_practical != null || a.evaluation_file_url || a.observations || (a.instructor_assignment_documents || []).length > 0),
     [myAssignments]);
 
   const kpi = useMemo(() => ({
@@ -199,6 +208,17 @@ export default function AdminInstructoresPage() {
 
   const initials = (i: Instructor) =>
     `${(i.first_name || " ")[0] || ""}${(i.last_name || " ")[0] || ""}`.toUpperCase() || "?";
+
+  // El instructor ya ingresó datos del alumno (nota, hoja u observaciones)
+  const isEvaluated = (a: StudentAssignment) =>
+    a.grade_theoretical != null || a.grade_practical != null || !!a.evaluation_file_url;
+
+  // Los archivos se guardan como rutas de storage privado → URL firmada
+  async function openFile(bucket: string, path: string) {
+    const res = await fetch(`/api/instructor/upload?bucket=${bucket}&path=${encodeURIComponent(path)}`).then((r) => r.json());
+    if (res.url) window.open(res.url, "_blank");
+    else setMessage(`Error: no se pudo abrir el archivo (${res.error || "sin URL"})`);
+  }
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -377,13 +397,17 @@ export default function AdminInstructoresPage() {
                           <th className="px-5 py-2">Alumno</th>
                           <th className="px-5 py-2">Curso</th>
                           <th className="px-5 py-2">Tipo</th>
-                          <th className="px-5 py-2">Ciudad · Fecha</th>
+                          <th className="px-5 py-2">Ciudad · Fecha ↑</th>
                           <th className="px-5 py-2">Estado</th>
+                          <th className="px-5 py-2">Evaluación</th>
                           <th className="px-5 py-2"></th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
-                        {myAssignments.map((a) => (
+                        {myAssignments.map((a) => {
+                          const hoy = new Date().toISOString().slice(0, 10);
+                          const proxima = !!a.scheduled_date && a.scheduled_date >= hoy && a.status !== "completed" && a.status !== "cancelled";
+                          return (
                           <tr key={a.id} className="hover:bg-gray-50">
                             <td className="px-5 py-2.5">
                               {a.registrations ? (
@@ -394,7 +418,10 @@ export default function AdminInstructoresPage() {
                             </td>
                             <td className="px-5 py-2.5 text-xs text-gray-600">{a.registrations?.courses?.title || "—"}</td>
                             <td className="px-5 py-2.5 text-xs">{KIND_LABEL[a.kind] || a.kind}</td>
-                            <td className="px-5 py-2.5 text-xs text-gray-600">{[a.city, a.scheduled_date].filter(Boolean).join(" · ") || "—"}</td>
+                            <td className={`px-5 py-2.5 text-xs ${proxima ? "font-semibold text-[#003366]" : "text-gray-600"}`}>
+                              {[a.city, a.scheduled_date].filter(Boolean).join(" · ") || "—"}
+                              {proxima && a.scheduled_date === hoy && <span className="ml-1.5 text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">HOY</span>}
+                            </td>
                             <td className="px-5 py-2.5">
                               <span className={`text-xs px-2 py-0.5 rounded ${
                                 a.status === "completed" ? "bg-green-100 text-green-700" :
@@ -404,11 +431,21 @@ export default function AdminInstructoresPage() {
                                 {STATUS_LABEL[a.status] || a.status}
                               </span>
                             </td>
+                            <td className="px-5 py-2.5">
+                              {isEvaluated(a) ? (
+                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded whitespace-nowrap" title={`Teo: ${a.grade_theoretical ?? "—"} · Prá: ${a.grade_practical ?? "—"}${a.evaluation_file_url ? " · Hoja subida" : ""}`}>
+                                  ✓ Evaluado{a.grade_practical != null ? ` · ${a.grade_practical}%` : a.grade_theoretical != null ? ` · ${a.grade_theoretical}%` : ""}
+                                </span>
+                              ) : (
+                                <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded">Sin evaluar</span>
+                              )}
+                            </td>
                             <td className="px-5 py-2.5 text-right">
                               <button onClick={() => quitarAlumno(a.id)} className="text-xs text-red-500 hover:underline">Quitar</button>
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   )}
@@ -452,7 +489,7 @@ export default function AdminInstructoresPage() {
                               {f.status === "paid" && f.payment_date && <span className="block text-[10px] text-gray-400 mt-0.5">{f.payment_date}</span>}
                             </td>
                             <td className="px-5 py-2.5 text-xs">
-                              {f.receipt_file_url ? <a href={f.receipt_file_url} target="_blank" rel="noopener noreferrer" className="text-[#0072CE] hover:underline">Ver boleta</a> : "—"}
+                              {f.receipt_file_url ? <button onClick={() => openFile("instructor-receipts", f.receipt_file_url!)} className="text-[#0072CE] hover:underline">Ver boleta</button> : "—"}
                             </td>
                             <td className="px-5 py-2.5 text-right space-x-3 whitespace-nowrap">
                               {f.status === "proposed" && (
@@ -491,6 +528,7 @@ export default function AdminInstructoresPage() {
                           <th className="px-5 py-2">Práctico</th>
                           <th className="px-5 py-2">Observaciones</th>
                           <th className="px-5 py-2">Hoja</th>
+                          <th className="px-5 py-2">Documentos</th>
                           <th className="px-5 py-2">Completado</th>
                         </tr>
                       </thead>
@@ -509,7 +547,16 @@ export default function AdminInstructoresPage() {
                             <td className="px-5 py-2.5 text-xs">{a.grade_practical != null ? <strong>{a.grade_practical}%</strong> : "—"}</td>
                             <td className="px-5 py-2.5 text-xs text-gray-600 max-w-[240px]"><span className="line-clamp-2 italic">{a.observations || "—"}</span></td>
                             <td className="px-5 py-2.5 text-xs">
-                              {a.evaluation_file_url ? <a href={a.evaluation_file_url} target="_blank" rel="noopener noreferrer" className="text-[#0072CE] hover:underline">Ver hoja</a> : "—"}
+                              {a.evaluation_file_url ? <button onClick={() => openFile("instructor-evaluations", a.evaluation_file_url!)} className="text-[#0072CE] hover:underline">Ver hoja</button> : "—"}
+                            </td>
+                            <td className="px-5 py-2.5 text-xs space-y-0.5">
+                              {(a.instructor_assignment_documents || []).length === 0 ? "—" :
+                                (a.instructor_assignment_documents || []).map((d) => (
+                                  <button key={d.id} onClick={() => openFile("instructor-documents", d.file_path)}
+                                    className="block text-[#0072CE] hover:underline text-left truncate max-w-[160px]" title={d.file_name}>
+                                    📎 {d.file_name}
+                                  </button>
+                                ))}
                             </td>
                             <td className="px-5 py-2.5 text-xs text-gray-500">{a.completed_at ? new Date(a.completed_at).toLocaleDateString("es-CL") : "—"}</td>
                           </tr>
@@ -692,30 +739,43 @@ function NewFeeModal({ instructor, assignments, onClose, onDone }: {
   onDone: (msg: string) => void;
 }) {
   const [amount, setAmount] = useState("");
-  const [assignmentId, setAssignmentId] = useState("");
+  const [pickedAsg, setPickedAsg] = useState<Set<string>>(new Set());
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  const asgLabel = (a: StudentAssignment) =>
+    a.registrations ? `${a.registrations.last_name}, ${a.registrations.first_name}` : a.registration_id;
+
+  function toggleAsg(id: string) {
+    setPickedAsg((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  }
 
   async function save() {
     const n = Number(amount);
     if (!n || n <= 0) { setError("Ingresa un monto válido"); return; }
     setSaving(true); setError("");
-    const asg = assignments.find((a) => a.id === assignmentId);
+    const seleccionadas = assignments.filter((a) => pickedAsg.has(a.id));
+    // Un solo honorario por el total; si es un único alumno queda asociado a él,
+    // si son varios se listan en las notas (un solo registro, no uno por alumno).
+    const single = seleccionadas.length === 1 ? seleccionadas[0] : null;
+    const autoNota = seleccionadas.length > 1
+      ? `Incluye ${seleccionadas.length} alumnos: ${seleccionadas.map(asgLabel).join("; ")}`
+      : "";
     const res = await fetch("/api/admin/instructor-fees", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         instructor_email: instructor.email,
         amount: n,
-        assignment_id: assignmentId || null,
-        registration_id: asg?.registration_id || null,
-        notes: notes || null,
+        assignment_id: single?.id || null,
+        registration_id: single?.registration_id || null,
+        notes: [notes, autoNota].filter(Boolean).join(" · ") || null,
       }),
     });
     setSaving(false);
     if (!res.ok) { const d = await res.json().catch(() => ({})); setError(d.error || "Error al crear"); return; }
-    onDone(`✓ Honorario de ${CLP.format(n)} propuesto a ${instructor.first_name} (se le notificó por correo).`);
+    onDone(`✓ Honorario de ${CLP.format(n)} propuesto a ${instructor.first_name}${seleccionadas.length > 0 ? ` (${seleccionadas.length} alumno${seleccionadas.length > 1 ? "s" : ""})` : ""} — se le notificó por correo.`);
   }
 
   return (
@@ -733,16 +793,27 @@ function NewFeeModal({ instructor, assignments, onClose, onDone }: {
               placeholder="150000" className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Asociar a alumno (opcional)</label>
-            <select value={assignmentId} onChange={(e) => setAssignmentId(e.target.value)}
-              className="w-full border border-gray-200 rounded px-3 py-2 text-sm">
-              <option value="">— Sin alumno específico —</option>
-              {assignments.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.registrations ? `${a.registrations.last_name}, ${a.registrations.first_name}` : a.registration_id} · {KIND_LABEL[a.kind] || a.kind}
-                </option>
-              ))}
-            </select>
+            <label className="block text-xs text-gray-500 mb-1">
+              Alumnos incluidos (opcional — marca varios si el día cubre más de uno)
+            </label>
+            {assignments.length === 0 ? (
+              <p className="text-xs text-gray-400">Este instructor no tiene alumnos asignados.</p>
+            ) : (
+              <div className="border border-gray-200 rounded max-h-40 overflow-y-auto divide-y divide-gray-50">
+                {assignments.map((a) => (
+                  <label key={a.id} className={`flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer hover:bg-blue-50 ${pickedAsg.has(a.id) ? "bg-blue-50" : ""}`}>
+                    <input type="checkbox" checked={pickedAsg.has(a.id)} onChange={() => toggleAsg(a.id)} className="rounded" />
+                    <span className="flex-1 min-w-0">
+                      <span className="block font-medium text-[#003366]">{asgLabel(a)}</span>
+                      <span className="block text-gray-500">{KIND_LABEL[a.kind] || a.kind}{a.scheduled_date ? ` · ${a.scheduled_date}` : ""}{a.city ? ` · ${a.city}` : ""}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+            {pickedAsg.size > 1 && (
+              <p className="text-[11px] text-gray-500 mt-1">Se creará <strong>un solo honorario</strong> por el monto total, con los {pickedAsg.size} alumnos detallados en las notas.</p>
+            )}
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Notas</label>
