@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import NewRoleProfileModal from "@/components/NewRoleProfileModal";
+import ScheduleClassModal, { type ScheduleFields } from "@/components/ScheduleClassModal";
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 type Course = { id: string; title: string; code: string | null };
@@ -85,6 +86,8 @@ export default function AdminInstructoresPage() {
   const [showNew, setShowNew] = useState(false);
   const [showAssign, setShowAssign] = useState(false);
   const [showFee, setShowFee] = useState(false);
+  const [selAsg, setSelAsg] = useState<Set<string>>(new Set());
+  const [showSchedule, setShowSchedule] = useState(false);
 
   async function loadAll() {
     setLoading(true);
@@ -252,7 +255,7 @@ export default function AdminInstructoresPage() {
             const st = perInstructor[i.email] || { alumnos: 0, activos: 0, pendientes: 0 };
             const active = i.email === selectedEmail;
             return (
-              <button key={i.id} onClick={() => { setSelectedEmail(i.email); setTab("resumen"); setMessage(""); }}
+              <button key={i.id} onClick={() => { setSelectedEmail(i.email); setTab("resumen"); setMessage(""); setSelAsg(new Set()); }}
                 className={`w-full text-left px-4 py-3 flex items-center gap-3 transition ${active ? "bg-blue-50 border-l-4 border-[#0072CE]" : "hover:bg-gray-50 border-l-4 border-transparent"}`}>
                 <span className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${active ? "bg-[#0072CE] text-white" : "bg-gray-200 text-gray-600"}`}>
                   {initials(i)}
@@ -394,12 +397,30 @@ export default function AdminInstructoresPage() {
               {/* ── Alumnos ── */}
               {tab === "alumnos" && (
                 <div className="overflow-x-auto">
+                  {myAssignments.length > 0 && (
+                    <div className="px-5 py-2.5 border-b border-gray-100 flex items-center gap-3 flex-wrap bg-gray-50/50">
+                      <span className="text-xs text-gray-500">{selAsg.size} seleccionado{selAsg.size !== 1 ? "s" : ""}</span>
+                      <button
+                        onClick={() => setShowSchedule(true)}
+                        disabled={selAsg.size === 0}
+                        className="text-xs bg-[#0072CE] hover:bg-[#005fa3] text-white font-medium px-3 py-1.5 rounded disabled:opacity-40">
+                        📅 Programar clase ({selAsg.size})
+                      </button>
+                      <span className="text-[11px] text-gray-400">Marca varios alumnos para asignarles fecha, hora y lugar de una sola vez.</span>
+                    </div>
+                  )}
                   {myAssignments.length === 0 ? (
                     <p className="p-6 text-sm text-gray-400">Sin alumnos asignados. Usa "＋ Asignar alumnos" en la barra superior.</p>
                   ) : (
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
+                          <th className="px-5 py-2 w-8">
+                            <input type="checkbox"
+                              checked={selAsg.size === myAssignments.length && myAssignments.length > 0}
+                              onChange={(e) => setSelAsg(e.target.checked ? new Set(myAssignments.map((a) => a.id)) : new Set())}
+                              className="rounded" />
+                          </th>
                           <th className="px-5 py-2">Alumno</th>
                           <th className="px-5 py-2">Curso</th>
                           <th className="px-5 py-2">Tipo</th>
@@ -415,6 +436,11 @@ export default function AdminInstructoresPage() {
                           const proxima = !!a.scheduled_date && a.scheduled_date >= hoy && a.status !== "completed" && a.status !== "cancelled";
                           return (
                           <tr key={a.id} className="hover:bg-gray-50">
+                            <td className="px-5 py-2.5">
+                              <input type="checkbox" checked={selAsg.has(a.id)}
+                                onChange={() => setSelAsg((prev) => { const n = new Set(prev); if (n.has(a.id)) n.delete(a.id); else n.add(a.id); return n; })}
+                                className="rounded" />
+                            </td>
                             <td className="px-5 py-2.5">
                               {a.registrations ? (
                                 <a href={`/admin/registros/inscripcion/${a.registration_id}`} className="font-medium text-[#0072CE] hover:underline">
@@ -607,6 +633,29 @@ export default function AdminInstructoresPage() {
           onClose={() => setShowFee(false)}
           onDone={(msg) => { setShowFee(false); setMessage(msg); loadAll(); }} />
       )}
+      {showSchedule && selAsg.size > 0 && (() => {
+        const first = myAssignments.find((a) => selAsg.has(a.id));
+        return (
+          <ScheduleClassModal
+            count={selAsg.size}
+            initial={{ city: first?.city || "", scheduled_date: first?.scheduled_date || "" }}
+            onCancel={() => setShowSchedule(false)}
+            onSave={async (fields: ScheduleFields) => {
+              const res = await fetch("/api/admin/instructor-assignments", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ids: Array.from(selAsg), fields }),
+              });
+              const d = await res.json();
+              if (!res.ok) throw new Error(d.error || "No se pudo programar");
+              setShowSchedule(false);
+              setMessage(`✓ Clase programada para ${selAsg.size} alumno${selAsg.size !== 1 ? "s" : ""} (${fields.scheduled_date}${fields.start_time ? " · " + fields.start_time : ""}).`);
+              setSelAsg(new Set());
+              loadAll();
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }

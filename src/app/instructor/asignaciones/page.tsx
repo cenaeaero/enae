@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
+import ScheduleClassModal, { type ScheduleFields } from "@/components/ScheduleClassModal";
 
 type Row = {
   id: string;
@@ -45,16 +46,18 @@ export default function AsignacionesPage() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [fStatus, setFStatus] = useState("all");
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [msg, setMsg] = useState("");
 
-  useEffect(() => {
-    const q = new URLSearchParams(window.location.search).get("as_instructor");
-    const suffix = q ? `?as_instructor=${q}` : "";
-    (async () => {
-      const res = await fetch(`/api/instructor/asignaciones${suffix}`).then((r) => r.json());
-      setRows(res.assignments || []);
-      setLoading(false);
-    })();
-  }, []);
+  async function load() {
+    const p = new URLSearchParams(window.location.search).get("as_instructor");
+    const suffix = p ? `?as_instructor=${p}` : "";
+    const res = await fetch(`/api/instructor/asignaciones${suffix}`).then((r) => r.json());
+    setRows(res.assignments || []);
+    setLoading(false);
+  }
+  useEffect(() => { load(); }, []);
 
   // Más próximos primero; sin fecha al final
   const filtered = useMemo(() => {
@@ -119,13 +122,29 @@ export default function AsignacionesPage() {
           <option value="in_progress">En proceso</option>
           <option value="completed">Completados</option>
         </select>
+        <button onClick={() => setShowSchedule(true)} disabled={sel.size === 0}
+          className="text-sm bg-[#0072CE] hover:bg-[#005fa3] text-white font-medium px-4 py-2 rounded disabled:opacity-40">
+          📅 Programar clase ({sel.size})
+        </button>
       </div>
+
+      {msg && (
+        <div className={`mb-4 px-4 py-2 rounded text-sm border ${msg.startsWith("Error") ? "bg-red-50 border-red-200 text-red-700" : "bg-green-50 border-green-200 text-green-800"}`}>
+          {msg}
+        </div>
+      )}
 
       {loading ? <p className="text-gray-400">Cargando…</p> : (
         <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
               <tr>
+                <th className="text-left px-4 py-3 w-8">
+                  <input type="checkbox"
+                    checked={filtered.length > 0 && filtered.every((r) => sel.has(r.id))}
+                    onChange={(e) => setSel(e.target.checked ? new Set(filtered.map((r) => r.id)) : new Set())}
+                    className="rounded" />
+                </th>
                 <th className="text-left px-4 py-3">Alumno</th>
                 <th className="text-left px-4 py-3">Curso</th>
                 <th className="text-left px-4 py-3">Tipo</th>
@@ -142,6 +161,11 @@ export default function AsignacionesPage() {
                 const evaluado = r.grade_theoretical != null || r.grade_practical != null || !!r.evaluation_file_url;
                 return (
                 <tr key={r.id} className="hover:bg-blue-50 cursor-pointer">
+                  <td className="px-4 py-3">
+                    <input type="checkbox" checked={sel.has(r.id)}
+                      onChange={() => setSel((prev) => { const n = new Set(prev); if (n.has(r.id)) n.delete(r.id); else n.add(r.id); return n; })}
+                      className="rounded" />
+                  </td>
                   <td className="px-4 py-3">
                     <Link href={`/instructor/asignaciones/${r.id}`} className="block">
                       <p className="font-semibold text-[#003366]">{r.registrations?.last_name}, {r.registrations?.first_name}</p>
@@ -176,12 +200,46 @@ export default function AsignacionesPage() {
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">Sin alumnos asignados.</td></tr>
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400">Sin alumnos asignados.</td></tr>
               )}
             </tbody>
           </table>
         </div>
       )}
+
+      {showSchedule && sel.size > 0 && (() => {
+        const first = rows.find((r) => sel.has(r.id));
+        return (
+          <ScheduleClassModal
+            count={sel.size}
+            initial={{ city: first?.city || "", scheduled_date: first?.scheduled_date || "" }}
+            onCancel={() => setShowSchedule(false)}
+            onSave={async (fields: ScheduleFields) => {
+              let ok = 0, fail = 0;
+              for (const id of sel) {
+                const res = await fetch(`/api/instructor/asignaciones/${id}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    city: fields.city || null,
+                    scheduled_date: fields.scheduled_date || null,
+                    start_time: fields.start_time || null,
+                    location_name: fields.location_name || null,
+                    location_url: fields.location_url || null,
+                  }),
+                });
+                if (res.ok) ok++; else fail++;
+              }
+              setShowSchedule(false);
+              setMsg(fail === 0
+                ? `✓ Clase programada para ${ok} alumno${ok !== 1 ? "s" : ""} (${fields.scheduled_date}${fields.start_time ? " · " + fields.start_time : ""}).`
+                : `Error: ${fail} asignación(es) no se pudieron actualizar (${ok} ok).`);
+              setSel(new Set());
+              load();
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }

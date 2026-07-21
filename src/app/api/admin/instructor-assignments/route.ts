@@ -46,6 +46,32 @@ export async function POST(request: Request) {
   return NextResponse.json({ assignment: data });
 }
 
+// PATCH { ids: string[], fields: { city?, scheduled_date?, start_time?, location_name?, location_url? } }
+// Actualiza la programación de la clase para varias asignaciones a la vez.
+export async function PATCH(request: Request) {
+  const auth = await requireAdmin();
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+  const body = await request.json();
+  const ids: string[] = Array.isArray(body.ids) ? body.ids : (body.id ? [body.id] : []);
+  if (ids.length === 0) return NextResponse.json({ error: "ids requerido" }, { status: 400 });
+
+  const allowed = ["city", "scheduled_date", "start_time", "location_name", "location_url", "kind", "status"];
+  const updates: Record<string, any> = {};
+  for (const k of allowed) {
+    if (body.fields && k in body.fields) updates[k] = body.fields[k] === "" ? null : body.fields[k];
+  }
+  if (Object.keys(updates).length === 0) return NextResponse.json({ error: "Sin campos para actualizar" }, { status: 400 });
+
+  const { error } = await supabaseAdmin
+    .from("instructor_assignments")
+    .update(updates)
+    .in("id", ids);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ ok: true, count: ids.length });
+}
+
 export async function DELETE(request: Request) {
   const auth = await requireAdmin();
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
