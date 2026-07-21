@@ -88,6 +88,7 @@ export default function AdminInstructoresPage() {
   const [showFee, setShowFee] = useState(false);
   const [selAsg, setSelAsg] = useState<Set<string>>(new Set());
   const [showSchedule, setShowSchedule] = useState(false);
+  const [sendingNotif, setSendingNotif] = useState(false);
 
   async function loadAll() {
     setLoading(true);
@@ -198,6 +199,32 @@ export default function AdminInstructoresPage() {
     });
     if (!res.ok) { const d = await res.json(); setMessage(`Error: ${d.error || "no se pudo asignar"}`); }
     loadAll();
+  }
+
+  async function notificarPractica() {
+    if (!selected || selAsg.size === 0) return;
+    if (!confirm(`Se enviarán los datos de la clase práctica por correo:\n\n· Al instructor ${selected.first_name}: tabla con nombre, RUT, email y teléfono de los ${selAsg.size} alumno(s).\n· A cada alumno: datos del instructor (teléfono/email), fecha, hora y lugar con link de Google Maps.\n\n¿Continuar?`)) return;
+    setSendingNotif(true);
+    setMessage("");
+    try {
+      const res = await fetch("/api/admin/notificar-practica", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignment_ids: Array.from(selAsg) }),
+      });
+      const d = await res.json();
+      if (!res.ok) setMessage(`Error: ${d.error || "No se pudo notificar"}`);
+      else {
+        const parts = [];
+        if (d.sent_instructor) parts.push(`instructor notificado`);
+        if (d.sent_students > 0) parts.push(`${d.sent_students} alumno${d.sent_students !== 1 ? "s" : ""} notificado${d.sent_students !== 1 ? "s" : ""}`);
+        const fallas = Array.isArray(d.failures) && d.failures.length > 0 ? ` — Fallas: ${d.failures.join("; ")}` : "";
+        setMessage(`✓ Correos enviados (${parts.join(" y ")}).${fallas}`);
+      }
+    } catch (err: any) {
+      setMessage(`Error: ${err.message || "Sin conexión"}`);
+    }
+    setSendingNotif(false);
   }
 
   async function feeStatus(id: string, status: string) {
@@ -406,7 +433,13 @@ export default function AdminInstructoresPage() {
                         className="text-xs bg-[#0072CE] hover:bg-[#005fa3] text-white font-medium px-3 py-1.5 rounded disabled:opacity-40">
                         📅 Programar clase ({selAsg.size})
                       </button>
-                      <span className="text-[11px] text-gray-400">Marca varios alumnos para asignarles fecha, hora y lugar de una sola vez.</span>
+                      <button
+                        onClick={notificarPractica}
+                        disabled={selAsg.size === 0 || sendingNotif}
+                        className="text-xs bg-[#003366] hover:bg-[#00254d] text-white font-medium px-3 py-1.5 rounded disabled:opacity-40">
+                        {sendingNotif ? "Enviando…" : `✉️ Enviar datos (${selAsg.size})`}
+                      </button>
+                      <span className="text-[11px] text-gray-400">Programa fecha/hora/lugar en lote y envía los datos al instructor y a los alumnos por correo.</span>
                     </div>
                   )}
                   {myAssignments.length === 0 ? (
