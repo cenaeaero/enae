@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
-import { PHASES, ALL_KEYS, emptyItems, computePracticalScore, type ItemState } from "@/lib/practical-eval-format";
+import { PHASES, ALL_KEYS, GRADE_KEYS, emptyItems, computePracticalScore, getExamScore, type ItemState } from "@/lib/practical-eval-format";
 
 export default function EvaluacionPracticaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -61,15 +61,16 @@ export default function EvaluacionPracticaPage({ params }: { params: Promise<{ i
     setItems((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
   }
 
-  const doneCount = ALL_KEYS.filter((k) => items[k]?.done === true || items[k]?.na).length;
-  const score = computePracticalScore(items);
+  const score = computePracticalScore(items);       // promedio maniobras (1-7)
+  const examScore = getExamScore(items);            // nota examen final (1-7)
+  const maniobrasEvaluadas = GRADE_KEYS.filter((k) => items[k]?.na || typeof items[k]?.grade === "number").length;
 
   async function save(complete: boolean) {
     if (complete) {
-      const faltantes = ALL_KEYS.filter((k) => items[k]?.done == null && !items[k]?.na);
-      if (faltantes.length > 0 && !confirm(`Hay ${faltantes.length} ejercicio(s) sin marcar SÍ/NO/N-A. ¿Completar de todas formas?`)) return;
+      const faltantes = GRADE_KEYS.filter((k) => !items[k]?.na && typeof items[k]?.grade !== "number").length;
+      if (faltantes > 0 && !confirm(`Hay ${faltantes} maniobra(s) sin nota ni N/A. ¿Completar de todas formas?`)) return;
       if (!preSolo && !confirm("No has registrado el resultado del Chequeo Pre-Solo. ¿Completar de todas formas?")) return;
-      if (!confirm(`La nota práctica calculada es ${score != null ? score + "%" : "—"} y se registrará automáticamente en las evaluaciones del alumno. ¿Continuar?`)) return;
+      if (!confirm(`Promedio de maniobras: ${score != null ? score.toFixed(1) : "—"}${examScore != null ? ` · Nota examen: ${examScore.toFixed(1)}` : ""}.\n\nEl promedio se registrará como nota práctica del alumno. ¿Continuar?`)) return;
     }
     setSaving(true);
     setMsg("");
@@ -94,7 +95,7 @@ export default function EvaluacionPracticaPage({ params }: { params: Promise<{ i
     setStatus(data.evaluation?.status === "completed" ? "completed" : "draft");
     setCompletedAt(data.evaluation?.completed_at || null);
     setMsg(complete
-      ? `✓ Evaluación completada. Nota práctica ${data.score != null ? data.score + "%" : "—"} registrada en las evaluaciones del alumno.`
+      ? `✓ Evaluación completada. Promedio de maniobras ${data.practical_avg != null ? data.practical_avg.toFixed(1) : "—"} registrado como nota práctica del alumno.`
       : "✓ Borrador guardado.");
   }
 
@@ -116,9 +117,9 @@ export default function EvaluacionPracticaPage({ params }: { params: Promise<{ i
             {status === "completed" ? (
               <span className="text-[10px] bg-green-500/20 text-green-200 px-2 py-0.5 rounded">✓ Completada {completedAt ? new Date(completedAt).toLocaleDateString("es-CL") : ""}</span>
             ) : (
-              <span className="text-[10px] bg-amber-500/20 text-amber-200 px-2 py-0.5 rounded">Borrador · {doneCount}/{ALL_KEYS.length} ejercicios</span>
+              <span className="text-[10px] bg-amber-500/20 text-amber-200 px-2 py-0.5 rounded">Borrador · {maniobrasEvaluadas}/{GRADE_KEYS.length} maniobras</span>
             )}
-            <span className="block text-[11px] text-blue-100 mt-1">Nota práctica: <strong className="text-white">{score != null ? `${score}%` : "—"}</strong></span>
+            <span className="block text-[11px] text-blue-100 mt-1">Promedio maniobras: <strong className="text-white">{score != null ? score.toFixed(1) : "—"}</strong>{examScore != null ? <> · Examen: <strong className="text-white">{examScore.toFixed(1)}</strong></> : null}</span>
           </div>
         </div>
         <div className="p-5 grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -169,9 +170,7 @@ export default function EvaluacionPracticaPage({ params }: { params: Promise<{ i
               <thead>
                 <tr className="text-left text-[11px] text-gray-500 border-b border-gray-100">
                   <th className="px-5 py-2">Ejercicio</th>
-                  <th className="px-3 py-2 w-28">Horas</th>
-                  <th className="px-3 py-2 w-36">Despegues / Aterrizajes</th>
-                  <th className="px-3 py-2 w-40 text-center">Cumplido</th>
+                  <th className="px-3 py-2 w-56 text-center">Evaluación</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -183,28 +182,30 @@ export default function EvaluacionPracticaPage({ params }: { params: Promise<{ i
                         <p className="font-medium text-gray-800">{it.label}</p>
                         {it.detail && <p className="text-[11px] text-gray-500 mt-0.5">{it.detail}</p>}
                       </td>
-                      <td className="px-3 py-2.5">
-                        <input type="text" value={st?.hours ?? ""} onChange={(e) => setItem(it.key, { hours: e.target.value })}
-                          className="w-24 border border-gray-200 rounded px-2 py-1 text-xs" />
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <input type="text" placeholder="ej: 3 / 3" value={st?.ops ?? ""} onChange={(e) => setItem(it.key, { ops: e.target.value })}
-                          className="w-28 border border-gray-200 rounded px-2 py-1 text-xs" />
-                      </td>
                       <td className="px-3 py-2.5 text-center whitespace-nowrap">
-                        <button onClick={() => setItem(it.key, { done: true, na: false })}
-                          className={`text-xs font-semibold px-2.5 py-1 rounded-l border ${st?.done === true && !st?.na ? "bg-green-600 text-white border-green-600" : "bg-white text-gray-500 border-gray-300 hover:bg-green-50"}`}>
-                          SÍ
-                        </button>
-                        <button onClick={() => setItem(it.key, { done: false, na: false })}
-                          className={`text-xs font-semibold px-2.5 py-1 border -ml-px ${st?.done === false && !st?.na ? "bg-red-600 text-white border-red-600" : "bg-white text-gray-500 border-gray-300 hover:bg-red-50"}`}>
-                          NO
-                        </button>
-                        <button onClick={() => setItem(it.key, { na: true, done: null })}
-                          className={`text-xs font-semibold px-2.5 py-1 rounded-r border -ml-px ${st?.na ? "bg-gray-500 text-white border-gray-500" : "bg-white text-gray-400 border-gray-300 hover:bg-gray-100"}`}
-                          title="No Aplica — el ejercicio no se realizó y no cuenta en la nota">
-                          N/A
-                        </button>
+                        {it.kind === "check" ? (
+                          <>
+                            <button onClick={() => setItem(it.key, { done: true, na: false })}
+                              className={`text-xs font-semibold px-2.5 py-1 rounded-l border ${st?.done === true && !st?.na ? "bg-green-600 text-white border-green-600" : "bg-white text-gray-500 border-gray-300 hover:bg-green-50"}`}>SÍ</button>
+                            <button onClick={() => setItem(it.key, { done: false, na: false })}
+                              className={`text-xs font-semibold px-2.5 py-1 border -ml-px ${st?.done === false && !st?.na ? "bg-red-600 text-white border-red-600" : "bg-white text-gray-500 border-gray-300 hover:bg-red-50"}`}>NO</button>
+                            <button onClick={() => setItem(it.key, { na: true, done: null })}
+                              className={`text-xs font-semibold px-2.5 py-1 rounded-r border -ml-px ${st?.na ? "bg-gray-500 text-white border-gray-500" : "bg-white text-gray-400 border-gray-300 hover:bg-gray-100"}`}
+                              title="No Aplica — no cuenta en el promedio">N/A</button>
+                          </>
+                        ) : (
+                          <div className="flex items-center justify-center gap-2">
+                            <input type="number" min={1} max={7} step={0.1} inputMode="decimal"
+                              placeholder="1-7"
+                              disabled={st?.na}
+                              value={st?.grade ?? ""}
+                              onChange={(e) => setItem(it.key, { grade: e.target.value === "" ? null : Number(e.target.value), na: false })}
+                              className="w-20 border border-gray-300 rounded px-2 py-1 text-sm text-center disabled:bg-gray-100 disabled:text-gray-400" />
+                            <button onClick={() => setItem(it.key, { na: !st?.na, grade: null })}
+                              className={`text-xs font-semibold px-2.5 py-1 rounded border ${st?.na ? "bg-gray-500 text-white border-gray-500" : "bg-white text-gray-400 border-gray-300 hover:bg-gray-100"}`}
+                              title="No Aplica — no cuenta en el promedio">N/A</button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
