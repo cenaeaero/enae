@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import NewRoleProfileModal from "@/components/NewRoleProfileModal";
 
+// ── Tipos ────────────────────────────────────────────────────────────────────
 type Course = { id: string; title: string; code: string | null };
 
 type Instructor = {
@@ -13,10 +14,12 @@ type Instructor = {
   email: string;
   rut: string | null;
   phone: string | null;
+  city: string | null;
+  address: string | null;
   bank_account_confirmed_at: string | null;
 };
 
-type Assignment = {
+type CourseAssignment = {
   id: string;
   instructor_email: string;
   course_id: string;
@@ -32,473 +35,731 @@ type StudentAssignment = {
   city: string | null;
   scheduled_date: string | null;
   status: string;
+  grade_theoretical: number | null;
+  grade_practical: number | null;
+  observations: string | null;
+  evaluation_file_url: string | null;
+  completed_at: string | null;
   registrations?: {
     id: string; first_name: string; last_name: string; email: string;
-    organization: string | null;
+    organization?: string | null;
     courses?: { title: string; code: string | null } | null;
   } | null;
 };
 
+type Fee = {
+  id: string;
+  instructor_email: string;
+  registration_id: string | null;
+  amount: number;
+  status: string;
+  payment_date: string | null;
+  payment_amount: number | null;
+  receipt_file_url: string | null;
+  notes: string | null;
+  created_at: string;
+  registrations?: { first_name: string; last_name: string; courses?: { title: string; code: string | null } | null } | null;
+};
+
+const KIND_LABEL: Record<string, string> = { theoretical: "Teórico", practical: "Práctico", both: "T + P" };
+const STATUS_LABEL: Record<string, string> = { assigned: "Asignado", in_progress: "En proceso", completed: "Completado", cancelled: "Cancelado" };
+const FEE_LABEL: Record<string, string> = { proposed: "Propuesto", approved: "Aprobado", paid: "Pagado", rejected: "Rechazado" };
+const CLP = new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
+
+// ── Página ───────────────────────────────────────────────────────────────────
 export default function AdminInstructoresPage() {
-  const [courses, setCourses] = useState<Course[]>([]);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [selectedInstructor, setSelectedInstructor] = useState("");
-  const [courseId, setCourseId] = useState("");
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [courseAssignments, setCourseAssignments] = useState<CourseAssignment[]>([]);
+  const [studentAssignments, setStudentAssignments] = useState<StudentAssignment[]>([]);
+  const [fees, setFees] = useState<Fee[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
-  const [search, setSearch] = useState("");
-  const [showNew, setShowNew] = useState(false);
 
-  // Asignar alumnos a instructor (clase práctica)
-  const [pickedInstructor, setPickedInstructor] = useState("");
-  const [pickedCourse, setPickedCourse] = useState("");
-  const [pickedKind, setPickedKind] = useState<"theoretical" | "practical" | "both">("practical");
-  const [pickedCity, setPickedCity] = useState("");
-  const [pickedDate, setPickedDate] = useState("");
-  const [studentsOfCourse, setStudentsOfCourse] = useState<any[]>([]);
-  const [pickedStudents, setPickedStudents] = useState<Set<string>>(new Set());
-  const [studentAssignments, setStudentAssignments] = useState<StudentAssignment[]>([]);
-  const [savingPractical, setSavingPractical] = useState(false);
-  const [practicalMsg, setPracticalMsg] = useState("");
-  const [studentSearch, setStudentSearch] = useState("");
+  const [selectedEmail, setSelectedEmail] = useState("");
+  const [tab, setTab] = useState<"resumen" | "alumnos" | "honorarios" | "evaluaciones">("resumen");
+  const [search, setSearch] = useState("");
+
+  const [showNew, setShowNew] = useState(false);
+  const [showAssign, setShowAssign] = useState(false);
+  const [showFee, setShowFee] = useState(false);
 
   async function loadAll() {
     setLoading(true);
-    const [{ data: c }, profsRes, asgRes] = await Promise.all([
+    const [{ data: c }, profsRes, ciRes, saRes, feesRes] = await Promise.all([
       supabase.from("courses").select("id, title, code").eq("is_active", true).order("title"),
       fetch("/api/admin/perfiles").then((r) => r.json()),
       fetch("/api/admin/instructores").then((r) => r.json()),
+      fetch("/api/admin/instructor-assignments").then((r) => r.json()),
+      fetch("/api/admin/instructor-fees").then((r) => r.json()),
     ]);
     setCourses((c as Course[]) || []);
-
-    // Filtrar perfiles que sean instructores
     const insts = (profsRes.profiles || []).filter((p: any) => p.role === "instructor");
     setInstructors(insts.map((p: any) => ({
       id: p.id, first_name: p.first_name || "", last_name: p.last_name || "",
-      email: p.email, rut: p.rut, phone: p.phone,
+      email: p.email, rut: p.rut, phone: p.phone, city: p.city, address: p.address,
       bank_account_confirmed_at: p.bank_account_confirmed_at,
     })));
-
-    setAssignments(asgRes.assignments || []);
-
-    // Asignaciones instructor → alumno
-    const saRes = await fetch("/api/admin/instructor-assignments").then((r) => r.json());
+    setCourseAssignments(ciRes.assignments || []);
     setStudentAssignments(saRes.assignments || []);
-
+    setFees(feesRes.fees || []);
     setLoading(false);
   }
+  useEffect(() => { loadAll(); }, []);
 
-  // Cargar alumnos del curso elegido (status confirmado/completado)
-  useEffect(() => {
-    if (!pickedCourse) { setStudentsOfCourse([]); setPickedStudents(new Set()); return; }
-    (async () => {
-      const { data } = await supabase
-        .from("registrations")
-        .select("id, first_name, last_name, email, organization, status")
-        .eq("course_id", pickedCourse)
-        .in("status", ["confirmed", "completed"])
-        .order("last_name");
-      setStudentsOfCourse(data || []);
-      setPickedStudents(new Set());
-    })();
-  }, [pickedCourse]);
+  // ── Derivados por instructor seleccionado ──────────────────────────────────
+  const selected = instructors.find((i) => i.email === selectedEmail) || null;
 
-  async function saveStudentAssignments() {
-    if (!pickedInstructor || pickedStudents.size === 0) {
-      setPracticalMsg("Selecciona instructor y al menos un alumno");
-      return;
+  const perInstructor = useMemo(() => {
+    const m: Record<string, { alumnos: number; activos: number; pendientes: number }> = {};
+    for (const i of instructors) m[i.email] = { alumnos: 0, activos: 0, pendientes: 0 };
+    for (const a of studentAssignments) {
+      const e = a.instructor_email;
+      if (!m[e]) m[e] = { alumnos: 0, activos: 0, pendientes: 0 };
+      m[e].alumnos++;
+      if (a.status === "assigned" || a.status === "in_progress") m[e].activos++;
     }
-    const inst = instructors.find((i) => i.id === pickedInstructor);
-    if (!inst) return;
-    setSavingPractical(true); setPracticalMsg("");
-    let ok = 0, fail = 0;
-    for (const regId of pickedStudents) {
-      const res = await fetch("/api/admin/instructor-assignments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          instructor_email: inst.email,
-          registration_id: regId,
-          kind: pickedKind,
-          city: pickedCity || null,
-          scheduled_date: pickedDate || null,
-        }),
-      });
-      if (res.ok) ok++; else fail++;
+    for (const f of fees) {
+      const e = f.instructor_email;
+      if (!m[e]) m[e] = { alumnos: 0, activos: 0, pendientes: 0 };
+      if (f.status === "proposed" || f.status === "approved") m[e].pendientes += Number(f.amount) || 0;
     }
-    setSavingPractical(false);
-    setPracticalMsg(`✓ ${ok} asignados${fail > 0 ? ` · ${fail} fallidos` : ""}`);
-    setPickedStudents(new Set());
-    loadAll();
-  }
+    return m;
+  }, [instructors, studentAssignments, fees]);
 
-  async function deleteStudentAssignment(id: string) {
+  const myAssignments = useMemo(
+    () => studentAssignments.filter((a) => a.instructor_email === selectedEmail),
+    [studentAssignments, selectedEmail]);
+  const myCourses = useMemo(
+    () => courseAssignments.filter((a) => a.instructor_email === selectedEmail),
+    [courseAssignments, selectedEmail]);
+  const myFees = useMemo(
+    () => fees.filter((f) => f.instructor_email === selectedEmail),
+    [fees, selectedEmail]);
+  const myEvals = useMemo(
+    () => myAssignments.filter((a) => a.grade_theoretical != null || a.grade_practical != null || a.evaluation_file_url || a.observations),
+    [myAssignments]);
+
+  const kpi = useMemo(() => ({
+    activos: myAssignments.filter((a) => a.status === "assigned" || a.status === "in_progress").length,
+    completados: myAssignments.filter((a) => a.status === "completed").length,
+    cursos: myCourses.length,
+    pendiente: myFees.filter((f) => f.status === "proposed" || f.status === "approved").reduce((s, f) => s + (Number(f.amount) || 0), 0),
+    pagado: myFees.filter((f) => f.status === "paid").reduce((s, f) => s + (Number(f.payment_amount ?? f.amount) || 0), 0),
+  }), [myAssignments, myCourses, myFees]);
+
+  const filteredInstructors = useMemo(() => {
+    const term = search.toLowerCase();
+    return [...instructors]
+      .filter((i) => !term ||
+        `${i.first_name} ${i.last_name}`.toLowerCase().includes(term) ||
+        i.email.toLowerCase().includes(term) ||
+        (i.rut || "").toLowerCase().includes(term))
+      .sort((a, b) => `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`));
+  }, [instructors, search]);
+
+  // ── Acciones ───────────────────────────────────────────────────────────────
+  async function quitarAlumno(id: string) {
     if (!confirm("¿Quitar esta asignación alumno-instructor?")) return;
     await fetch(`/api/admin/instructor-assignments?id=${id}`, { method: "DELETE" });
     loadAll();
   }
 
-  useEffect(() => { loadAll(); }, []);
+  async function quitarCurso(id: string) {
+    if (!confirm("¿Quitar la habilitación de este curso?")) return;
+    await fetch(`/api/admin/instructores?id=${id}`, { method: "DELETE" });
+    loadAll();
+  }
 
-  // Mapa email → nombre para mostrar
-  const nameByEmail = useMemo(() => {
-    const m: Record<string, string> = {};
-    for (const i of instructors) {
-      m[i.email] = `${i.first_name} ${i.last_name}`.trim() || i.email;
-    }
-    return m;
-  }, [instructors]);
-
-  async function handleAdd(e: React.FormEvent) {
-    e.preventDefault();
-    setMessage("");
-    if (!selectedInstructor || !courseId) return;
-    const instructor = instructors.find((i) => i.id === selectedInstructor);
-    if (!instructor) return;
-
+  async function asignarCurso(courseId: string) {
+    if (!courseId || !selected) return;
     const res = await fetch("/api/admin/instructores", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ instructor_email: instructor.email.toLowerCase(), course_id: courseId }),
+      body: JSON.stringify({ instructor_email: selected.email, course_id: courseId }),
     });
-    const data = await res.json();
-    if (!res.ok) { setMessage(data.error || "Error al asignar"); return; }
-    setSelectedInstructor(""); setCourseId("");
-    setMessage("Instructor asignado correctamente.");
-    await loadAll();
+    if (!res.ok) { const d = await res.json(); setMessage(`Error: ${d.error || "no se pudo asignar"}`); }
+    loadAll();
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("¿Quitar asignación de este instructor al curso?")) return;
-    const res = await fetch(`/api/admin/instructores?id=${id}`, { method: "DELETE" });
-    if (!res.ok) {
-      const data = await res.json();
-      setMessage(data.error || "Error al eliminar");
-      return;
-    }
-    await loadAll();
+  async function feeStatus(id: string, status: string) {
+    await fetch("/api/admin/instructor-fees", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, status }),
+    });
+    loadAll();
   }
 
-  const filteredAssignments = useMemo(() => {
-    const term = search.toLowerCase();
-    return assignments.filter((a) => {
-      if (!term) return true;
-      const name = (nameByEmail[a.instructor_email] || "").toLowerCase();
-      return name.includes(term) ||
-        a.instructor_email.toLowerCase().includes(term) ||
-        (a.course?.title || "").toLowerCase().includes(term) ||
-        (a.course?.code || "").toLowerCase().includes(term);
-    });
-  }, [assignments, search, nameByEmail]);
+  async function eliminarFee(id: string) {
+    if (!confirm("¿Eliminar este honorario?")) return;
+    await fetch(`/api/admin/instructor-fees?id=${id}`, { method: "DELETE" });
+    loadAll();
+  }
 
-  const filteredInstructors = useMemo(() => {
-    return [...instructors].sort((a, b) =>
-      `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)
-    );
-  }, [instructors]);
+  const initials = (i: Instructor) =>
+    `${(i.first_name || " ")[0] || ""}${(i.last_name || " ")[0] || ""}`.toUpperCase() || "?";
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-[#003366]">Instructores</h1>
-          <p className="text-sm text-gray-500">Crea instructores y asígnalos a cursos. {instructors.length} instructor{instructors.length !== 1 ? "es" : ""} registrado{instructors.length !== 1 ? "s" : ""}.</p>
+    <div className="flex flex-col md:flex-row md:h-[calc(100vh-0px)] bg-[#F3F4F6]">
+      {/* ── Panel maestro: lista de instructores ── */}
+      <aside className="w-full md:w-80 shrink-0 bg-white border-r border-gray-200 flex flex-col md:h-full max-h-72 md:max-h-none">
+        <div className="p-4 border-b border-gray-100">
+          <div className="flex items-center justify-between mb-3">
+            <h1 className="font-bold text-[#003366]">Instructores</h1>
+            <button onClick={() => setShowNew(true)}
+              className="text-xs bg-[#0072CE] hover:bg-[#005fa3] text-white font-semibold px-3 py-1.5 rounded">
+              + Nuevo
+            </button>
+          </div>
+          <input type="search" placeholder="Buscar nombre, email, RUT…" value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full border border-gray-200 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0072CE]" />
         </div>
-        <button onClick={() => setShowNew(true)} className="bg-[#0072CE] hover:bg-[#005fa3] text-white text-sm font-semibold px-4 py-2 rounded">
-          + Nuevo instructor
-        </button>
-      </div>
+        <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
+          {loading ? (
+            <p className="p-4 text-sm text-gray-400">Cargando…</p>
+          ) : filteredInstructors.length === 0 ? (
+            <p className="p-4 text-sm text-gray-400">Sin instructores{search ? ` para "${search}"` : ""}.</p>
+          ) : filteredInstructors.map((i) => {
+            const st = perInstructor[i.email] || { alumnos: 0, activos: 0, pendientes: 0 };
+            const active = i.email === selectedEmail;
+            return (
+              <button key={i.id} onClick={() => { setSelectedEmail(i.email); setTab("resumen"); setMessage(""); }}
+                className={`w-full text-left px-4 py-3 flex items-center gap-3 transition ${active ? "bg-blue-50 border-l-4 border-[#0072CE]" : "hover:bg-gray-50 border-l-4 border-transparent"}`}>
+                <span className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${active ? "bg-[#0072CE] text-white" : "bg-gray-200 text-gray-600"}`}>
+                  {initials(i)}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-[#003366] truncate">{i.last_name}, {i.first_name}</span>
+                  <span className="block text-xs text-gray-500 truncate">{i.email}</span>
+                  <span className="flex gap-2 mt-0.5 text-[10px]">
+                    {st.activos > 0 && <span className="bg-blue-100 text-blue-700 px-1.5 rounded">{st.activos} activo{st.activos !== 1 ? "s" : ""}</span>}
+                    {st.pendientes > 0 && <span className="bg-amber-100 text-amber-700 px-1.5 rounded">{CLP.format(st.pendientes)} pend.</span>}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="p-3 border-t border-gray-100 text-[11px] text-gray-400">
+          {instructors.length} instructor{instructors.length !== 1 ? "es" : ""} registrado{instructors.length !== 1 ? "s" : ""}
+        </div>
+      </aside>
 
+      {/* ── Área de trabajo ── */}
+      <main className="flex-1 md:h-full md:overflow-y-auto">
+        {!selected ? (
+          <div className="h-full flex items-center justify-center p-12">
+            <div className="text-center text-gray-400">
+              <p className="text-5xl mb-3">🧑‍🏫</p>
+              <p className="font-medium">Selecciona un instructor del panel izquierdo</p>
+              <p className="text-sm mt-1">o crea uno nuevo con "+ Nuevo"</p>
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 md:p-6 space-y-4">
+            {/* Barra de comandos */}
+            <div className="bg-white rounded-lg border border-gray-200 px-4 py-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+              <span className="text-xs text-gray-400">Instructores <span className="mx-1">›</span> <span className="text-gray-700 font-medium">{selected.first_name} {selected.last_name}</span></span>
+              <span className="flex-1" />
+              <button onClick={() => setShowAssign(true)} className="text-[#0072CE] hover:underline font-medium">＋ Asignar alumnos</button>
+              <button onClick={() => setShowFee(true)} className="text-[#0072CE] hover:underline font-medium">＋ Honorario</button>
+              <a href={`/admin/perfiles?id=${selected.id}`} className="text-[#0072CE] hover:underline">✏️ Editar perfil</a>
+              <a href={`/instructor?as_instructor=${encodeURIComponent(selected.email)}`} target="_blank" rel="noopener noreferrer"
+                className="text-[#0072CE] hover:underline">👁 Ver como</a>
+            </div>
+
+            {message && (
+              <div className={`px-4 py-2 rounded-lg text-sm border ${message.startsWith("Error") ? "bg-red-50 border-red-200 text-red-700" : "bg-green-50 border-green-200 text-green-700"}`}>
+                {message}
+              </div>
+            )}
+
+            {/* Encabezado de ficha */}
+            <div className="bg-white rounded-lg border border-gray-200 p-5 flex flex-wrap items-center gap-4">
+              <span className="w-16 h-16 rounded-full bg-[#003366] text-white flex items-center justify-center text-xl font-bold">
+                {initials(selected)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-xl font-bold text-[#003366]">{selected.first_name} {selected.last_name}</h2>
+                <p className="text-sm text-gray-500">{selected.email}{selected.phone ? ` · ${selected.phone}` : ""}{selected.rut ? ` · ${selected.rut}` : ""}</p>
+              </div>
+              {selected.bank_account_confirmed_at ? (
+                <span className="text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full">✓ Datos bancarios confirmados</span>
+              ) : (
+                <span className="text-xs bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full">Datos bancarios pendientes</span>
+              )}
+            </div>
+
+            {/* KPIs */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {[
+                { label: "Alumnos activos", value: String(kpi.activos), color: "text-[#0072CE]" },
+                { label: "Completados", value: String(kpi.completados), color: "text-green-600" },
+                { label: "Cursos habilitados", value: String(kpi.cursos), color: "text-[#003366]" },
+                { label: "Honorarios pendientes", value: CLP.format(kpi.pendiente), color: "text-amber-600" },
+                { label: "Honorarios pagados", value: CLP.format(kpi.pagado), color: "text-green-700" },
+              ].map((k) => (
+                <div key={k.label} className="bg-white rounded-lg border border-gray-200 p-3 text-center">
+                  <p className={`text-lg font-bold ${k.color}`}>{k.value}</p>
+                  <p className="text-[11px] text-gray-500">{k.label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Pestañas */}
+            <div className="bg-white rounded-lg border border-gray-200">
+              <div className="flex border-b border-gray-200 text-sm overflow-x-auto">
+                {([
+                  ["resumen", "Resumen"],
+                  ["alumnos", `Alumnos (${myAssignments.length})`],
+                  ["honorarios", `Honorarios (${myFees.length})`],
+                  ["evaluaciones", `Evaluaciones (${myEvals.length})`],
+                ] as const).map(([key, label]) => (
+                  <button key={key} onClick={() => setTab(key)}
+                    className={`px-5 py-3 font-medium whitespace-nowrap border-b-2 -mb-px transition ${tab === key ? "border-[#0072CE] text-[#0072CE]" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* ── Resumen ── */}
+              {tab === "resumen" && (
+                <div className="p-5 space-y-5">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {[
+                      ["Nombre", `${selected.first_name} ${selected.last_name}`],
+                      ["Email", selected.email],
+                      ["RUT", selected.rut || "—"],
+                      ["Teléfono", selected.phone || "—"],
+                      ["Ciudad", selected.city || "—"],
+                      ["Dirección", selected.address || "—"],
+                    ].map(([l, v]) => (
+                      <div key={l}>
+                        <p className="text-[11px] uppercase tracking-wide text-gray-400">{l}</p>
+                        <p className="text-sm text-gray-800">{v}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 mb-2">Cursos habilitados</p>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {myCourses.length === 0 && <span className="text-sm text-gray-400">Sin cursos habilitados.</span>}
+                      {myCourses.map((a) => (
+                        <span key={a.id} className="inline-flex items-center gap-1.5 bg-blue-50 text-[#003366] text-xs px-2.5 py-1 rounded-full border border-blue-100">
+                          {a.course?.title || a.course_id}{a.course?.code ? ` (${a.course.code})` : ""}
+                          <button onClick={() => quitarCurso(a.id)} className="text-red-400 hover:text-red-600 font-bold" title="Quitar">×</button>
+                        </span>
+                      ))}
+                    </div>
+                    <select defaultValue="" onChange={(e) => { asignarCurso(e.target.value); e.target.value = ""; }}
+                      className="border border-gray-200 rounded px-3 py-1.5 text-sm bg-white">
+                      <option value="">＋ Habilitar en curso…</option>
+                      {courses.filter((c) => !myCourses.some((a) => a.course_id === c.id)).map((c) => (
+                        <option key={c.id} value={c.id}>{c.title}{c.code ? ` (${c.code})` : ""}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Alumnos ── */}
+              {tab === "alumnos" && (
+                <div className="overflow-x-auto">
+                  {myAssignments.length === 0 ? (
+                    <p className="p-6 text-sm text-gray-400">Sin alumnos asignados. Usa "＋ Asignar alumnos" en la barra superior.</p>
+                  ) : (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
+                          <th className="px-5 py-2">Alumno</th>
+                          <th className="px-5 py-2">Curso</th>
+                          <th className="px-5 py-2">Tipo</th>
+                          <th className="px-5 py-2">Ciudad · Fecha</th>
+                          <th className="px-5 py-2">Estado</th>
+                          <th className="px-5 py-2"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {myAssignments.map((a) => (
+                          <tr key={a.id} className="hover:bg-gray-50">
+                            <td className="px-5 py-2.5">
+                              {a.registrations ? (
+                                <a href={`/admin/registros/inscripcion/${a.registration_id}`} className="font-medium text-[#0072CE] hover:underline">
+                                  {a.registrations.last_name}, {a.registrations.first_name}
+                                </a>
+                              ) : "—"}
+                            </td>
+                            <td className="px-5 py-2.5 text-xs text-gray-600">{a.registrations?.courses?.title || "—"}</td>
+                            <td className="px-5 py-2.5 text-xs">{KIND_LABEL[a.kind] || a.kind}</td>
+                            <td className="px-5 py-2.5 text-xs text-gray-600">{[a.city, a.scheduled_date].filter(Boolean).join(" · ") || "—"}</td>
+                            <td className="px-5 py-2.5">
+                              <span className={`text-xs px-2 py-0.5 rounded ${
+                                a.status === "completed" ? "bg-green-100 text-green-700" :
+                                a.status === "in_progress" ? "bg-blue-100 text-blue-700" :
+                                a.status === "cancelled" ? "bg-gray-100 text-gray-500" :
+                                "bg-amber-100 text-amber-700"}`}>
+                                {STATUS_LABEL[a.status] || a.status}
+                              </span>
+                            </td>
+                            <td className="px-5 py-2.5 text-right">
+                              <button onClick={() => quitarAlumno(a.id)} className="text-xs text-red-500 hover:underline">Quitar</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+
+              {/* ── Honorarios ── */}
+              {tab === "honorarios" && (
+                <div className="overflow-x-auto">
+                  {myFees.length === 0 ? (
+                    <p className="p-6 text-sm text-gray-400">Sin honorarios. Usa "＋ Honorario" en la barra superior.</p>
+                  ) : (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
+                          <th className="px-5 py-2">Fecha</th>
+                          <th className="px-5 py-2">Alumno / Concepto</th>
+                          <th className="px-5 py-2">Monto</th>
+                          <th className="px-5 py-2">Estado</th>
+                          <th className="px-5 py-2">Boleta</th>
+                          <th className="px-5 py-2"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {myFees.map((f) => (
+                          <tr key={f.id} className="hover:bg-gray-50">
+                            <td className="px-5 py-2.5 text-xs text-gray-600">{new Date(f.created_at).toLocaleDateString("es-CL")}</td>
+                            <td className="px-5 py-2.5 text-xs">
+                              {f.registrations ? `${f.registrations.last_name}, ${f.registrations.first_name}` : (f.notes || "—")}
+                              {f.registrations?.courses?.title && <span className="block text-gray-400">{f.registrations.courses.title}</span>}
+                            </td>
+                            <td className="px-5 py-2.5 font-medium">{CLP.format(Number(f.amount) || 0)}</td>
+                            <td className="px-5 py-2.5">
+                              <span className={`text-xs px-2 py-0.5 rounded ${
+                                f.status === "paid" ? "bg-green-100 text-green-700" :
+                                f.status === "approved" ? "bg-blue-100 text-blue-700" :
+                                f.status === "rejected" ? "bg-red-100 text-red-600" :
+                                "bg-amber-100 text-amber-700"}`}>
+                                {FEE_LABEL[f.status] || f.status}
+                              </span>
+                              {f.status === "paid" && f.payment_date && <span className="block text-[10px] text-gray-400 mt-0.5">{f.payment_date}</span>}
+                            </td>
+                            <td className="px-5 py-2.5 text-xs">
+                              {f.receipt_file_url ? <a href={f.receipt_file_url} target="_blank" rel="noopener noreferrer" className="text-[#0072CE] hover:underline">Ver boleta</a> : "—"}
+                            </td>
+                            <td className="px-5 py-2.5 text-right space-x-3 whitespace-nowrap">
+                              {f.status === "proposed" && (
+                                <button onClick={() => feeStatus(f.id, "approved")} className="text-xs text-[#0072CE] hover:underline">Aprobar</button>
+                              )}
+                              {f.status !== "paid" && (
+                                <a href="/admin/honorarios" className="text-xs text-green-600 hover:underline">Pagar…</a>
+                              )}
+                              {f.status !== "paid" && (
+                                <button onClick={() => eliminarFee(f.id)} className="text-xs text-red-500 hover:underline">Eliminar</button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                  <p className="px-5 py-3 text-[11px] text-gray-400 border-t border-gray-50">
+                    El registro de pago completo (fecha, banco, referencia) se gestiona en <a href="/admin/honorarios" className="text-[#0072CE] hover:underline">Honorarios</a>.
+                  </p>
+                </div>
+              )}
+
+              {/* ── Evaluaciones ── */}
+              {tab === "evaluaciones" && (
+                <div className="overflow-x-auto">
+                  {myEvals.length === 0 ? (
+                    <p className="p-6 text-sm text-gray-400">Aún no hay evaluaciones registradas por este instructor.</p>
+                  ) : (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
+                          <th className="px-5 py-2">Alumno</th>
+                          <th className="px-5 py-2">Curso</th>
+                          <th className="px-5 py-2">Teórico</th>
+                          <th className="px-5 py-2">Práctico</th>
+                          <th className="px-5 py-2">Observaciones</th>
+                          <th className="px-5 py-2">Hoja</th>
+                          <th className="px-5 py-2">Completado</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {myEvals.map((a) => (
+                          <tr key={a.id} className="hover:bg-gray-50">
+                            <td className="px-5 py-2.5">
+                              {a.registrations ? (
+                                <a href={`/admin/registros/inscripcion/${a.registration_id}`} className="font-medium text-[#0072CE] hover:underline">
+                                  {a.registrations.last_name}, {a.registrations.first_name}
+                                </a>
+                              ) : "—"}
+                            </td>
+                            <td className="px-5 py-2.5 text-xs text-gray-600">{a.registrations?.courses?.title || "—"}</td>
+                            <td className="px-5 py-2.5 text-xs">{a.grade_theoretical != null ? <strong>{a.grade_theoretical}%</strong> : "—"}</td>
+                            <td className="px-5 py-2.5 text-xs">{a.grade_practical != null ? <strong>{a.grade_practical}%</strong> : "—"}</td>
+                            <td className="px-5 py-2.5 text-xs text-gray-600 max-w-[240px]"><span className="line-clamp-2 italic">{a.observations || "—"}</span></td>
+                            <td className="px-5 py-2.5 text-xs">
+                              {a.evaluation_file_url ? <a href={a.evaluation_file_url} target="_blank" rel="noopener noreferrer" className="text-[#0072CE] hover:underline">Ver hoja</a> : "—"}
+                            </td>
+                            <td className="px-5 py-2.5 text-xs text-gray-500">{a.completed_at ? new Date(a.completed_at).toLocaleDateString("es-CL") : "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* ── Ventanas modales ── */}
       {showNew && (
         <NewRoleProfileModal role="instructor" title="Nuevo instructor"
           onClose={() => setShowNew(false)}
           onCreated={() => { setShowNew(false); loadAll(); }} />
       )}
+      {showAssign && selected && (
+        <AssignStudentsModal instructor={selected} courses={courses}
+          onClose={() => setShowAssign(false)}
+          onDone={(msg) => { setShowAssign(false); setMessage(msg); loadAll(); }} />
+      )}
+      {showFee && selected && (
+        <NewFeeModal instructor={selected} assignments={myAssignments}
+          onClose={() => setShowFee(false)}
+          onDone={(msg) => { setShowFee(false); setMessage(msg); loadAll(); }} />
+      )}
+    </div>
+  );
+}
 
-      {/* Lista de instructores */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mb-6">
-        <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-          <h2 className="font-semibold text-gray-700 text-sm">Instructores registrados</h2>
+// ── Ventana: asignar alumnos ─────────────────────────────────────────────────
+function AssignStudentsModal({ instructor, courses, onClose, onDone }: {
+  instructor: Instructor;
+  courses: Course[];
+  onClose: () => void;
+  onDone: (msg: string) => void;
+}) {
+  const [courseId, setCourseId] = useState("");
+  const [students, setStudents] = useState<any[]>([]);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [kind, setKind] = useState<"theoretical" | "practical" | "both">("practical");
+  const [city, setCity] = useState("");
+  const [date, setDate] = useState("");
+  const [term, setTerm] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!courseId) { setStudents([]); setPicked(new Set()); return; }
+    (async () => {
+      const { data } = await supabase
+        .from("registrations")
+        .select("id, first_name, last_name, email, organization, status")
+        .eq("course_id", courseId)
+        .in("status", ["confirmed", "completed"])
+        .order("last_name");
+      setStudents(data || []);
+      setPicked(new Set());
+    })();
+  }, [courseId]);
+
+  const visible = useMemo(() => {
+    const t = term.toLowerCase();
+    if (!t) return students;
+    return students.filter((s: any) =>
+      (s.first_name || "").toLowerCase().includes(t) ||
+      (s.last_name || "").toLowerCase().includes(t) ||
+      (s.email || "").toLowerCase().includes(t) ||
+      (s.organization || "").toLowerCase().includes(t));
+  }, [students, term]);
+
+  async function save() {
+    if (picked.size === 0) { setError("Selecciona al menos un alumno"); return; }
+    setSaving(true); setError("");
+    let ok = 0, fail = 0;
+    for (const regId of picked) {
+      const res = await fetch("/api/admin/instructor-assignments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          instructor_email: instructor.email,
+          registration_id: regId,
+          kind, city: city || null, scheduled_date: date || null,
+        }),
+      });
+      if (res.ok) ok++; else fail++;
+    }
+    setSaving(false);
+    onDone(`✓ ${ok} alumno${ok !== 1 ? "s" : ""} asignado${ok !== 1 ? "s" : ""} a ${instructor.first_name}${fail > 0 ? ` · ${fail} fallidos` : ""}`);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => !saving && onClose()}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-3 border-b border-gray-100 bg-[#003366] rounded-t-lg flex items-center justify-between">
+          <h3 className="font-semibold text-white text-sm">Asignar alumnos · {instructor.first_name} {instructor.last_name}</h3>
+          <button onClick={onClose} className="text-blue-200 hover:text-white">✕</button>
         </div>
-        {filteredInstructors.length === 0 ? (
-          <p className="p-6 text-sm text-gray-400 text-center">Aún no hay instructores. Click "+ Nuevo instructor" para crear el primero.</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-white text-xs text-gray-500 uppercase">
-              <tr>
-                <th className="text-left px-5 py-2">Nombre</th>
-                <th className="text-left px-5 py-2">Email</th>
-                <th className="text-left px-5 py-2">RUT</th>
-                <th className="text-left px-5 py-2">Teléfono</th>
-                <th className="text-left px-5 py-2">Datos bancarios</th>
-                <th className="text-right px-5 py-2"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredInstructors.map((i) => (
-                <tr key={i.id} className="hover:bg-blue-50">
-                  <td className="px-5 py-2 font-semibold text-[#003366]">{i.last_name}, {i.first_name}</td>
-                  <td className="px-5 py-2 text-gray-600">{i.email}</td>
-                  <td className="px-5 py-2 text-gray-600 font-mono text-xs">{i.rut || "—"}</td>
-                  <td className="px-5 py-2 text-gray-600">{i.phone || "—"}</td>
-                  <td className="px-5 py-2">
-                    {i.bank_account_confirmed_at ? (
-                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">✓ Confirmados</span>
-                    ) : (
-                      <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">Pendientes</span>
-                    )}
-                  </td>
-                  <td className="px-5 py-2 text-right space-x-3">
-                    <a href={`/instructor?as_instructor=${encodeURIComponent(i.email)}`} target="_blank" rel="noopener noreferrer"
-                      className="text-xs text-[#0072CE] hover:underline">Ver como</a>
-                    <a href={`/admin/perfiles?id=${i.id}`} className="text-xs text-[#0072CE] hover:underline">Editar</a>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* Asignar a curso */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-        <h2 className="font-semibold text-gray-700 mb-4">Asignar instructor a curso</h2>
-        <form onSubmit={handleAdd} className="flex flex-col md:flex-row gap-3">
-          <select value={selectedInstructor} onChange={(e) => setSelectedInstructor(e.target.value)}
-            required className="flex-1 border border-gray-200 rounded px-3 py-2 text-sm">
-            <option value="">Selecciona un instructor…</option>
-            {filteredInstructors.map((i) => (
-              <option key={i.id} value={i.id}>{i.last_name}, {i.first_name} ({i.email})</option>
-            ))}
-          </select>
-          <select value={courseId} onChange={(e) => setCourseId(e.target.value)}
-            required className="flex-1 border border-gray-200 rounded px-3 py-2 text-sm">
-            <option value="">Selecciona un curso…</option>
-            {courses.map((c) => (
-              <option key={c.id} value={c.id}>{c.title} {c.code ? `(${c.code})` : ""}</option>
-            ))}
-          </select>
-          <button type="submit" className="bg-[#003366] hover:bg-[#004B87] text-white px-6 py-2 rounded text-sm font-medium">
-            Asignar
-          </button>
-        </form>
-        {message && (
-          <p className={`mt-3 text-sm ${message.startsWith("Error") || message.startsWith("error") ? "text-red-600" : "text-green-700"}`}>{message}</p>
-        )}
-        <p className="text-xs text-gray-500 mt-3">
-          El instructor podrá ingresar a <code>/instructor</code> con su email y ver solo los cursos asignados.
-        </p>
-      </div>
-
-      {/* Asignar ALUMNOS a un instructor (clase práctica) */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-        <h2 className="font-semibold text-gray-700 mb-1">Asignar alumnos a instructor (clase práctica)</h2>
-        <p className="text-xs text-gray-500 mb-4">Selecciona el instructor, el curso y los alumnos que tomarán la clase práctica/teórica con él.</p>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Instructor *</label>
-            <select value={pickedInstructor} onChange={(e) => setPickedInstructor(e.target.value)}
-              className="w-full border border-gray-200 rounded px-3 py-2 text-sm">
-              <option value="">Seleccionar…</option>
-              {filteredInstructors.map((i) => (
-                <option key={i.id} value={i.id}>{i.last_name}, {i.first_name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Curso *</label>
-            <select value={pickedCourse} onChange={(e) => setPickedCourse(e.target.value)}
-              className="w-full border border-gray-200 rounded px-3 py-2 text-sm">
-              <option value="">Seleccionar…</option>
-              {courses.map((c) => (
-                <option key={c.id} value={c.id}>{c.title} {c.code ? `(${c.code})` : ""}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Tipo</label>
-            <select value={pickedKind} onChange={(e) => setPickedKind(e.target.value as any)}
-              className="w-full border border-gray-200 rounded px-3 py-2 text-sm">
-              <option value="practical">Práctico</option>
-              <option value="theoretical">Teórico</option>
-              <option value="both">Teórico + Práctico</option>
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
+        <div className="p-5 space-y-3 overflow-y-auto">
+          {error && <p className="text-xs text-red-600">{error}</p>}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Curso *</label>
+              <select value={courseId} onChange={(e) => setCourseId(e.target.value)}
+                className="w-full border border-gray-200 rounded px-3 py-2 text-sm">
+                <option value="">Seleccionar…</option>
+                {courses.map((c) => <option key={c.id} value={c.id}>{c.title}{c.code ? ` (${c.code})` : ""}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Tipo</label>
+              <select value={kind} onChange={(e) => setKind(e.target.value as any)}
+                className="w-full border border-gray-200 rounded px-3 py-2 text-sm">
+                <option value="practical">Práctico</option>
+                <option value="theoretical">Teórico</option>
+                <option value="both">Teórico + Práctico</option>
+              </select>
+            </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Ciudad</label>
-              <input type="text" value={pickedCity} onChange={(e) => setPickedCity(e.target.value)}
-                className="w-full border border-gray-200 rounded px-3 py-2 text-sm"/>
+              <input type="text" value={city} onChange={(e) => setCity(e.target.value)}
+                className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Fecha</label>
-              <input type="date" value={pickedDate} onChange={(e) => setPickedDate(e.target.value)}
-                className="w-full border border-gray-200 rounded px-3 py-2 text-sm"/>
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+                className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
             </div>
           </div>
-        </div>
 
-        {pickedCourse && (() => {
-          const term = studentSearch.toLowerCase();
-          const visible = !term ? studentsOfCourse : studentsOfCourse.filter((s: any) =>
-            (s.first_name || "").toLowerCase().includes(term) ||
-            (s.last_name || "").toLowerCase().includes(term) ||
-            (s.email || "").toLowerCase().includes(term) ||
-            (s.organization || "").toLowerCase().includes(term)
-          );
-          return (
+          {courseId && (
             <div className="border border-gray-200 rounded">
               <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-gray-50 text-xs border-b border-gray-200">
-                <span>Alumnos del curso ({visible.length} de {studentsOfCourse.length})</span>
+                <span>Alumnos ({visible.length} de {students.length})</span>
                 <div className="flex gap-2 items-center">
-                  <input type="text" placeholder="Buscar nombre / email / empresa…"
-                    value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)}
-                    className="border border-gray-300 rounded px-2 py-1 text-xs w-64"/>
-                  <button onClick={() => setPickedStudents(new Set(visible.map((s: any) => s.id)))}
-                    className="text-[#0072CE] hover:underline">Seleccionar visibles</button>
-                  <button onClick={() => setPickedStudents(new Set())} className="text-gray-500 hover:underline">Limpiar</button>
+                  <input type="text" placeholder="Buscar…" value={term} onChange={(e) => setTerm(e.target.value)}
+                    className="border border-gray-300 rounded px-2 py-1 text-xs w-48" />
+                  <button onClick={() => setPicked(new Set(visible.map((s: any) => s.id)))} className="text-[#0072CE] hover:underline">Todos</button>
+                  <button onClick={() => setPicked(new Set())} className="text-gray-500 hover:underline">Ninguno</button>
                 </div>
               </div>
-              <div className="max-h-64 overflow-y-auto">
-                {studentsOfCourse.length === 0 ? (
+              <div className="max-h-56 overflow-y-auto">
+                {students.length === 0 ? (
                   <p className="p-3 text-xs text-gray-400">Sin alumnos en este curso.</p>
-                ) : visible.length === 0 ? (
-                  <p className="p-3 text-xs text-gray-400">Sin coincidencias para "{studentSearch}".</p>
                 ) : visible.map((s: any) => (
-                  <label key={s.id} className={`flex items-center gap-2 px-3 py-1.5 border-b border-gray-50 last:border-0 hover:bg-blue-50 cursor-pointer ${pickedStudents.has(s.id) ? "bg-blue-50" : ""}`}>
-                    <input type="checkbox" checked={pickedStudents.has(s.id)}
-                      onChange={() => setPickedStudents((p) => {
-                        const n = new Set(p);
-                        n.has(s.id) ? n.delete(s.id) : n.add(s.id);
-                        return n;
-                      })}/>
-                    <div className="text-xs flex-1 min-w-0">
-                      <p className="font-medium text-[#003366]">{s.last_name}, {s.first_name}</p>
-                      <p className="text-gray-500">{s.email} · {s.organization || "—"}</p>
-                    </div>
+                  <label key={s.id} className={`flex items-center gap-2 px-3 py-1.5 border-b border-gray-50 last:border-0 hover:bg-blue-50 cursor-pointer ${picked.has(s.id) ? "bg-blue-50" : ""}`}>
+                    <input type="checkbox" checked={picked.has(s.id)}
+                      onChange={() => setPicked((p) => { const n = new Set(p); if (n.has(s.id)) n.delete(s.id); else n.add(s.id); return n; })} />
+                    <span className="text-xs flex-1 min-w-0">
+                      <span className="block font-medium text-[#003366]">{s.last_name}, {s.first_name}</span>
+                      <span className="block text-gray-500">{s.email}{s.organization ? ` · ${s.organization}` : ""}</span>
+                    </span>
                   </label>
                 ))}
               </div>
             </div>
-          );
-        })()}
-
-        {practicalMsg && (
-          <p className={`mt-3 text-sm ${practicalMsg.startsWith("✓") ? "text-green-700" : "text-red-600"}`}>{practicalMsg}</p>
-        )}
-
-        <div className="mt-4 flex justify-end">
-          <button onClick={saveStudentAssignments} disabled={savingPractical || !pickedInstructor || pickedStudents.size === 0}
-            className="bg-[#0072CE] hover:bg-[#005fa3] disabled:bg-blue-300 text-white text-sm font-semibold px-5 py-2 rounded">
-            {savingPractical ? "Asignando…" : `Asignar ${pickedStudents.size > 0 ? pickedStudents.size + " alumno(s)" : ""}`}
+          )}
+        </div>
+        <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-3">
+          <button onClick={onClose} disabled={saving} className="text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded disabled:opacity-50">Cancelar</button>
+          <button onClick={save} disabled={saving || picked.size === 0}
+            className="text-sm bg-[#0072CE] hover:bg-[#005fa3] text-white font-semibold px-5 py-2 rounded disabled:opacity-50">
+            {saving ? "Asignando…" : `Asignar${picked.size > 0 ? ` (${picked.size})` : ""}`}
           </button>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Asignaciones instructor → alumnos */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mb-6">
-        <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
-          <h2 className="font-semibold text-gray-700 text-sm">Asignaciones instructor → alumnos ({studentAssignments.length})</h2>
-        </div>
-        {studentAssignments.length === 0 ? (
-          <p className="p-6 text-sm text-gray-400 text-center">Sin asignaciones.</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-white text-xs text-gray-500 uppercase">
-              <tr>
-                <th className="text-left px-5 py-2">Instructor</th>
-                <th className="text-left px-5 py-2">Alumno</th>
-                <th className="text-left px-5 py-2">Curso</th>
-                <th className="text-left px-5 py-2">Tipo</th>
-                <th className="text-left px-5 py-2">Ciudad · Fecha</th>
-                <th className="text-left px-5 py-2">Estado</th>
-                <th className="text-right px-5 py-2"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {studentAssignments.map((a) => (
-                <tr key={a.id} className="hover:bg-gray-50">
-                  <td className="px-5 py-2 text-xs">
-                    <p className="font-medium text-[#003366]">{nameByEmail[a.instructor_email] || a.instructor_email}</p>
-                  </td>
-                  <td className="px-5 py-2 text-xs">
-                    {a.registrations ? (
-                      <>
-                        <p className="font-medium">{a.registrations.last_name}, {a.registrations.first_name}</p>
-                        <p className="text-gray-500">{a.registrations.organization || "—"}</p>
-                      </>
-                    ) : <span className="text-gray-400">—</span>}
-                  </td>
-                  <td className="px-5 py-2 text-xs text-gray-600">{a.registrations?.courses?.title || "—"}</td>
-                  <td className="px-5 py-2 text-xs">
-                    {a.kind === "theoretical" ? "Teórico" : a.kind === "practical" ? "Práctico" : "T+P"}
-                  </td>
-                  <td className="px-5 py-2 text-xs text-gray-600">{[a.city, a.scheduled_date].filter(Boolean).join(" · ") || "—"}</td>
-                  <td className="px-5 py-2 text-xs">
-                    <span className={`px-2 py-0.5 rounded ${
-                      a.status === "completed" ? "bg-green-100 text-green-700" :
-                      a.status === "in_progress" ? "bg-blue-100 text-blue-700" :
-                      "bg-amber-100 text-amber-700"
-                    }`}>{a.status}</span>
-                  </td>
-                  <td className="px-5 py-2 text-right">
-                    <button onClick={() => deleteStudentAssignment(a.id)} className="text-xs text-red-500 hover:underline">Quitar</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+// ── Ventana: nuevo honorario ─────────────────────────────────────────────────
+function NewFeeModal({ instructor, assignments, onClose, onDone }: {
+  instructor: Instructor;
+  assignments: StudentAssignment[];
+  onClose: () => void;
+  onDone: (msg: string) => void;
+}) {
+  const [amount, setAmount] = useState("");
+  const [assignmentId, setAssignmentId] = useState("");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
-      {/* Asignaciones actuales */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between gap-3">
-          <h2 className="font-semibold text-gray-700 text-sm">Asignaciones actuales ({filteredAssignments.length})</h2>
-          <input type="text" placeholder="Buscar por nombre / curso…" value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="text-xs border border-gray-300 rounded px-3 py-1.5 w-72"/>
+  async function save() {
+    const n = Number(amount);
+    if (!n || n <= 0) { setError("Ingresa un monto válido"); return; }
+    setSaving(true); setError("");
+    const asg = assignments.find((a) => a.id === assignmentId);
+    const res = await fetch("/api/admin/instructor-fees", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        instructor_email: instructor.email,
+        amount: n,
+        assignment_id: assignmentId || null,
+        registration_id: asg?.registration_id || null,
+        notes: notes || null,
+      }),
+    });
+    setSaving(false);
+    if (!res.ok) { const d = await res.json().catch(() => ({})); setError(d.error || "Error al crear"); return; }
+    onDone(`✓ Honorario de ${CLP.format(n)} propuesto a ${instructor.first_name} (se le notificó por correo).`);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => !saving && onClose()}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-3 border-b border-gray-100 bg-[#003366] rounded-t-lg flex items-center justify-between">
+          <h3 className="font-semibold text-white text-sm">Nuevo honorario · {instructor.first_name} {instructor.last_name}</h3>
+          <button onClick={onClose} className="text-blue-200 hover:text-white">✕</button>
         </div>
-        {loading ? (
-          <div className="p-8 text-center text-gray-400 text-sm">Cargando…</div>
-        ) : filteredAssignments.length === 0 ? (
-          <div className="p-8 text-center text-gray-400 text-sm">Sin asignaciones.</div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 text-gray-500 text-xs uppercase">
-                <th className="text-left px-5 py-3">Instructor</th>
-                <th className="text-left px-5 py-3">Curso</th>
-                <th className="text-left px-5 py-3">Asignado</th>
-                <th className="px-5 py-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredAssignments.map((a) => (
-                <tr key={a.id} className="border-b border-gray-50 hover:bg-gray-50">
-                  <td className="px-5 py-3">
-                    <p className="font-semibold text-[#003366]">{nameByEmail[a.instructor_email] || a.instructor_email}</p>
-                    <p className="text-xs text-gray-500">{a.instructor_email}</p>
-                  </td>
-                  <td className="px-5 py-3 text-gray-600">
-                    {a.course?.title || "—"}
-                    {a.course?.code && <span className="text-gray-400 ml-1">({a.course.code})</span>}
-                  </td>
-                  <td className="px-5 py-3 text-gray-500 text-xs">
-                    {new Date(a.created_at).toLocaleDateString("es-CL")}
-                  </td>
-                  <td className="px-5 py-3 text-right">
-                    <button onClick={() => handleDelete(a.id)} className="text-red-600 hover:text-red-700 text-xs">
-                      Quitar
-                    </button>
-                  </td>
-                </tr>
+        <div className="p-5 space-y-3">
+          {error && <p className="text-xs text-red-600">{error}</p>}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Monto (CLP) *</label>
+            <input type="number" min="1" value={amount} onChange={(e) => setAmount(e.target.value)}
+              placeholder="150000" className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Asociar a alumno (opcional)</label>
+            <select value={assignmentId} onChange={(e) => setAssignmentId(e.target.value)}
+              className="w-full border border-gray-200 rounded px-3 py-2 text-sm">
+              <option value="">— Sin alumno específico —</option>
+              {assignments.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.registrations ? `${a.registrations.last_name}, ${a.registrations.first_name}` : a.registration_id} · {KIND_LABEL[a.kind] || a.kind}
+                </option>
               ))}
-            </tbody>
-          </table>
-        )}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Notas</label>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
+              placeholder="Ej: clase práctica 21/07, Santiago" className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
+          </div>
+          <p className="text-[11px] text-gray-400">
+            Se crea como "Propuesto" y se notifica al instructor por correo. El pago se registra luego en Honorarios.
+          </p>
+        </div>
+        <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-3">
+          <button onClick={onClose} disabled={saving} className="text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded disabled:opacity-50">Cancelar</button>
+          <button onClick={save} disabled={saving}
+            className="text-sm bg-[#0072CE] hover:bg-[#005fa3] text-white font-semibold px-5 py-2 rounded disabled:opacity-50">
+            {saving ? "Guardando…" : "Proponer honorario"}
+          </button>
+        </div>
       </div>
     </div>
   );
