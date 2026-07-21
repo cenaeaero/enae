@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
-import { PHASES, ALL_KEYS, type ItemState } from "@/lib/practical-eval-format";
+import { PHASES, ALL_KEYS, computePracticalScore, type ItemState } from "@/lib/practical-eval-format";
 
 // Vista del ALUMNO: evaluación práctica ENAE-CHL-N1 (solo lectura) + firma electrónica.
 
@@ -50,7 +50,8 @@ export default function PracticaAlumnoPage({ params }: { params: Promise<{ id: s
   const a = data.assignment;
   const ev = data.evaluation;
   const items: Record<string, ItemState> = ev?.items || {};
-  const doneCount = ALL_KEYS.filter((k) => items[k]?.done === true).length;
+  const doneCount = ALL_KEYS.filter((k) => items[k]?.done === true || items[k]?.na).length;
+  const score = computePracticalScore(items);
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 pb-16">
@@ -80,9 +81,14 @@ export default function PracticaAlumnoPage({ params }: { params: Promise<{ id: s
         <>
           <div className="mt-4 flex items-center justify-between flex-wrap gap-2">
             <h2 className="text-sm font-bold text-[#003366]">Evaluación registrada por el instructor</h2>
-            <span className={`text-xs px-2 py-0.5 rounded ${ev.status === "completed" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
-              {ev.status === "completed" ? `✓ Completada${ev.completed_at ? " el " + new Date(ev.completed_at).toLocaleDateString("es-CL") : ""}` : `En proceso · ${doneCount}/${ALL_KEYS.length} ejercicios`}
-            </span>
+            <div className="flex items-center gap-2">
+              {ev.status === "completed" && score != null && (
+                <span className="text-xs px-2 py-0.5 rounded bg-[#003366] text-white">Nota práctica: {score}%</span>
+              )}
+              <span className={`text-xs px-2 py-0.5 rounded ${ev.status === "completed" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
+                {ev.status === "completed" ? `✓ Completada${ev.completed_at ? " el " + new Date(ev.completed_at).toLocaleDateString("es-CL") : ""}` : `En proceso · ${doneCount}/${ALL_KEYS.length} ejercicios`}
+              </span>
+            </div>
           </div>
 
           {PHASES.map((phase) => (
@@ -99,7 +105,9 @@ export default function PracticaAlumnoPage({ params }: { params: Promise<{ id: s
                         <p className="text-gray-800">{it.label}</p>
                         {st?.ops && <p className="text-[11px] text-gray-400">Despegues/Aterrizajes: {st.ops}{st?.hours ? ` · ${st.hours}` : ""}</p>}
                       </div>
-                      {st?.done === true ? (
+                      {st?.na ? (
+                        <span className="text-xs font-semibold bg-gray-200 text-gray-600 px-2.5 py-0.5 rounded">No aplica</span>
+                      ) : st?.done === true ? (
                         <span className="text-xs font-semibold bg-green-100 text-green-700 px-2.5 py-0.5 rounded">SÍ ✓</span>
                       ) : st?.done === false ? (
                         <span className="text-xs font-semibold bg-red-100 text-red-600 px-2.5 py-0.5 rounded">NO</span>
