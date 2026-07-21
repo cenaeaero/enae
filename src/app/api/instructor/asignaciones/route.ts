@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   let q = supabaseAdmin
     .from("instructor_assignments")
     .select(
-      "id, instructor_email, registration_id, kind, city, scheduled_date, status, grade_theoretical, grade_practical, observations, completed_at, evaluation_file_url, created_at, registrations(id, first_name, last_name, email, folio_enae, organization, company, course_id, courses(title, code), sessions(dates, location))"
+      "id, instructor_email, registration_id, kind, city, scheduled_date, start_time, location_name, location_url, notified_at, status, grade_theoretical, grade_practical, observations, completed_at, evaluation_file_url, created_at, registrations(id, first_name, last_name, email, folio_enae, organization, company, course_id, courses(title, code), sessions(dates, location))"
     )
     .order("created_at", { ascending: false });
 

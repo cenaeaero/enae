@@ -102,6 +102,7 @@ export default function InstructorDashboard() {
                         {a.start_time ? ` · ${a.start_time}` : ""}
                       </p>
                       <p className="text-gray-400">{a.location_name || a.city || ""}</p>
+                      <p className="text-[10px] mt-0.5">{a.notified_at ? <span className="text-green-600">✓ Alumno avisado</span> : <span className="text-amber-600">Sin avisar</span>}</p>
                     </div>
                   </Link>
                 ))}

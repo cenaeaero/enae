@@ -72,6 +72,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     updates.status = body.status;
   }
 
+  // ¿Se ingresaron notas de verdad? (distinguir de una simple programación)
+  const gradesEntered =
+    ("grade_theoretical" in body && body.grade_theoretical != null) ||
+    ("grade_practical" in body && body.grade_practical != null);
+
+  // Aviso al alumno de la clase programada (fecha/hora/lugar) — opcional
+  const notifyStudent = body.notify === true;
+  if (notifyStudent) updates.notified_at = new Date().toISOString();
+
   const { data, error } = await supabaseAdmin
     .from("instructor_assignments")
     .update(updates)
@@ -79,6 +88,34 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     .select()
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Enviar el correo de coordinación al alumno (datos del instructor + fecha/lugar)
+  if (notifyStudent && a.registrations?.email) {
+    try {
+      const { sendPracticaDataToStudent } = await import("@/lib/email");
+      const { data: instProf } = await supabaseAdmin
+        .from("profiles").select("first_name, last_name, phone, email").ilike("email", a.instructor_email).limit(1).maybeSingle();
+      await sendPracticaDataToStudent({
+        studentEmail: a.registrations.email,
+        studentName: `${a.registrations.first_name || ""} ${a.registrations.last_name || ""}`.trim() || a.registrations.email,
+        instructor: {
+          name: instProf ? `${instProf.first_name || ""} ${instProf.last_name || ""}`.trim() : a.instructor_email,
+          email: instProf?.email || a.instructor_email,
+          phone: instProf?.phone || null,
+        },
+        schedule: {
+          date: (updates.scheduled_date ?? a.scheduled_date) || null,
+          time: (updates.start_time ?? a.start_time) || null,
+          city: (updates.city ?? a.city) || null,
+          locationName: (updates.location_name ?? a.location_name) || null,
+          locationUrl: (updates.location_url ?? a.location_url) || null,
+          course: a.registrations?.courses?.title || null,
+        },
+      });
+    } catch (e) {
+      console.error("Aviso al alumno falló:", e);
+    }
+  }
 
   // Si se ingresaron notas, también vuelca a student_grades + posiblemente actualiza la registration
   if (a.registration_id && (updates.grade_theoretical != null || updates.grade_practical != null)) {
@@ -130,19 +167,22 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
   }
 
-  // Notifica al admin via email + bell
-  try {
-    const { sendAdminInstructorGradeNotification } = await import("@/lib/email");
-    await sendAdminInstructorGradeNotification({
-      instructorEmail: auth.email,
-      studentName: `${a.registrations?.first_name || ""} ${a.registrations?.last_name || ""}`.trim(),
-      courseTitle: a.registrations?.courses?.title || "Curso",
-      gradeTheoretical: updates.grade_theoretical ?? a.grade_theoretical,
-      gradePractical: updates.grade_practical ?? a.grade_practical,
-      markCompleted,
-    });
-  } catch (e) {
-    console.error("Email notify failed:", e);
+  // Notifica al admin SOLO cuando hay notas o se marca completado
+  // (no al programar una clase — eso generaba un correo de "nota ingresada" erróneo)
+  if (gradesEntered || markCompleted) {
+    try {
+      const { sendAdminInstructorGradeNotification } = await import("@/lib/email");
+      await sendAdminInstructorGradeNotification({
+        instructorEmail: auth.email,
+        studentName: `${a.registrations?.first_name || ""} ${a.registrations?.last_name || ""}`.trim(),
+        courseTitle: a.registrations?.courses?.title || "Curso",
+        gradeTheoretical: updates.grade_theoretical ?? a.grade_theoretical,
+        gradePractical: updates.grade_practical ?? a.grade_practical,
+        markCompleted,
+      });
+    } catch (e) {
+      console.error("Email notify failed:", e);
+    }
   }
 
   return NextResponse.json({ assignment: data });

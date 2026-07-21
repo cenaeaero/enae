@@ -16,13 +16,14 @@ export default function ScheduleClassModal({ count, initial, onCancel, onSave }:
   count: number;
   initial?: Partial<ScheduleFields>;
   onCancel: () => void;
-  onSave: (fields: ScheduleFields) => Promise<void>;
+  onSave: (fields: ScheduleFields, notify: boolean) => Promise<void>;
 }) {
   const [city, setCity] = useState(initial?.city || "");
   const [date, setDate] = useState(initial?.scheduled_date || "");
   const [time, setTime] = useState(initial?.start_time || "");
   const [locationName, setLocationName] = useState(initial?.location_name || "");
   const [locationUrl, setLocationUrl] = useState(initial?.location_url || "");
+  const [notify, setNotify] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -31,7 +32,7 @@ export default function ScheduleClassModal({ count, initial, onCancel, onSave }:
     setSaving(true);
     setError("");
     try {
-      await onSave({ city, scheduled_date: date, start_time: time, location_name: locationName, location_url: locationUrl });
+      await onSave({ city, scheduled_date: date, start_time: time, location_name: locationName, location_url: locationUrl }, notify);
     } catch (err: any) {
       setError(err?.message || "Error al guardar");
       setSaving(false);
@@ -80,8 +81,12 @@ export default function ScheduleClassModal({ count, initial, onCancel, onSave }:
               )}
             </div>
           </div>
+          <label className="flex items-center gap-2 text-sm text-gray-700 pt-1 cursor-pointer">
+            <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} className="rounded" />
+            Avisar a {count === 1 ? "el alumno" : "los alumnos"} por correo (fecha, hora, lugar y datos del instructor)
+          </label>
           <p className="text-[11px] text-gray-400">
-            Estos datos se aplican a {count === 1 ? "la asignación seleccionada" : `las ${count} asignaciones seleccionadas`} y el alumno los verá en su portal.
+            Estos datos se aplican a {count === 1 ? "la asignación seleccionada" : `las ${count} asignaciones seleccionadas`} y {count === 1 ? "el alumno los verá" : "los alumnos los verán"} en su portal.
           </p>
         </div>
         <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-3">
