@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-service";
 import { requireInstructor } from "@/lib/auth-instructor";
-import { computePracticalScore } from "@/lib/practical-eval-format";
+import { computePracticalScore, getExamScore } from "@/lib/practical-eval-format";
+
+// Convierte nota chilena 1.0–7.0 a porcentaje 0–100 para el libro de notas
+// (que trabaja en escala 0-100; el diploma muestra final_score%).
+function nota100(n: number): number {
+  return Math.round(((n - 1) / 6) * 100);
+}
 
 // Evaluación práctica en línea (formato ENAE-CHL-N1), una por asignación.
 // El instructor dueño (o un admin) puede leerla y editarla.
@@ -91,8 +97,9 @@ export async function PUT(request: Request) {
     record.completed_at = now;
   }
 
-  // Nota práctica automática a partir de los ejercicios (excluye "No Aplica")
-  const score = computePracticalScore(record.items || {});
+  // Promedio de maniobras (1.0–7.0) y nota del examen final (1.0–7.0)
+  const practicalAvg = computePracticalScore(record.items || {});
+  const examScore = getExamScore(record.items || {});
 
   const { data, error } = await supabaseAdmin
     .from("practical_evaluations")
@@ -101,15 +108,16 @@ export async function PUT(request: Request) {
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Al COMPLETAR, vuelca la nota práctica automáticamente a la asignación y al
-  // libro de notas del alumno (sección de evaluaciones / calificaciones).
-  if (body.complete === true && score != null) {
+  // Al COMPLETAR, vuelca el promedio de maniobras como nota práctica del alumno.
+  // Se guarda en escala 1-7 en la asignación (visible en el módulo práctico) y
+  // convertida a % en el libro de notas (que trabaja 0-100 para el diploma).
+  if (body.complete === true && practicalAvg != null) {
     const regId = own.assignment.registration_id;
     const courseId = own.assignment.registrations?.course_id;
 
     await supabaseAdmin
       .from("instructor_assignments")
-      .update({ grade_practical: score })
+      .update({ grade_practical: nota100(practicalAvg) })
       .eq("id", assignmentId);
 
     if (regId && courseId) {
@@ -123,13 +131,13 @@ export async function PUT(request: Request) {
         await supabaseAdmin.from("student_grades").upsert({
           registration_id: regId,
           grade_item_id: pracItem.id,
-          score,
-          comments: `Nota práctica automática (formato N1) — instructor ${own.assignment.instructor_email}`,
+          score: nota100(practicalAvg),
+          comments: `Promedio maniobras ${practicalAvg.toFixed(1)} (formato N1)${examScore != null ? ` · examen ${examScore.toFixed(1)}` : ""} — instructor ${own.assignment.instructor_email}`,
           graded_at: now,
         }, { onConflict: "registration_id,grade_item_id" });
       }
     }
   }
 
-  return NextResponse.json({ evaluation: data, score });
+  return NextResponse.json({ evaluation: data, practical_avg: practicalAvg, exam_score: examScore });
 }

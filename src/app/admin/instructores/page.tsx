@@ -441,7 +441,14 @@ export default function AdminInstructoresPage() {
                         className="text-xs bg-[#003366] hover:bg-[#00254d] text-white font-medium px-3 py-1.5 rounded disabled:opacity-40">
                         {sendingNotif ? "Enviando…" : `✉️ Enviar datos (${selAsg.size})`}
                       </button>
-                      <span className="text-[11px] text-gray-400">Programa fecha/hora/lugar en lote y envía los datos al instructor y a los alumnos por correo.</span>
+                      <button
+                        onClick={() => window.open(`/instructor/formularios?ids=${Array.from(selAsg).join(",")}`, "_blank")}
+                        disabled={selAsg.size === 0}
+                        className="text-xs bg-gray-700 hover:bg-gray-800 text-white font-medium px-3 py-1.5 rounded disabled:opacity-40"
+                        title="Descarga los formularios de evaluación prellenados">
+                        ⬇️ Formularios ({selAsg.size})
+                      </button>
+                      <span className="text-[11px] text-gray-400">Programa en lote, envía datos por correo o descarga los formularios para la clase.</span>
                     </div>
                   )}
                   {myAssignments.length === 0 ? (

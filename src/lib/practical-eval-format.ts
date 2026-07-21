@@ -2,69 +2,89 @@
 // (Programa de capacitación para la obtención de la credencial de Operador RPAS)
 // Compartido por el formulario del instructor y la vista del alumno.
 
-export type ItemDef = { key: string; label: string; detail?: string; hours: string };
+// kind:
+//   "check" → ítem de preparación (SÍ / NO / N-A), no lleva nota
+//   "grade" → maniobra evaluada con nota parcial 1.0–7.0 (promedia la nota práctica)
+//   "exam"  → examen final, nota aparte (no entra al promedio de maniobras)
+export type ItemKind = "check" | "grade" | "exam";
+export type ItemDef = { key: string; label: string; detail?: string; kind: ItemKind };
 export type Phase = { title: string; items: ItemDef[] };
-// done: true = SÍ (cumplido), false = NO, null = sin marcar
-// na: true = No Aplica (el ejercicio no se realizó; se excluye de la nota)
-export type ItemState = { done: boolean | null; na?: boolean; hours: string; ops: string };
+
+// done: SÍ/NO/null (solo ítems "check")
+// grade: nota parcial 1.0–7.0 (ítems "grade"/"exam")
+// na: No Aplica → se excluye del promedio
+export type ItemState = { done?: boolean | null; grade?: number | null; na?: boolean };
+
+// Escala de notas chilena
+export const GRADE_MIN = 1.0;
+export const GRADE_MAX = 7.0;
+export const GRADE_PASS = 4.0;
 
 export const PHASES: Phase[] = [
   {
     title: "FASE PRE-SOLO (BÁSICO)",
     items: [
-      { key: "talleres", label: "Talleres", hours: "01:00", detail: "Partes y piezas · Software-Telemetría · Armado-Baterías · Aplicaciones utilizadas para el vuelo · Mantenimiento preventivo · Vuelo seguro" },
-      { key: "prevuelo", label: "Pre-Vuelo", hours: "01:00", detail: "Condiciones meteorológicas · Identificación de obstáculos · Condiciones humanas · Verificación visual 360° equipos · Armado de zona de despegue" },
-      { key: "m1", label: "Maniobra 1 — Cuadrados sin cambio de rumbo", hours: "20 min" },
-      { key: "m2", label: "Maniobra 2 — Cuadrados con cambio de rumbo", hours: "20 min" },
-      { key: "m3", label: "Maniobra 3 — Cuadrado en trayectoria", hours: "20 min" },
+      { key: "talleres", kind: "check", label: "Talleres", detail: "Partes y piezas · Software-Telemetría · Armado-Baterías · Aplicaciones utilizadas para el vuelo · Mantenimiento preventivo · Vuelo seguro" },
+      { key: "prevuelo", kind: "check", label: "Pre-Vuelo", detail: "Condiciones meteorológicas · Identificación de obstáculos · Condiciones humanas · Verificación visual 360° equipos · Armado de zona de despegue" },
+      { key: "m1", kind: "grade", label: "Maniobra 1 — Cuadrados sin cambio de rumbo" },
+      { key: "m2", kind: "grade", label: "Maniobra 2 — Cuadrados con cambio de rumbo" },
+      { key: "m3", kind: "grade", label: "Maniobra 3 — Cuadrado en trayectoria" },
     ],
   },
   {
     title: "FASE PROGRESO (INTERMEDIA)",
     items: [
-      { key: "m4", label: "Maniobra 4 — Círculos sin cambio de rumbo", hours: "01:00" },
-      { key: "m5", label: "Maniobra 5 — Ocho sin cambio de rumbo", hours: "01:00" },
-      { key: "m6", label: "Maniobra 6 — Círculo en punto de interés", hours: "01:00" },
-      { key: "m7", label: "Maniobra 7 — Círculo en trayectoria", hours: "01:00" },
-      { key: "m8", label: "Maniobra 8 — Desplazamientos y aterrizajes en invertido", hours: "01:00" },
+      { key: "m4", kind: "grade", label: "Maniobra 4 — Círculos sin cambio de rumbo" },
+      { key: "m5", kind: "grade", label: "Maniobra 5 — Ocho sin cambio de rumbo" },
+      { key: "m6", kind: "grade", label: "Maniobra 6 — Círculo en punto de interés" },
+      { key: "m7", kind: "grade", label: "Maniobra 7 — Círculo en trayectoria" },
+      { key: "m8", kind: "grade", label: "Maniobra 8 — Desplazamientos y aterrizajes en invertido" },
     ],
   },
   {
     title: "FASE FINAL (AVANZADA)",
     items: [
-      { key: "m9", label: "Maniobra 9 — Vuelo por instrumentos FPV, punto de interés y vuelos inteligentes", hours: "01:00" },
-      { key: "m10", label: "Maniobra 10 — Aterrizajes en emergencia y asistidos por observador", hours: "01:00" },
-      { key: "m11", label: "Maniobra 11 — Aterrizaje en modo ATTI", hours: "01:00" },
+      { key: "m9", kind: "grade", label: "Maniobra 9 — Vuelo por instrumentos FPV, punto de interés y vuelos inteligentes" },
+      { key: "m10", kind: "grade", label: "Maniobra 10 — Aterrizajes en emergencia y asistidos por observador" },
+      { key: "m11", kind: "grade", label: "Maniobra 11 — Aterrizaje en modo ATTI" },
     ],
   },
   {
     title: "EXAMEN FINAL",
     items: [
-      { key: "chequeo_final", label: "Examen — Chequeo Final", hours: "01:00" },
+      { key: "chequeo_final", kind: "exam", label: "Examen Final — Chequeo Final" },
     ],
   },
 ];
 
 export const ALL_KEYS = PHASES.flatMap((p) => p.items.map((i) => i.key));
+export const GRADE_KEYS = PHASES.flatMap((p) => p.items.filter((i) => i.kind === "grade").map((i) => i.key));
+export const EXAM_KEY = "chequeo_final";
 
 export function emptyItems(): Record<string, ItemState> {
   const m: Record<string, ItemState> = {};
-  for (const ph of PHASES) for (const it of ph.items) m[it.key] = { done: null, na: false, hours: it.hours, ops: "" };
+  for (const ph of PHASES) for (const it of ph.items) {
+    m[it.key] = it.kind === "check" ? { done: null, na: false } : { grade: null, na: false };
+  }
   return m;
 }
 
-// Nota práctica automática: % de ejercicios cumplidos (SÍ) sobre los que
-// APLICAN (se excluyen los marcados "No Aplica"). Devuelve null si no hay
-// ejercicios aplicables. Redondeada al entero.
+// Nota práctica = promedio de las notas de las maniobras 1–11 con nota ingresada
+// (los ítems "No Aplica" o sin nota se excluyen). Escala 1.0–7.0, 1 decimal.
 export function computePracticalScore(items: Record<string, ItemState>): number | null {
-  let aplicables = 0;
-  let cumplidos = 0;
-  for (const key of ALL_KEYS) {
+  const notas: number[] = [];
+  for (const key of GRADE_KEYS) {
     const st = items[key];
-    if (!st || st.na) continue;       // No Aplica → fuera del cálculo
-    aplicables++;
-    if (st.done === true) cumplidos++;
+    if (!st || st.na) continue;                 // No Aplica → fuera del promedio
+    if (typeof st.grade === "number" && !isNaN(st.grade)) notas.push(st.grade);
   }
-  if (aplicables === 0) return null;
-  return Math.round((cumplidos / aplicables) * 100);
+  if (notas.length === 0) return null;
+  return Math.round((notas.reduce((a, b) => a + b, 0) / notas.length) * 10) / 10;
+}
+
+// Nota del examen final (aparte del promedio de maniobras).
+export function getExamScore(items: Record<string, ItemState>): number | null {
+  const st = items[EXAM_KEY];
+  if (!st || st.na) return null;
+  return typeof st.grade === "number" && !isNaN(st.grade) ? st.grade : null;
 }

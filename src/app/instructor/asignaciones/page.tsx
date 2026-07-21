@@ -128,6 +128,11 @@ export default function AsignacionesPage() {
           className="text-sm bg-[#0072CE] hover:bg-[#005fa3] text-white font-medium px-4 py-2 rounded disabled:opacity-40">
           📅 Programar clase ({sel.size})
         </button>
+        <button onClick={() => window.open(`/instructor/formularios?ids=${Array.from(sel).join(",")}`, "_blank")} disabled={sel.size === 0}
+          className="text-sm bg-[#003366] hover:bg-[#00254d] text-white font-medium px-4 py-2 rounded disabled:opacity-40"
+          title="Descarga el formulario de evaluación prellenado para llevar a la clase">
+          ⬇️ Descargar formularios ({sel.size})
+        </button>
       </div>
 
       {msg && (
