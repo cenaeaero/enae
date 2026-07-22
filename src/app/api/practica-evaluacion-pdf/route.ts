@@ -46,19 +46,24 @@ export async function GET(request: Request) {
 
   const reg = (a as any).registrations;
 
-  // RUT del alumno (vive en profiles) y nombre del instructor
+  // RUT y folio ENAE viven en profiles (la tarjeta "Certificaciones del Curso"
+  // los guarda ahí; en registrations suelen venir vacíos).
   let rut = ev.student_document || "";
-  if (!rut && reg?.email) {
-    const { data: sp } = await supabaseAdmin.from("profiles").select("rut").ilike("email", reg.email).limit(1).maybeSingle();
-    rut = sp?.rut || "";
+  let folio = "";
+  if (reg?.email) {
+    const { data: sp } = await supabaseAdmin
+      .from("profiles").select("rut, folio_enae").ilike("email", reg.email).limit(1).maybeSingle();
+    if (!rut) rut = sp?.rut || "";
+    folio = sp?.folio_enae || "";
   }
+  if (!folio) folio = reg?.folio_enae || "";
   const { data: ip } = await supabaseAdmin
     .from("profiles").select("first_name, last_name").ilike("email", (a as any).instructor_email).limit(1).maybeSingle();
 
   const pdf = generateCompletedPracticaPdf({
     student_name: ev.student_name || (reg ? `${reg.first_name || ""} ${reg.last_name || ""}`.trim() : ""),
     student_document: rut,
-    folio: reg?.folio_enae || "",
+    folio,
     course: reg?.courses?.title || "",
     course_code: reg?.courses?.code || "",
     city: ev.city || (a as any).city || "",
