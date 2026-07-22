@@ -296,8 +296,20 @@ export async function POST(request: Request) {
         .update({ score, total_points: totalPoints, earned_points: earnedPoints, completed_at: new Date().toISOString(), status: "completed" })
         .eq("id", attempt_id);
 
-      // Auto-grade: save to student_grades
+      // Marcar la actividad del examen como completada. Sin esto, el alumno
+      // rinde el examen pero la actividad queda pendiente y el certificado
+      // DGAC se bloquea por "no ha finalizado todos los módulos".
       const exam = attempt.exams;
+      if (exam?.activity_id) {
+        await supabaseAdmin.from("activity_progress").upsert({
+          registration_id: attempt.registration_id,
+          activity_id: exam.activity_id,
+          status: "completed",
+          completed_at: new Date().toISOString(),
+        }, { onConflict: "registration_id,activity_id" });
+      }
+
+      // Auto-grade: save to student_grades
       let gradeItemId = exam?.grade_item_id;
 
       // If no grade_item_id on exam, auto-find by matching module → grade_item.
