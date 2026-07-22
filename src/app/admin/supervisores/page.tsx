@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import NewRoleProfileModal from "@/components/NewRoleProfileModal";
 
 // Workspace de supervisores estilo Dynamics: panel maestro (lista) + ficha con
 // pestañas. Al asociar una empresa, el supervisor ve automáticamente a TODOS
@@ -337,10 +336,131 @@ export default function AdminSupervisoresPage() {
       </main>
 
       {showNew && (
-        <NewRoleProfileModal role="supervisor" title="Nuevo supervisor"
+        <NewSupervisorModal
+          companies={companies}
           onClose={() => setShowNew(false)}
-          onCreated={() => { setShowNew(false); setMessage("✓ Supervisor creado. Selecciónalo y asócialo a su empresa en la pestaña Resumen."); loadAll(); }} />
+          onDone={(msg, profileId) => { setShowNew(false); setMessage(msg); if (profileId) setSelectedId(profileId); loadAll(); }} />
       )}
+    </div>
+  );
+}
+
+// ── Ventana: nuevo supervisor (crea el perfil y lo asocia a su empresa) ──────
+// Nota: "supervisor" no es un rol en profiles (el CHECK sólo admite
+// student/instructor/admin). El acceso al portal se otorga por la fila en
+// company_supervisors, por eso la empresa es obligatoria aquí.
+function NewSupervisorModal({ companies, onClose, onDone }: {
+  companies: Company[];
+  onClose: () => void;
+  onDone: (msg: string, profileId?: string) => void;
+}) {
+  const [form, setForm] = useState<any>({ send_credentials: true });
+  const [companyId, setCompanyId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const set = (k: string, v: any) => setForm((p: any) => ({ ...p, [k]: v }));
+
+  async function save() {
+    if (!form.email || !form.first_name || !form.last_name) { setError("Email, nombre y apellido son obligatorios"); return; }
+    if (!companyId) { setError("Selecciona la empresa que supervisará"); return; }
+    setSaving(true); setError("");
+
+    // 1) Crear (o reutilizar) el perfil de la persona
+    const res = await fetch("/api/admin/perfiles", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...form, role: "supervisor" }),
+    });
+    const data = await res.json();
+    if (!res.ok) { setError(data.error || "No se pudo crear el perfil"); setSaving(false); return; }
+    const profileId = data.profile?.id;
+
+    // 2) Asociarlo a la empresa en el primer cupo libre (máx. 3 por empresa)
+    const sup = await fetch(`/api/admin/company-supervisors?company_id=${companyId}`).then((r) => r.json());
+    const ocupados = new Set((sup.supervisors || []).map((s: any) => s.slot));
+    const yaEsta = (sup.supervisors || []).some((s: any) => s.profile_id === profileId);
+    if (!yaEsta) {
+      const slot = [1, 2, 3].find((n) => !ocupados.has(n));
+      if (!slot) { setError("Esa empresa ya tiene 3 supervisores (máximo)."); setSaving(false); return; }
+      const link = await fetch("/api/admin/company-supervisors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company_id: companyId, profile_id: profileId, slot }),
+      });
+      if (!link.ok) {
+        const d = await link.json().catch(() => ({}));
+        setError(d.error || "Perfil creado, pero no se pudo asociar la empresa");
+        setSaving(false);
+        return;
+      }
+    }
+
+    setSaving(false);
+    const empresa = companies.find((c) => c.id === companyId)?.name || "la empresa";
+    onDone(
+      `✓ ${form.first_name} quedó como supervisor de ${empresa} y ya ve a todos sus alumnos.${data.tempPassword ? ` Clave temporal: ${data.tempPassword}` : " (La persona ya tenía cuenta: entra con su clave actual.)"}`,
+      profileId,
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => !saving && onClose()}>
+      <div className="bg-white rounded-xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-[#003366]">Nuevo supervisor</h2>
+          <button onClick={onClose} className="text-gray-400 text-2xl">×</button>
+        </div>
+        <div className="p-6 space-y-3">
+          {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2 rounded">{error}</div>}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Email *</label>
+            <input type="email" value={form.email || ""} onChange={(e) => set("email", e.target.value)}
+              className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Nombre *</label>
+              <input value={form.first_name || ""} onChange={(e) => set("first_name", e.target.value)}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Apellido *</label>
+              <input value={form.last_name || ""} onChange={(e) => set("last_name", e.target.value)}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">RUT</label>
+              <input value={form.rut || ""} onChange={(e) => set("rut", e.target.value)}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Teléfono</label>
+              <input value={form.phone || ""} onChange={(e) => set("phone", e.target.value)}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Empresa que supervisará *</label>
+            <select value={companyId} onChange={(e) => setCompanyId(e.target.value)}
+              className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-white">
+              <option value="">Seleccionar empresa…</option>
+              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}{c.rut ? ` (${c.rut})` : ""}</option>)}
+            </select>
+            <p className="text-[11px] text-gray-400 mt-1">Al asociarla, verá automáticamente a todos los alumnos de esa empresa.</p>
+          </div>
+          <label className="flex items-center gap-2 text-xs text-gray-600">
+            <input type="checkbox" checked={form.send_credentials !== false} onChange={(e) => set("send_credentials", e.target.checked)} />
+            Enviar email con credenciales (si es usuario nuevo)
+          </label>
+        </div>
+        <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-2">
+          <button onClick={onClose} disabled={saving} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded disabled:opacity-50">Cancelar</button>
+          <button onClick={save} disabled={saving}
+            className="px-5 py-2 bg-[#0072CE] hover:bg-[#005fa3] disabled:bg-blue-300 text-white text-sm font-semibold rounded">
+            {saving ? "Creando…" : "Crear y asociar"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

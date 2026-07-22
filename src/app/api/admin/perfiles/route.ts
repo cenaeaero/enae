@@ -93,7 +93,18 @@ export async function POST(request: Request) {
 
   // ¿Existe auth?
   const { data: existingProfile } = await supabaseAdmin
-    .from("profiles").select("id, user_id").eq("email", normalizedEmail).maybeSingle();
+    .from("profiles").select("id, user_id, role").eq("email", normalizedEmail).maybeSingle();
+
+  // "supervisor" NO es un rol válido en profiles (CHECK: student|instructor|admin).
+  // El acceso al portal de supervisor se otorga por filas en company_supervisors,
+  // así que una persona puede ser supervisor y además alumno/instructor/admin.
+  let dbRole: string = role === "supervisor" ? (existingProfile?.role || "student") : role;
+  // Nunca degradar el rol de un perfil existente (p.ej. un admin que se registra
+  // también como supervisor no debe perder su acceso de administrador).
+  const rank: Record<string, number> = { student: 0, instructor: 1, admin: 2 };
+  if (existingProfile?.role && (rank[existingProfile.role] ?? 0) > (rank[dbRole] ?? 0)) {
+    dbRole = existingProfile.role;
+  }
 
   let userId: string | undefined = existingProfile?.user_id || undefined;
   let createdCredentials = false;
@@ -128,7 +139,7 @@ export async function POST(request: Request) {
     user_id: userId,
     first_name, last_name, email: normalizedEmail,
     rut: rut || null, phone: phone || null,
-    role, company_id: company_id || null,
+    role: dbRole, company_id: company_id || null,
     organization: orgClean,
   };
 
