@@ -238,15 +238,17 @@ export default function SupervisorDashboard() {
               </button>
             </div>
             <p className="text-[11px] text-gray-400 mt-3">
-              Los diplomas y certificados individuales se descargan desde la ficha de cada alumno en <Link href={`/supervisor/alumnos${suffix}`} className="text-[#0072CE] hover:underline">Mis Alumnos</Link>.
+              ¿Necesitas informes con filtros por curso, fecha o estado de avance, o descargar certificados en lote?
+              Entra al <Link href={`/supervisor/informes${suffix}`} className="text-[#0072CE] hover:underline font-medium">Centro de Informes</Link>.
             </p>
           </div>
 
           {/* Accesos rápidos */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Link href={`/supervisor/alumnos${suffix}`} className="block bg-[#0072CE] hover:bg-[#005fa3] text-white px-4 py-3 rounded-lg text-sm font-medium text-center">🎓 Mis Alumnos</Link>
-            <Link href={`/supervisor/finanzas${suffix}`} className="block bg-[#003366] hover:bg-[#001d3d] text-white px-4 py-3 rounded-lg text-sm font-medium text-center">💰 Finanzas</Link>
-            <a href="mailto:escuela@enae.cl" className="block bg-gray-700 hover:bg-gray-800 text-white px-4 py-3 rounded-lg text-sm font-medium text-center">✉️ Contactar a ENAE</a>
+            <Link href={`/supervisor/informes${suffix}`} className="block bg-[#003366] hover:bg-[#001d3d] text-white px-4 py-3 rounded-lg text-sm font-medium text-center">📊 Informes</Link>
+            <Link href={`/supervisor/finanzas${suffix}`} className="block bg-gray-700 hover:bg-gray-800 text-white px-4 py-3 rounded-lg text-sm font-medium text-center">💰 Finanzas</Link>
+            <Link href={`/supervisor/informes${suffix}`} className="block bg-gray-500 hover:bg-gray-600 text-white px-4 py-3 rounded-lg text-sm font-medium text-center">✉️ Contactar a ENAE</Link>
           </div>
         </>
       )}
