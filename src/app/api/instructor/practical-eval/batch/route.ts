@@ -21,12 +21,18 @@ export async function GET(request: Request) {
     .select("id, instructor_email, city, scheduled_date, start_time, location_name, registration_id, registrations(first_name, last_name, email, folio_enae, courses(title, code))")
     .in("id", ids);
 
-  // Datos de contacto del alumno (RUT/teléfono) y nombre del instructor
+  // RUT y folio ENAE viven en profiles (la tarjeta "Certificaciones del Curso"
+  // los guarda ahí; en registrations suelen venir vacíos).
   const emails = (asgs || []).map((a: any) => a.registrations?.email).filter(Boolean);
   const rutByEmail: Record<string, string | null> = {};
+  const folioByEmail: Record<string, string | null> = {};
   if (emails.length > 0) {
-    const { data: profs } = await supabaseAdmin.from("profiles").select("email, rut").in("email", emails);
-    for (const p of profs || []) if (p.email) rutByEmail[p.email.toLowerCase()] = p.rut;
+    const { data: profs } = await supabaseAdmin.from("profiles").select("email, rut, folio_enae").in("email", emails);
+    for (const p of profs || []) {
+      if (!p.email) continue;
+      rutByEmail[p.email.toLowerCase()] = p.rut;
+      folioByEmail[p.email.toLowerCase()] = p.folio_enae;
+    }
   }
 
   const forms = (asgs || [])
@@ -37,7 +43,7 @@ export async function GET(request: Request) {
         assignment_id: a.id,
         student_name: r ? `${r.first_name || ""} ${r.last_name || ""}`.trim() : "",
         student_document: (r?.email ? rutByEmail[r.email.toLowerCase()] : null) || "",
-        folio: r?.folio_enae || "",
+        folio: (r?.email ? folioByEmail[r.email.toLowerCase()] : null) || r?.folio_enae || "",
         course: r?.courses?.title || "",
         course_code: r?.courses?.code || "",
         city: a.city || "",
