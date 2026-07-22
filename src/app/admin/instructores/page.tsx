@@ -627,11 +627,15 @@ export default function AdminInstructoresPage() {
                                 const pe = practicalEval(a);
                                 if (!pe) return <span className="text-gray-400">—</span>;
                                 return (
-                                  <a href={`/instructor/asignaciones/${a.id}/evaluacion`} target="_blank" rel="noopener noreferrer"
-                                    className={`px-2 py-0.5 rounded hover:underline ${pe.status === "completed" ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}
-                                    title={pe.pre_solo_result ? `Pre-Solo: ${pe.pre_solo_result}` : ""}>
-                                    {pe.status === "completed" ? "✓ Completada" : "Borrador"}
-                                  </a>
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <a href={`/instructor/asignaciones/${a.id}/evaluacion`} target="_blank" rel="noopener noreferrer"
+                                      className={`px-2 py-0.5 rounded hover:underline ${pe.status === "completed" ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}
+                                      title={pe.pre_solo_result ? `Pre-Solo: ${pe.pre_solo_result}` : ""}>
+                                      {pe.status === "completed" ? "✓ Completada" : "Borrador"}
+                                    </a>
+                                    <a href={`/api/practica-evaluacion-pdf?assignment_id=${a.id}`}
+                                      className="text-[#0072CE] hover:underline" title="Descargar PDF firmado (ISO/DGAC)">⬇️</a>
+                                  </span>
                                 );
                               })()}
                             </td>

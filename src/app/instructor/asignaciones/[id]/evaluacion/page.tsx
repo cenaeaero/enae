@@ -258,6 +258,11 @@ export default function EvaluacionPracticaPage({ params }: { params: Promise<{ i
           className="bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white text-sm font-semibold px-5 py-2 rounded">
           {saving ? "Guardando…" : "Guardar y completar evaluación"}
         </button>
+        <a href={`/api/practica-evaluacion-pdf?assignment_id=${id}`}
+          className="bg-[#003366] hover:bg-[#00254d] text-white text-sm font-semibold px-5 py-2 rounded"
+          title="Descarga el formato N1 con las notas y las firmas (archivo ISO/DGAC)">
+          ⬇️ PDF firmado
+        </a>
         {status === "completed" && (
           <span className="text-xs text-gray-500 self-center">La evaluación quedó registrada; puedes seguir editándola si necesitas corregir algo.</span>
         )}

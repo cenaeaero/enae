@@ -146,8 +146,12 @@ export default function PracticaAlumnoPage({ params }: { params: Promise<{ id: s
           <div className="bg-white border border-gray-200 rounded-lg mt-4 p-5">
             <h2 className="text-sm font-bold text-[#003366] mb-2">Firma del alumno</h2>
             {ev.student_signed_at ? (
-              <div className="bg-green-50 border border-green-200 rounded px-4 py-3 text-sm text-green-800">
-                ✍️ Firmada por <strong>{ev.student_signature_name}</strong> el {new Date(ev.student_signed_at).toLocaleString("es-CL")}.
+              <div className="bg-green-50 border border-green-200 rounded px-4 py-3 text-sm text-green-800 flex flex-wrap items-center justify-between gap-3">
+                <span>✍️ Firmada por <strong>{ev.student_signature_name}</strong> el {new Date(ev.student_signed_at).toLocaleString("es-CL")}.</span>
+                <a href={`/api/practica-evaluacion-pdf?assignment_id=${id}`}
+                  className="bg-[#003366] hover:bg-[#00254d] text-white text-xs font-semibold px-4 py-2 rounded whitespace-nowrap">
+                  ⬇️ Descargar PDF
+                </a>
               </div>
             ) : ev.status !== "completed" ? (
               <p className="text-sm text-gray-400">Podrás firmar cuando el instructor complete la evaluación.</p>
