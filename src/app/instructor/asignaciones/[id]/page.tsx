@@ -199,10 +199,17 @@ export default function AssignmentDetail({ params }: { params: Promise<{ id: str
           <h2 className="text-sm font-bold text-white">Evaluación práctica en línea · ENAE-CHL-N1</h2>
           <p className="text-xs text-blue-200 mt-0.5">Registra el cumplimiento de ejercicios por fase (Pre-Solo, Progreso, Final y Chequeo) directamente en la plataforma.</p>
         </div>
-        <Link href={`/instructor/asignaciones/${id}/evaluacion`}
-          className="bg-white hover:bg-blue-50 text-[#003366] text-sm font-semibold px-5 py-2 rounded">
-          📋 Abrir formulario
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <a href={`/api/instructor/practical-eval/batch?format=pdf&ids=${id}`}
+            className="bg-[#0072CE] hover:bg-[#005fa3] text-white text-sm font-semibold px-4 py-2 rounded"
+            title="Descarga el formulario en PDF con los datos del alumno">
+            ⬇️ Descargar PDF
+          </a>
+          <Link href={`/instructor/asignaciones/${id}/evaluacion`}
+            className="bg-white hover:bg-blue-50 text-[#003366] text-sm font-semibold px-5 py-2 rounded">
+            📋 Abrir formulario
+          </Link>
+        </div>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg p-6 mt-4">

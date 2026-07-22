@@ -442,11 +442,11 @@ export default function AdminInstructoresPage() {
                         {sendingNotif ? "Enviando…" : `✉️ Enviar datos (${selAsg.size})`}
                       </button>
                       <button
-                        onClick={() => window.open(`/instructor/formularios?ids=${Array.from(selAsg).join(",")}`, "_blank")}
+                        onClick={() => { window.location.href = `/api/instructor/practical-eval/batch?format=pdf&ids=${Array.from(selAsg).join(",")}`; }}
                         disabled={selAsg.size === 0}
                         className="text-xs bg-gray-700 hover:bg-gray-800 text-white font-medium px-3 py-1.5 rounded disabled:opacity-40"
-                        title="Descarga los formularios de evaluación prellenados">
-                        ⬇️ Formularios ({selAsg.size})
+                        title="Descarga en PDF los formularios de evaluación prellenados">
+                        ⬇️ Formularios PDF ({selAsg.size})
                       </button>
                       <span className="text-[11px] text-gray-400">Programa en lote, envía datos por correo o descarga los formularios para la clase.</span>
                     </div>
