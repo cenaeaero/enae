@@ -27,6 +27,7 @@ type DbCourseRow = {
   prerequisites: string[] | null;
   is_active: boolean;
   image_url: string | null;
+  brochure_url: string | null;
   sessions: {
     dates: string;
     location: string;
@@ -62,6 +63,7 @@ function mapDbCourseToPublic(row: DbCourseRow): Course {
     targetAudience: row.target_audience ?? undefined,
     prerequisites: row.prerequisites ?? undefined,
     image: row.image_url ?? undefined,
+    brochureUrl: row.brochure_url ?? undefined,
     locations: locations.length > 0 ? locations : ["Por confirmar"],
     dates,
     sessions: activeSessions.map((s) => ({

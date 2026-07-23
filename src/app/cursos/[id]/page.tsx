@@ -301,6 +301,16 @@ export default async function CourseDetailPage({
                     >
                       Más Información
                     </Link>
+                    {course.brochureUrl && (
+                      <a
+                        href={course.brochureUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 w-full py-3 border-2 border-[#0072CE] text-[#0072CE] text-center font-semibold rounded-lg hover:bg-blue-50 transition"
+                      >
+                        📄 Descargar Brochure
+                      </a>
+                    )}
                   </div>
                 </div>
 

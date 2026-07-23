@@ -42,6 +42,7 @@ export async function POST(request: Request) {
       billingCountry,
       howFound,
       comments,
+      deliveryMode,
     } = body;
 
     const organization = normalizeOrganization(rawOrganization);
@@ -272,6 +273,7 @@ export async function POST(request: Request) {
       comments,
       status: isFree ? "confirmed" : "pending",
       source: "self",
+      ...(deliveryMode === "online" || deliveryMode === "presencial" ? { delivery_mode: deliveryMode } : {}),
     };
 
     let { data: registration, error: regError } = await supabaseAdmin
