@@ -21,6 +21,7 @@ type SessionInfo = {
   location: string;
   modality: string;
   fee: string | null;
+  allowAttendanceChoice: boolean;
 };
 
 export default function RegistroPage() {
@@ -35,6 +36,7 @@ export default function RegistroPage() {
   const [existingStudent, setExistingStudent] = useState(false);
   const [existingMessage, setExistingMessage] = useState("");
   const [submitError, setSubmitError] = useState("");
+  const [deliveryMode, setDeliveryMode] = useState<"presencial" | "online">("presencial");
 
   useEffect(() => {
     async function load() {
@@ -48,7 +50,7 @@ export default function RegistroPage() {
         const { data } = await supabase
           .from("sessions")
           .select(
-            "id, dates, location, modality, fee, course_id, courses(title, code, area, area_slug, duration, image_url)"
+            "id, dates, location, modality, fee, course_id, courses(title, code, area, area_slug, duration, image_url, allow_attendance_choice)"
           )
           .eq("id", id)
           .single();
@@ -68,6 +70,7 @@ export default function RegistroPage() {
             location: s.location,
             modality: s.modality,
             fee: s.fee,
+            allowAttendanceChoice: s.courses?.allow_attendance_choice === true,
           });
           setLoading(false);
           return;
@@ -78,7 +81,7 @@ export default function RegistroPage() {
         const { data: courseData } = await supabase
           .from("courses")
           .select(
-            "id, title, code, area, area_slug, duration, image_url, sessions(id, dates, location, modality, fee, is_active)"
+            "id, title, code, area, area_slug, duration, image_url, allow_attendance_choice, sessions(id, dates, location, modality, fee, is_active)"
           )
           .eq("id", id)
           .single();
@@ -102,6 +105,7 @@ export default function RegistroPage() {
             location: firstSession?.location || "",
             modality: firstSession?.modality || "",
             fee: firstSession?.fee || null,
+            allowAttendanceChoice: c.allow_attendance_choice === true,
           });
           setLoading(false);
           return;
@@ -125,6 +129,7 @@ export default function RegistroPage() {
           location: firstSession?.location || staticCourse.locations[0] || "",
           modality: staticCourse.modality,
           fee: firstSession?.fee || null,
+          allowAttendanceChoice: false,
         });
       }
 
@@ -215,6 +220,7 @@ export default function RegistroPage() {
       billingCountry: sameAddress ? "" : get("billingCountry"),
       howFound: get("howFound"),
       comments: get("comments"),
+      deliveryMode: session?.allowAttendanceChoice ? deliveryMode : undefined,
     };
 
     try {
@@ -365,6 +371,28 @@ export default function RegistroPage() {
           {!submitted && !existingStudent && (
             <form onSubmit={handleSubmit}>
               <div className="space-y-8">
+              {session?.allowAttendanceChoice && (
+                <div className="bg-white rounded-lg border-2 border-[#0072CE] p-6">
+                  <h3 className="text-lg font-bold text-[#003366] mb-1 flex items-center gap-2">🎥 ¿Cómo asistirás a las clases?</h3>
+                  <p className="text-sm text-gray-500 mb-4">Este curso se dicta en modalidad híbrida. Elige cómo participarás; si eliges online sincrónico te enviaremos el link de conexión.</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <label className={`flex items-start gap-3 border rounded-lg p-4 cursor-pointer transition ${deliveryMode === "presencial" ? "border-[#0072CE] bg-blue-50" : "border-gray-200 hover:border-gray-300"}`}>
+                      <input type="radio" name="deliveryMode" checked={deliveryMode === "presencial"} onChange={() => setDeliveryMode("presencial")} className="mt-1" />
+                      <span>
+                        <span className="block font-semibold text-[#003366]">🏫 Presencial</span>
+                        <span className="block text-xs text-gray-500 mt-0.5">Asisto en la sede/lugar indicado del curso.</span>
+                      </span>
+                    </label>
+                    <label className={`flex items-start gap-3 border rounded-lg p-4 cursor-pointer transition ${deliveryMode === "online" ? "border-[#0072CE] bg-blue-50" : "border-gray-200 hover:border-gray-300"}`}>
+                      <input type="radio" name="deliveryMode" checked={deliveryMode === "online"} onChange={() => setDeliveryMode("online")} className="mt-1" />
+                      <span>
+                        <span className="block font-semibold text-[#003366]">💻 Online sincrónico</span>
+                        <span className="block text-xs text-gray-500 mt-0.5">Participo por videollamada en vivo (recibo el link de Zoom).</span>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              )}
                 {/* Already registered shortcut */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
                   <p className="text-sm text-gray-700">

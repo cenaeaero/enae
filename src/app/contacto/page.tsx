@@ -1,3 +1,5 @@
+import ContactCourseSelect from "@/components/ContactCourseSelect";
+
 export default function ContactoPage() {
   return (
     <>
@@ -65,16 +67,7 @@ export default function ContactoPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Curso de interés
                   </label>
-                  <select className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0072CE] focus:border-transparent text-gray-600">
-                    <option>Seleccionar curso</option>
-                    <option>Operador UAS Nivel 1 - Básico</option>
-                    <option>Operador UAS Nivel 2 - Industrial</option>
-                    <option>Operador UAS Nivel 3 - Profesional</option>
-                    <option>Radiotelefonía Aeronáutica</option>
-                    <option>Seguridad de la Aviación (AVSEC)</option>
-                    <option>SMS - Seguridad Operacional</option>
-                    <option>Otro</option>
-                  </select>
+                  <ContactCourseSelect />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">

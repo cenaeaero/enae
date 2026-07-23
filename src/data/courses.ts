@@ -19,6 +19,7 @@ export type Course = {
   locations: string[];
   dates: string[];
   image?: string;
+  brochureUrl?: string;
   goal?: string;
   objectives?: string[];
   modules?: string[];

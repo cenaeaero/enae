@@ -60,6 +60,10 @@ export default function EditCoursePage({
   const [apendiceCHabilitationText, setApendiceCHabilitationText] = useState("");
   const [hasDgacCertificate, setHasDgacCertificate] = useState(false);
   const [dgacHabilitaciones, setDgacHabilitaciones] = useState("");
+  const [brochureUrl, setBrochureUrl] = useState<string | null>(null);
+  const [allowAttendanceChoice, setAllowAttendanceChoice] = useState(false);
+  const [brochureUploading, setBrochureUploading] = useState(false);
+  const [brochureMsg, setBrochureMsg] = useState("");
 
   // Sessions
   const [sessions, setSessions] = useState<SessionData[]>([]);
@@ -96,6 +100,8 @@ export default function EditCoursePage({
       setApendiceCHabilitationText(data.apendice_c_habilitation_text || "");
       setHasDgacCertificate(!!data.has_dgac_certificate);
       setDgacHabilitaciones(data.dgac_habilitaciones || "");
+      setBrochureUrl(data.brochure_url || null);
+      setAllowAttendanceChoice(!!data.allow_attendance_choice);
       setSessions(
         data.sessions?.map((s: SessionData) => ({
           id: s.id,
@@ -152,6 +158,7 @@ export default function EditCoursePage({
         // (line "Habilitación de tipo XXX").
         apendice_c_habilitation_text: (hasDgacCertificate || apendiceCRequired) ? ((apendiceCHabilitationText || "").trim() || null) : null,
         has_dgac_certificate: hasDgacCertificate,
+        allow_attendance_choice: allowAttendanceChoice,
         dgac_habilitaciones: (hasDgacCertificate || apendiceCRequired) ? ((apendiceCHabilitationText || "").trim() || null) : null,
       });
 
@@ -642,6 +649,54 @@ export default function EditCoursePage({
               />
             </div>
           )}
+        </div>
+
+        {/* Brochure y modalidad de asistencia */}
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-[#003366] mb-4">Brochure y modalidad</h2>
+
+          <label className="block text-sm font-medium text-gray-700 mb-1">Brochure del curso (PDF)</label>
+          <p className="text-xs text-gray-500 mb-3">Los interesados podrán descargarlo desde la página del curso.</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <input type="file" accept="application/pdf"
+              onChange={async (e) => {
+                const f = e.target.files?.[0]; if (!f) return;
+                setBrochureUploading(true); setBrochureMsg("");
+                const fd = new FormData();
+                fd.append("course_id", id as string);
+                fd.append("file", f);
+                const res = await fetch("/api/admin/curso-brochure", { method: "POST", body: fd });
+                const d = await res.json();
+                setBrochureUploading(false);
+                e.target.value = "";
+                if (!res.ok) { setBrochureMsg(`Error: ${d.error || "no se pudo subir"}`); return; }
+                setBrochureUrl(d.brochure_url);
+                setBrochureMsg("✓ Brochure subido.");
+              }}
+              className="text-sm" />
+            {brochureUploading && <span className="text-xs text-gray-400">Subiendo…</span>}
+            {brochureUrl && !brochureUploading && (
+              <>
+                <a href={brochureUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-[#0072CE] hover:underline">📄 Ver brochure actual</a>
+                <button type="button" onClick={async () => {
+                  if (!confirm("¿Quitar el brochure?")) return;
+                  await fetch(`/api/admin/curso-brochure?course_id=${id}`, { method: "DELETE" });
+                  setBrochureUrl(null); setBrochureMsg("Brochure eliminado.");
+                }} className="text-sm text-red-500 hover:underline">Quitar</button>
+              </>
+            )}
+          </div>
+          {brochureMsg && <p className={`text-xs mt-2 ${brochureMsg.startsWith("Error") ? "text-red-600" : "text-green-700"}`}>{brochureMsg}</p>}
+
+          <label className="flex items-center gap-2 cursor-pointer mt-5">
+            <input type="checkbox" checked={allowAttendanceChoice}
+              onChange={(e) => setAllowAttendanceChoice(e.target.checked)}
+              className="rounded border-gray-300 text-[#0072CE]" />
+            <span className="text-sm text-gray-700">El alumno elige su modalidad al inscribirse (Presencial / Online sincrónico)</span>
+          </label>
+          <p className="text-xs text-gray-500 mt-1 ml-6">
+            Actívalo para cursos híbridos como <strong>Metodología SORA 2.5</strong>. Según la elección del alumno le entregas el link de conexión de la clase sincrónica.
+          </p>
         </div>
 
         {/* Dynamic lists */}
