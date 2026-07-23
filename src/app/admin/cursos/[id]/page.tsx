@@ -65,6 +65,7 @@ export default function EditCoursePage({
   const [dgacHabilitaciones, setDgacHabilitaciones] = useState("");
   const [brochureUrl, setBrochureUrl] = useState<string | null>(null);
   const [allowAttendanceChoice, setAllowAttendanceChoice] = useState(false);
+  const [minAttendancePct, setMinAttendancePct] = useState(90);
   const [brochureUploading, setBrochureUploading] = useState(false);
   const [brochureMsg, setBrochureMsg] = useState("");
 
@@ -105,6 +106,7 @@ export default function EditCoursePage({
       setDgacHabilitaciones(data.dgac_habilitaciones || "");
       setBrochureUrl(data.brochure_url || null);
       setAllowAttendanceChoice(!!data.allow_attendance_choice);
+      setMinAttendancePct(data.min_attendance_pct ?? 90);
       setSessions(
         data.sessions?.map((s: SessionData) => ({
           id: s.id,
@@ -165,6 +167,7 @@ export default function EditCoursePage({
         apendice_c_habilitation_text: (hasDgacCertificate || apendiceCRequired) ? ((apendiceCHabilitationText || "").trim() || null) : null,
         has_dgac_certificate: hasDgacCertificate,
         allow_attendance_choice: allowAttendanceChoice,
+        min_attendance_pct: minAttendancePct,
         dgac_habilitaciones: (hasDgacCertificate || apendiceCRequired) ? ((apendiceCHabilitationText || "").trim() || null) : null,
       });
 
@@ -709,6 +712,14 @@ export default function EditCoursePage({
           <p className="text-xs text-gray-500 mt-1 ml-6">
             Actívalo para cursos híbridos como <strong>Metodología SORA 2.5</strong>. Según la elección del alumno le entregas el link de conexión de la clase sincrónica.
           </p>
+
+          <div className="mt-5">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Asistencia mínima exigida (%)</label>
+            <input type="number" min={0} max={100} value={minAttendancePct}
+              onChange={(e) => setMinAttendancePct(e.target.value ? parseInt(e.target.value) : 0)}
+              className="w-28 py-2 px-3 border border-gray-300 rounded-lg text-sm" />
+            <p className="text-xs text-gray-500 mt-1">Se usa en el reporte de <strong>Asistencia</strong> para marcar quién cumple el mínimo (ej. 90%).</p>
+          </div>
         </div>
 
         {/* Dynamic lists */}

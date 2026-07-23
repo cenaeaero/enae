@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
+import QRDisplay from "@/components/QRDisplay";
 
 const STATUS_OPTIONS = [
   { value: "present", label: "Presente", color: "bg-green-100 text-green-800" },
@@ -36,6 +37,7 @@ export default function ClaseSincronaDetail({ params }: { params: Promise<{ id: 
   const [breakout, setBreakout] = useState<any>(null);
   const [applyingBreakout, setApplyingBreakout] = useState(false);
   const [breakoutMsg, setBreakoutMsg] = useState("");
+  const [showQR, setShowQR] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [addSelected, setAddSelected] = useState<Set<string>>(new Set());
   const [addSearch, setAddSearch] = useState("");
@@ -272,6 +274,11 @@ export default function ClaseSincronaDetail({ params }: { params: Promise<{ id: 
               className="bg-[#003366] hover:bg-[#00254d] text-white text-sm font-semibold px-4 py-2 rounded"
               title="Agrupa a los alumnos online por empresa y preasigna las salas en Zoom">
               🧩 Salas por empresa
+            </button>
+            <button onClick={() => setShowQR(true)} disabled={!cls.link_url}
+              className="bg-white border border-[#0072CE] text-[#0072CE] hover:bg-blue-50 disabled:opacity-40 text-sm font-semibold px-4 py-2 rounded"
+              title={!cls.link_url ? "Agrega un link a la clase primero" : "Muestra un QR para que los alumnos accedan"}>
+              📱 Código QR
             </button>
           </div>
         </div>
@@ -536,6 +543,10 @@ export default function ClaseSincronaDetail({ params }: { params: Promise<{ id: 
         </button>
         {msg && <span className="text-sm text-green-700">{msg}</span>}
       </div>
+
+      {showQR && cls.link_url && (
+        <QRDisplay value={cls.link_url} title={cls.title} subtitle="Escanea para acceder a la actividad" onClose={() => setShowQR(false)} />
+      )}
     </div>
   );
 }
