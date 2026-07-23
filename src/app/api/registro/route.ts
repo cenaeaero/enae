@@ -244,6 +244,36 @@ export async function POST(request: Request) {
 
     const isFree = isFreeFee(resolvedSessionFee);
 
+    // 4b. Cupos por modalidad (cursos híbridos con elección de asistencia).
+    // Presencial y Online tienen su propio cupo en la sesión; si la modalidad
+    // elegida está llena, se bloquea la inscripción con un mensaje claro.
+    if ((deliveryMode === "online" || deliveryMode === "presencial") && resolvedSessionId) {
+      const { data: sess } = await supabaseAdmin
+        .from("sessions")
+        .select("capacity_presencial, capacity_online")
+        .eq("id", resolvedSessionId)
+        .maybeSingle();
+      const cap = deliveryMode === "online"
+        ? (sess as any)?.capacity_online
+        : (sess as any)?.capacity_presencial;
+      if (typeof cap === "number" && cap >= 0) {
+        const { count } = await supabaseAdmin
+          .from("registrations")
+          .select("id", { count: "exact", head: true })
+          .eq("session_id", resolvedSessionId)
+          .eq("delivery_mode", deliveryMode)
+          .in("status", ["pending", "confirmed", "completed"]);
+        if ((count || 0) >= cap) {
+          return NextResponse.json({
+            error: deliveryMode === "online"
+              ? "Los cupos online sincrónicos de esta sesión están completos. Escríbenos a escuela@enae.cl para ampliar el cupo."
+              : "Los cupos presenciales de esta sesión están completos. Puedes inscribirte en modalidad online sincrónico o escribirnos a escuela@enae.cl.",
+            capacity_full: true,
+          }, { status: 409 });
+        }
+      }
+    }
+
     // 5. Create registration
     const regPayload: Record<string, any> = {
       course_id: resolvedCourseId,

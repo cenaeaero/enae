@@ -71,6 +71,7 @@ function mapDbCourseToPublic(row: DbCourseRow): Course {
       location: s.location,
       modality: s.modality,
       fee: s.fee ?? undefined,
+      schedule: (s as any).schedule ?? undefined,
     })),
   };
 }

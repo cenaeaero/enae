@@ -22,6 +22,9 @@ type SessionData = {
   modality: string;
   fee: string;
   seats: number | null;
+  schedule?: string | null;
+  capacity_presencial?: number | null;
+  capacity_online?: number | null;
   is_new?: boolean;
 };
 
@@ -110,6 +113,9 @@ export default function EditCoursePage({
           modality: s.modality,
           fee: s.fee || "",
           seats: s.seats,
+          schedule: s.schedule ?? "",
+          capacity_presencial: s.capacity_presencial ?? 20,
+          capacity_online: s.capacity_online ?? 20,
         })) || []
       );
     } catch (err) {
@@ -207,6 +213,9 @@ export default function EditCoursePage({
             modality: session.modality,
             fee: session.fee || null,
             seats: session.seats,
+            schedule: session.schedule || null,
+            capacity_presencial: session.capacity_presencial ?? null,
+            capacity_online: session.capacity_online ?? null,
           });
         } else if (session.id) {
           await updateSession(session.id, {
@@ -215,6 +224,9 @@ export default function EditCoursePage({
             modality: session.modality,
             fee: session.fee || null,
             seats: session.seats,
+            schedule: session.schedule || null,
+            capacity_presencial: session.capacity_presencial ?? null,
+            capacity_online: session.capacity_online ?? null,
           });
         }
       }
@@ -787,6 +799,9 @@ export default function EditCoursePage({
                     modality: "Presencial",
                     fee: "",
                     seats: null,
+                    schedule: "",
+                    capacity_presencial: 20,
+                    capacity_online: 20,
                     is_new: true,
                   },
                 ])
@@ -933,7 +948,40 @@ export default function EditCoursePage({
                         placeholder="20"
                       />
                     </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Horario</label>
+                      <input
+                        type="text"
+                        value={session.schedule ?? ""}
+                        onChange={(e) => {
+                          const updated = [...sessions];
+                          updated[i] = { ...updated[i], schedule: e.target.value };
+                          setSessions(updated);
+                        }}
+                        className="w-full py-2 px-3 border border-gray-300 rounded text-sm"
+                        placeholder="09:00 a 18:00 hrs"
+                      />
+                    </div>
                   </div>
+
+                  {/* Cupos por modalidad (cursos híbridos) */}
+                  {allowAttendanceChoice && (
+                    <div className="grid grid-cols-2 gap-3 mt-3 bg-blue-50 border border-blue-100 rounded p-3">
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">🏫 Cupos presenciales</label>
+                        <input type="number" min={0} value={session.capacity_presencial ?? ""}
+                          onChange={(e) => { const u = [...sessions]; u[i] = { ...u[i], capacity_presencial: e.target.value ? parseInt(e.target.value) : null }; setSessions(u); }}
+                          className="w-full py-2 px-3 border border-gray-300 rounded text-sm" placeholder="20" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">💻 Cupos online sincrónico</label>
+                        <input type="number" min={0} value={session.capacity_online ?? ""}
+                          onChange={(e) => { const u = [...sessions]; u[i] = { ...u[i], capacity_online: e.target.value ? parseInt(e.target.value) : null }; setSessions(u); }}
+                          className="w-full py-2 px-3 border border-gray-300 rounded text-sm" placeholder="20" />
+                      </div>
+                      <p className="col-span-2 text-[11px] text-gray-500">Presenciales limitados a este cupo; los online sincrónicos puedes ampliarlos aquí. Al llenarse una modalidad, se bloquea esa opción en la inscripción.</p>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

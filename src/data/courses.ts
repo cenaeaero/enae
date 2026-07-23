@@ -3,6 +3,7 @@ export type Session = {
   location: string;
   modality: string;
   fee?: string;
+  schedule?: string;
 };
 
 export type Course = {

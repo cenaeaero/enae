@@ -11,6 +11,7 @@ type DbSession = {
   location: string;
   modality: string;
   fee: string | null;
+  schedule: string | null;
 };
 
 export default function CourseSessionsTable({
@@ -51,7 +52,7 @@ export default function CourseSessionsTable({
       if (courseId) {
         const { data } = await supabase
           .from("sessions")
-          .select("id, dates, location, modality, fee")
+          .select("id, dates, location, modality, fee, schedule")
           .eq("course_id", courseId)
           .eq("is_active", true)
           .order("created_at");
@@ -85,6 +86,7 @@ export default function CourseSessionsTable({
           <thead>
             <tr className="bg-gray-50 text-left text-sm text-gray-500">
               <th className="px-4 py-3 font-medium">Fechas</th>
+              {sessions.some((s) => s.schedule) && <th className="px-4 py-3 font-medium">Horario</th>}
               <th className="px-4 py-3 font-medium">Sede</th>
               <th className="px-4 py-3 font-medium">Modalidad</th>
               {sessions.some((s) => s.fee) && (
@@ -99,6 +101,9 @@ export default function CourseSessionsTable({
                 <td className="px-4 py-3 text-sm font-medium text-gray-700">
                   {session.dates}
                 </td>
+                {sessions.some((s) => s.schedule) && (
+                  <td className="px-4 py-3 text-sm text-gray-600">{session.schedule || "—"}</td>
+                )}
                 <td className="px-4 py-3 text-sm text-gray-600">
                   {session.location}
                 </td>

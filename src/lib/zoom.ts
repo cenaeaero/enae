@@ -83,6 +83,42 @@ export async function createZoomMeeting(options: {
   };
 }
 
+// Extrae el ID de reunión desde una URL de Zoom (…/j/1234567890?pwd=…) o
+// devuelve el valor si ya es un ID numérico. null si no se reconoce.
+export function extractZoomMeetingId(urlOrId: string | null | undefined): string | null {
+  if (!urlOrId) return null;
+  const s = String(urlOrId).trim();
+  if (/^\d{9,12}$/.test(s)) return s;
+  const m = s.match(/\/j\/(\d{9,12})/) || s.match(/[?&]confno=(\d{9,12})/) || s.match(/(\d{9,12})/);
+  return m ? m[1] : null;
+}
+
+// Preasigna salas de grupos (breakout rooms) en una reunión Zoom ya creada.
+// rooms: [{ name, participants: [emails] }]. Requiere que la cuenta Zoom
+// tenga habilitada la función de breakout con preasignación por API.
+export async function setBreakoutRooms(
+  meetingId: string,
+  rooms: { name: string; participants: string[] }[],
+): Promise<void> {
+  const token = await getZoomAccessToken();
+  const res = await fetch(`https://api.zoom.us/v2/meetings/${meetingId}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      settings: {
+        breakout_room: {
+          enable: true,
+          rooms: rooms.map((r) => ({ name: r.name, participants: r.participants })),
+        },
+      },
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Zoom breakout rooms failed: ${err}`);
+  }
+}
+
 export async function deleteZoomMeeting(meetingId: string): Promise<void> {
   const token = await getZoomAccessToken();
 
