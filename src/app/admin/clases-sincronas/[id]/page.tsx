@@ -33,6 +33,9 @@ export default function ClaseSincronaDetail({ params }: { params: Promise<{ id: 
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [msg, setMsg] = useState("");
+  const [breakout, setBreakout] = useState<any>(null);
+  const [applyingBreakout, setApplyingBreakout] = useState(false);
+  const [breakoutMsg, setBreakoutMsg] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [addSelected, setAddSelected] = useState<Set<string>>(new Set());
   const [addSearch, setAddSearch] = useState("");
@@ -149,6 +152,31 @@ export default function ClaseSincronaDetail({ params }: { params: Promise<{ id: 
     }
   }
 
+  async function preverSalas() {
+    setBreakoutMsg(""); setBreakout(null);
+    const res = await fetch("/api/admin/clases-sincronas/breakout", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ class_id: id, preview: true }),
+    });
+    const d = await res.json();
+    if (!res.ok) { setBreakoutMsg(`Error: ${d.error || "no se pudo previsualizar"}`); return; }
+    setBreakout(d);
+  }
+
+  async function aplicarSalas() {
+    if (!confirm("Se preasignarán las salas por empresa en la reunión de Zoom. ¿Continuar?")) return;
+    setApplyingBreakout(true); setBreakoutMsg("");
+    const res = await fetch("/api/admin/clases-sincronas/breakout", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ class_id: id }),
+    });
+    const d = await res.json();
+    setApplyingBreakout(false);
+    if (!res.ok) { setBreakoutMsg(`Error: ${d.error || "no se pudo aplicar"}`); return; }
+    setBreakoutMsg(`✓ ${d.rooms_created} sala(s) preasignada(s) en Zoom (${d.total_online} alumnos online).`);
+    setBreakout(null);
+  }
+
   if (loading) return <p className="text-center py-16 text-gray-400">Cargando…</p>;
   if (!cls) return <p className="text-center py-16 text-red-600">No encontrada</p>;
 
@@ -240,8 +268,44 @@ export default function ClaseSincronaDetail({ params }: { params: Promise<{ id: 
             {cls.invitation_sent_at && (
               <p className="text-[10px] text-gray-500">Enviada: {fmtDateTime(cls.invitation_sent_at)}</p>
             )}
+            <button onClick={preverSalas}
+              className="bg-[#003366] hover:bg-[#00254d] text-white text-sm font-semibold px-4 py-2 rounded"
+              title="Agrupa a los alumnos online por empresa y preasigna las salas en Zoom">
+              🧩 Salas por empresa
+            </button>
           </div>
         </div>
+
+        {/* Previsualización de salas por empresa (Zoom breakout) */}
+        {breakout && (
+          <div className="mt-4 border border-gray-200 rounded-lg p-4 bg-gray-50">
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+              <h3 className="text-sm font-semibold text-[#003366]">Salas por empresa — {breakout.rooms?.length || 0} sala(s), {breakout.total_online} alumno(s) online</h3>
+              <div className="flex gap-2">
+                <button onClick={() => setBreakout(null)} className="text-xs text-gray-500 hover:underline">Cerrar</button>
+                <button onClick={aplicarSalas} disabled={applyingBreakout || !breakout.has_meeting}
+                  className="text-xs bg-[#0072CE] hover:bg-[#005fa3] disabled:opacity-50 text-white font-semibold px-3 py-1.5 rounded"
+                  title={!breakout.has_meeting ? "La clase necesita un link de Zoom con número de reunión (…/j/1234567890)" : ""}>
+                  {applyingBreakout ? "Aplicando…" : "Preasignar en Zoom"}
+                </button>
+              </div>
+            </div>
+            {!breakout.has_meeting && <p className="text-xs text-amber-600 mb-2">El link de la clase no tiene un número de reunión de Zoom válido; agrégalo para poder preasignar.</p>}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {(breakout.rooms || []).map((r: any) => (
+                <div key={r.name} className="bg-white border border-gray-100 rounded p-2.5">
+                  <p className="text-xs font-semibold text-[#003366]">🏢 {r.name} <span className="text-gray-400 font-normal">({r.count})</span></p>
+                  <ul className="mt-1 text-[11px] text-gray-500 space-y-0.5">
+                    {r.participants.map((e: string) => <li key={e} className="truncate">{e}</li>)}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {breakoutMsg && (
+          <p className={`mt-2 text-sm ${breakoutMsg.startsWith("Error") ? "text-red-600" : "text-green-700"}`}>{breakoutMsg}</p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
