@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-service";
 import { requireAdmin } from "@/lib/auth-instructor";
+import { sendCampaignBatch } from "@/lib/marketing-send";
 import crypto from "crypto";
-
-const SITE = process.env.NEXT_PUBLIC_SITE_URL || "https://www.enae.cl";
-const FROM = process.env.SMTP_USER || "escuela@enae.cl";
 
 // ── GET: lista campañas con métricas, o el detalle de una (?id) ──
 export async function GET(request: Request) {
@@ -95,6 +93,9 @@ export async function POST(request: Request) {
   if (audience.custom && typeof body.custom_emails === "string") {
     for (const line of body.custom_emails.split(/[\n,;]+/)) add(line);
   }
+  if (audience.custom && Array.isArray(body.custom_list)) {
+    for (const c of body.custom_list) add(c?.email, c?.name);
+  }
 
   const recipients = Array.from(map.entries()).map(([email, name]) => ({ email, name }));
 
@@ -109,11 +110,13 @@ export async function POST(request: Request) {
   if (recipients.length === 0) {
     return NextResponse.json({ error: "La audiencia está vacía" }, { status: 400 });
   }
-  if (recipients.length > 500) {
-    return NextResponse.json({ error: `La audiencia tiene ${recipients.length} correos. El límite por campaña (SMTP) es 500. Ajusta los filtros.` }, { status: 400 });
+  if (recipients.length > 5000) {
+    return NextResponse.json({ error: `La audiencia tiene ${recipients.length} correos (máx. 5000 por campaña). Ajusta los filtros.` }, { status: 400 });
   }
 
-  // Crear campaña
+  const dailyBatch = Math.min(Math.max(1, Number(body.daily_batch) || 100), 500);
+
+  // Crear campaña (sent_at = inicio del envío; se usa para medir conversión)
   const { data: campaign, error: cErr } = await supabaseAdmin.from("email_campaigns").insert({
     subject: body.subject.trim(),
     body_html: body.body_html,
@@ -122,57 +125,26 @@ export async function POST(request: Request) {
     status: "sending",
     created_by: auth.email,
     total_recipients: recipients.length,
+    daily_batch: dailyBatch,
+    sent_at: new Date().toISOString(),
   }).select().single();
   if (cErr) return NextResponse.json({ error: cErr.message }, { status: 500 });
 
-  // Insertar destinatarios con token único
+  // Insertar TODOS los destinatarios como pendientes (token único)
   const rows = recipients.map((r) => ({
     campaign_id: campaign.id, email: r.email, name: r.name || null,
     token: crypto.randomBytes(16).toString("hex"),
   }));
   await supabaseAdmin.from("email_recipients").insert(rows);
 
-  // Enviar (secuencial, best-effort) inyectando pixel + reescribiendo links
-  const { default: nodemailer } = await import("nodemailer");
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || "smtp.gmail.com",
-    port: parseInt(process.env.SMTP_PORT || "587"), secure: false,
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+  // Enviar SOLO el primer lote de hoy; el cron diario envía el resto.
+  const res = await sendCampaignBatch(campaign.id, dailyBatch);
+
+  return NextResponse.json({
+    ok: true, campaign_id: campaign.id,
+    sent: res.sent, failed: res.failed, total: rows.length,
+    remaining: res.remaining, daily_batch: dailyBatch,
   });
-
-  let sent = 0, failed = 0;
-  for (const r of rows) {
-    const html = renderEmail(body.body_html, r.token);
-    try {
-      await transporter.sendMail({
-        from: `"Escuela de Navegación Aérea - ENAE" <${FROM}>`,
-        to: r.email,
-        subject: body.subject.trim(),
-        html,
-        headers: { "List-Unsubscribe": `<mailto:${FROM}?subject=Baja>` },
-      });
-      await supabaseAdmin.from("email_recipients").update({ sent_at: new Date().toISOString() }).eq("token", r.token);
-      sent++;
-    } catch (e: any) {
-      await supabaseAdmin.from("email_recipients").update({ error: (e?.message || "error").slice(0, 300) }).eq("token", r.token);
-      failed++;
-    }
-  }
-
-  await supabaseAdmin.from("email_campaigns").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", campaign.id);
-
-  return NextResponse.json({ ok: true, campaign_id: campaign.id, sent, failed, total: rows.length });
-}
-
-// Inyecta el pixel de apertura y reescribe los href para rastrear clics.
-function renderEmail(html: string, token: string): string {
-  const clickBase = `${SITE}/api/track/c/${token}?u=`;
-  let out = html.replace(/href="(https?:\/\/[^"]+)"/gi, (_m, url) => `href="${clickBase}${encodeURIComponent(url)}"`);
-  const pixel = `<img src="${SITE}/api/track/o/${token}" width="1" height="1" alt="" style="display:none" />`;
-  const footer = `<div style="font-size:11px;color:#9ca3af;margin-top:24px;text-align:center;">Escuela de Navegación Aérea — ENAE · AOC 1521 DGAC · Certificada ISO 9001:2015<br/>Recibiste este correo por tu interés en nuestros cursos.</div>`;
-  if (/<\/body>/i.test(out)) out = out.replace(/<\/body>/i, `${footer}${pixel}</body>`);
-  else out = `${out}${footer}${pixel}`;
-  return out;
 }
 
 export async function DELETE(request: Request) {
