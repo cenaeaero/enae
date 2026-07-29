@@ -17,6 +17,7 @@ type Registration = {
   session_location?: string;
   session_modality?: string;
   session_fee?: string;
+  session_price_usd?: number | null;
   institution?: string;
 };
 
@@ -78,6 +79,54 @@ export default function TpemsDashboard() {
     }
   }
 
+  const [payingPaddleId, setPayingPaddleId] = useState<string | null>(null);
+
+  // Carga Paddle.js una vez para el pago internacional (USD, Merchant of Record).
+  useEffect(() => {
+    const token = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN;
+    const env = process.env.NEXT_PUBLIC_PADDLE_ENV;
+    if (!token || (window as any).Paddle) return;
+    const script = document.createElement("script");
+    script.src = "https://cdn.paddle.com/paddle/v2/paddle.js";
+    script.async = true;
+    script.onload = () => {
+      const Paddle = (window as any).Paddle;
+      if (!Paddle) return;
+      if (env !== "production") Paddle.Environment.set("sandbox");
+      Paddle.Initialize({
+        token,
+        eventCallback: (ev: any) => {
+          if (ev?.name === "checkout.completed") {
+            window.location.href = "/tpems/pago/exito?provider=paddle";
+          }
+        },
+      });
+    };
+    document.body.appendChild(script);
+  }, []);
+
+  async function handlePayPaddle(reg: Registration) {
+    setPayingPaddleId(reg.id);
+    try {
+      const res = await fetch("/api/pago/paddle/crear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registrationId: reg.id }),
+      });
+      const data = await res.json();
+      const Paddle = (window as any).Paddle;
+      if (data.transactionId && Paddle) {
+        Paddle.Checkout.open({ transactionId: data.transactionId });
+      } else {
+        alert("Error al iniciar el pago internacional: " + (data.error || "Intenta nuevamente"));
+      }
+    } catch (e: any) {
+      alert("Error: " + (e?.message || "Intenta nuevamente"));
+    } finally {
+      setPayingPaddleId(null);
+    }
+  }
+
   const [isSupervisor, setIsSupervisor] = useState(false);
   const [isInstructor, setIsInstructor] = useState(false);
   const [practicas, setPracticas] = useState<any[]>([]);
@@ -112,7 +161,7 @@ export default function TpemsDashboard() {
           status,
           created_at,
           courses (title, code, moodle_url),
-          sessions (dates, location, modality, fee)
+          sessions (dates, location, modality, fee, price_usd)
         `
         )
         .eq("email", user.email)
@@ -132,6 +181,7 @@ export default function TpemsDashboard() {
             session_location: r.sessions?.location,
             session_modality: r.sessions?.modality,
             session_fee: r.sessions?.fee,
+            session_price_usd: r.sessions?.price_usd ?? null,
             institution: "Escuela de Navegación Aérea (ENAE)",
           }))
         );
@@ -305,37 +355,58 @@ export default function TpemsDashboard() {
                     </span>
                   </div>
 
-                  {/* Pay button */}
+                  {/* Pay buttons */}
                   {reg.status === "pending" && reg.session_fee && !isFreeFee(reg.session_fee) && (
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handlePay(reg);
-                      }}
-                      disabled={payingId === reg.id}
-                      className="mt-2 mb-3 inline-flex items-center gap-2 bg-[#E91E63] hover:bg-[#C2185B] disabled:bg-pink-300 text-white text-sm font-medium px-5 py-2 rounded-lg transition"
-                    >
-                      {payingId === reg.id ? (
-                        "Procesando..."
-                      ) : (
-                        <>
-                          Pagar {reg.session_fee}
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M17 8l4 4m0 0l-4 4m4-4H3"
-                            />
-                          </svg>
-                        </>
+                    <div className="mt-2 mb-3 flex flex-wrap gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handlePay(reg);
+                        }}
+                        disabled={payingId === reg.id}
+                        className="inline-flex items-center gap-2 bg-[#E91E63] hover:bg-[#C2185B] disabled:bg-pink-300 text-white text-sm font-medium px-5 py-2 rounded-lg transition"
+                      >
+                        {payingId === reg.id ? (
+                          "Procesando..."
+                        ) : (
+                          <>
+                            Pagar {reg.session_fee}
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M17 8l4 4m0 0l-4 4m4-4H3"
+                              />
+                            </svg>
+                          </>
+                        )}
+                      </button>
+
+                      {/* Pago internacional (USD) vía Paddle — solo si la sesión tiene precio USD */}
+                      {reg.session_price_usd && reg.session_price_usd > 0 && (
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handlePayPaddle(reg);
+                          }}
+                          disabled={payingPaddleId === reg.id}
+                          className="inline-flex items-center gap-2 bg-[#0072CE] hover:bg-[#005fa3] disabled:bg-blue-300 text-white text-sm font-medium px-5 py-2 rounded-lg transition"
+                          title="Pago con tarjeta internacional en dólares"
+                        >
+                          {payingPaddleId === reg.id ? (
+                            "Procesando..."
+                          ) : (
+                            <>🌎 Pagar USD ${reg.session_price_usd}</>
+                          )}
+                        </button>
                       )}
-                    </button>
+                    </div>
                   )}
 
 
