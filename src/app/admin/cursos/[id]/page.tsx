@@ -21,6 +21,7 @@ type SessionData = {
   location: string;
   modality: string;
   fee: string;
+  price_usd?: number | null;
   seats: number | null;
   schedule?: string | null;
   capacity_presencial?: number | null;
@@ -114,6 +115,7 @@ export default function EditCoursePage({
           location: s.location,
           modality: s.modality,
           fee: s.fee || "",
+          price_usd: s.price_usd ?? null,
           seats: s.seats,
           schedule: s.schedule ?? "",
           capacity_presencial: s.capacity_presencial ?? 20,
@@ -215,6 +217,7 @@ export default function EditCoursePage({
             location: session.location,
             modality: session.modality,
             fee: session.fee || null,
+            price_usd: session.price_usd ?? null,
             seats: session.seats,
             schedule: session.schedule || null,
             capacity_presencial: session.capacity_presencial ?? null,
@@ -226,6 +229,7 @@ export default function EditCoursePage({
             location: session.location,
             modality: session.modality,
             fee: session.fee || null,
+            price_usd: session.price_usd ?? null,
             seats: session.seats,
             schedule: session.schedule || null,
             capacity_presencial: session.capacity_presencial ?? null,
@@ -937,6 +941,26 @@ export default function EditCoursePage({
                         />
                         Curso gratuito
                       </label>
+                      <label className="block text-xs text-gray-500 mt-3 mb-1">
+                        Precio internacional (USD) 🌎
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={session.price_usd ?? ""}
+                        disabled={session.fee === FREE_FEE_LABEL}
+                        onChange={(e) => {
+                          const updated = [...sessions];
+                          const v = e.target.value.trim();
+                          updated[i] = { ...updated[i], price_usd: v === "" ? null : parseInt(v) };
+                          setSessions(updated);
+                        }}
+                        className="w-full py-2 px-3 border border-gray-300 rounded text-sm disabled:bg-gray-100 disabled:text-gray-400"
+                        placeholder="USD 400 (vacío = sin pago internacional)"
+                      />
+                      <p className="text-[11px] text-gray-400 mt-1">
+                        Habilita el botón &quot;Pagar USD&quot; (Paddle) para alumnos en el extranjero.
+                      </p>
                     </div>
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">
