@@ -1,4 +1,4 @@
-import ContactCourseSelect from "@/components/ContactCourseSelect";
+import ContactForm from "@/components/ContactForm";
 
 export default function ContactoPage() {
   return (
@@ -20,72 +20,7 @@ export default function ContactoPage() {
               <h2 className="text-xl font-bold text-[#003366] mb-6">
                 Solicitar Información
               </h2>
-              <form className="space-y-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Nombre
-                    </label>
-                    <input
-                      type="text"
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0072CE] focus:border-transparent"
-                      placeholder="Tu nombre"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Apellido
-                    </label>
-                    <input
-                      type="text"
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0072CE] focus:border-transparent"
-                      placeholder="Tu apellido"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0072CE] focus:border-transparent"
-                    placeholder="tu@email.com"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Teléfono
-                  </label>
-                  <input
-                    type="tel"
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0072CE] focus:border-transparent"
-                    placeholder="+56 9 1234 5678"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Curso de interés
-                  </label>
-                  <ContactCourseSelect />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Mensaje
-                  </label>
-                  <textarea
-                    rows={4}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0072CE] focus:border-transparent"
-                    placeholder="¿En qué podemos ayudarte?"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="w-full py-3 bg-[#003366] text-white font-semibold rounded-lg hover:bg-[#004B87] transition"
-                >
-                  Enviar Consulta
-                </button>
-              </form>
+              <ContactForm />
             </div>
 
             {/* Info */}
