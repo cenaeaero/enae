@@ -58,11 +58,27 @@ export async function GET(request: Request) {
       }
     }
 
+    // También procesa el lote diario de las campañas de marketing en curso.
+    // (Se consolida aquí para no exceder el límite de cron jobs del plan Vercel.)
+    let marketing: any[] = [];
+    try {
+      const { sendCampaignBatch } = await import("@/lib/marketing-send");
+      const { data: campaigns } = await supabaseAdmin
+        .from("email_campaigns").select("id, daily_batch").eq("status", "sending");
+      for (const c of campaigns || []) {
+        const res = await sendCampaignBatch(c.id, c.daily_batch || 100);
+        marketing.push({ campaign_id: c.id, ...res });
+      }
+    } catch (e: any) {
+      console.error("[cron-recordatorio] marketing batch error:", e?.message);
+    }
+
     return NextResponse.json({
       processed: (candidates || []).length,
       sent: results.filter((r) => r.success).length,
       failed: results.filter((r) => !r.success).length,
       results,
+      marketing,
     });
   } catch (err: any) {
     console.error("[cron-recordatorio] Error:", err?.message);
