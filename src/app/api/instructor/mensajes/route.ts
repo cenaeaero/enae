@@ -34,10 +34,13 @@ export async function GET(request: Request) {
     if (!(await ownsRegistration(email, registrationId, !!auth.isAdmin))) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
+    // Solo el canal 'instructor': el instructor nunca ve los mensajes del
+    // alumno dirigidos a la administración (canal 'admin').
     const { data: msgs } = await supabaseAdmin
       .from("course_messages")
       .select("id, message, created_at, sender_profile_id, profiles:sender_profile_id(first_name, last_name, role, email)")
       .eq("registration_id", registrationId)
+      .eq("audience", "instructor")
       .order("created_at", { ascending: true });
     return NextResponse.json({ messages: msgs || [] });
   }
@@ -56,6 +59,7 @@ export async function GET(request: Request) {
       .from("course_messages")
       .select("registration_id, message, created_at")
       .in("registration_id", regIds)
+      .eq("audience", "instructor")
       .order("created_at", { ascending: false });
     for (const m of msgs || []) {
       if (!lastByReg[m.registration_id]) lastByReg[m.registration_id] = m;
@@ -119,6 +123,7 @@ export async function POST(request: Request) {
     registration_id: registrationId,
     sender_profile_id: auth.profileId,
     message: message.slice(0, 4000),
+    audience: "instructor",
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
