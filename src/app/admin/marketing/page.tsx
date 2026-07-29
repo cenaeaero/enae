@@ -124,6 +124,22 @@ function NuevaCampana({ courses, onSent }: { courses: { id: string; title: strin
     return out;
   }
 
+  function downloadPlantilla() {
+    const rows = [
+      ["nombre", "email"],
+      ["Juan Pérez", "juan.perez@ejemplo.cl"],
+      ["María González", "maria.gonzalez@ejemplo.cl"],
+      ["", "contacto@empresa.cl"],
+    ];
+    const csv = "﻿" + rows.map((r) => r.map((c) => (/[;,"\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(",")).join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "plantilla_destinatarios_ENAE.csv";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   async function onCsv(file: File) {
     const text = await file.text();
     const list = parseCsv(text);
@@ -224,6 +240,9 @@ function NuevaCampana({ courses, onSent }: { courses: { id: string; title: strin
         {aud.custom && (
           <div className="ml-6 space-y-2">
             <div className="flex flex-wrap items-center gap-3">
+              <button type="button" onClick={downloadPlantilla} className="text-sm bg-white border border-[#0072CE] text-[#0072CE] hover:bg-blue-50 font-medium px-3 py-1.5 rounded">
+                ⬇️ Descargar plantilla CSV
+              </button>
               <label className="text-sm bg-[#003366] hover:bg-[#00254d] text-white font-medium px-3 py-1.5 rounded cursor-pointer">
                 📄 Subir CSV
                 <input type="file" accept=".csv,text/csv" className="hidden"
