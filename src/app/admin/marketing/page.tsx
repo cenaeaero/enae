@@ -56,8 +56,10 @@ export default function MarketingPage() {
             <div key={c.id} className="bg-white border border-gray-200 rounded-lg p-4">
               <div className="flex items-start justify-between flex-wrap gap-2">
                 <div className="min-w-0">
-                  <p className="font-semibold text-[#003366]">{c.subject}</p>
-                  <p className="text-xs text-gray-400">{c.courses?.title ? `Promociona: ${c.courses.title} · ` : ""}Enviada {fmt(c.sent_at)} · {c.total_recipients} destinatarios</p>
+                  <p className="font-semibold text-[#003366]">{c.subject}
+                    {c.status === "sending" && <span className="ml-2 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded align-middle">Enviando · {c.metrics.total - c.metrics.sent} pendientes</span>}
+                  </p>
+                  <p className="text-xs text-gray-400">{c.courses?.title ? `Promociona: ${c.courses.title} · ` : ""}Inicio {fmt(c.sent_at)} · {c.total_recipients} destinatarios</p>
                 </div>
                 <button onClick={() => openDetail(c.id)} className="text-xs text-[#0072CE] hover:underline">Ver detalle →</button>
               </div>
@@ -92,12 +94,43 @@ function NuevaCampana({ courses, onSent }: { courses: { id: string; title: strin
   const [subject, setSubject] = useState("");
   const [bodyHtml, setBodyHtml] = useState("<p>Hola,</p>\n<p>Te invitamos a nuestro próximo curso…</p>\n<p><a href=\"https://www.enae.cl/cursos\">Ver cursos e inscribirme</a></p>\n<p>Saludos,<br/>Escuela de Navegación Aérea</p>");
   const [promoted, setPromoted] = useState("");
+  const [dailyBatch, setDailyBatch] = useState(100);
   const [aud, setAud] = useState({ alumnos: true, leads: false, custom: false });
   const [courseFilter, setCourseFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [orgFilter, setOrgFilter] = useState("");
   const [customEmails, setCustomEmails] = useState("");
+  const [csvList, setCsvList] = useState<{ email: string; name: string }[]>([]);
+  const [csvMsg, setCsvMsg] = useState("");
   const [count, setCount] = useState<number | null>(null);
+
+  // Parsea un CSV: detecta la celda con email en cada fila y usa otra celda como
+  // nombre. Ignora una fila de encabezado si la trae ("email"/"correo").
+  function parseCsv(text: string): { email: string; name: string }[] {
+    const emailRe = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+    const out: { email: string; name: string }[] = [];
+    const seen = new Set<string>();
+    for (const raw of text.split(/\r?\n/)) {
+      if (!raw.trim()) continue;
+      const cells = raw.split(/[,;\t]/).map((c) => c.trim().replace(/^"|"$/g, ""));
+      const email = cells.find((c) => emailRe.test(c.toLowerCase()));
+      if (!email) continue; // fila de encabezado o sin email
+      const e = email.toLowerCase();
+      if (seen.has(e)) continue;
+      seen.add(e);
+      const name = cells.filter((c) => c && c.toLowerCase() !== e && !emailRe.test(c)).join(" ").trim();
+      out.push({ email: e, name });
+    }
+    return out;
+  }
+
+  async function onCsv(file: File) {
+    const text = await file.text();
+    const list = parseCsv(text);
+    setCsvList(list);
+    setCsvMsg(list.length > 0 ? `✓ ${list.length} correos válidos en el CSV.` : "No se encontraron correos válidos en el archivo.");
+    if (list.length > 0 && !aud.custom) setAud((a) => ({ ...a, custom: true }));
+  }
   const [sample, setSample] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -111,7 +144,7 @@ function NuevaCampana({ courses, onSent }: { courses: { id: string; title: strin
     setBusy(true); setMsg("");
     const res = await fetch("/api/admin/marketing", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "audience", audience: audiencePayload, custom_emails: customEmails }),
+      body: JSON.stringify({ action: "audience", audience: audiencePayload, custom_emails: customEmails, custom_list: csvList }),
     });
     const d = await res.json();
     setBusy(false);
@@ -125,12 +158,14 @@ function NuevaCampana({ courses, onSent }: { courses: { id: string; title: strin
     setBusy(true); setMsg("");
     const res = await fetch("/api/admin/marketing", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "send", subject, body_html: bodyHtml, promoted_course_id: promoted || null, audience: audiencePayload, custom_emails: customEmails }),
+      body: JSON.stringify({ action: "send", subject, body_html: bodyHtml, promoted_course_id: promoted || null, audience: audiencePayload, custom_emails: customEmails, custom_list: csvList, daily_batch: dailyBatch }),
     });
     const d = await res.json();
     setBusy(false);
     if (!res.ok) { setMsg(`Error: ${d.error}`); return; }
-    alert(`✓ Campaña enviada: ${d.sent} OK · ${d.failed} fallidos (${d.total} total).`);
+    alert(d.remaining > 0
+      ? `✓ Primer lote enviado hoy: ${d.sent} correos. Quedan ${d.remaining} pendientes que se enviarán automáticamente en lotes de ${d.daily_batch}/día.`
+      : `✓ Campaña enviada completa: ${d.sent} OK · ${d.failed} fallidos (${d.total} total).`);
     onSent();
   }
 
@@ -149,6 +184,11 @@ function NuevaCampana({ courses, onSent }: { courses: { id: string; title: strin
               <option value="">— Ninguno —</option>
               {courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
             </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Correos por día (evita saturar la mensajería)</label>
+            <input type="number" min={1} max={500} value={dailyBatch} onChange={(e) => setDailyBatch(e.target.value ? parseInt(e.target.value) : 100)} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
+            <p className="text-[11px] text-gray-400 mt-0.5">Se envía este lote hoy y el resto automáticamente cada día.</p>
           </div>
         </div>
         <div>
@@ -180,9 +220,21 @@ function NuevaCampana({ courses, onSent }: { courses: { id: string; title: strin
           </div>
         )}
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={aud.leads} onChange={(e) => setAud({ ...aud, leads: e.target.checked })} /> Interesados (formulario de contacto)</label>
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={aud.custom} onChange={(e) => setAud({ ...aud, custom: e.target.checked })} /> Lista propia (pegar correos)</label>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={aud.custom} onChange={(e) => setAud({ ...aud, custom: e.target.checked })} /> Lista propia (CSV o pegar correos)</label>
         {aud.custom && (
-          <textarea value={customEmails} onChange={(e) => setCustomEmails(e.target.value)} rows={3} className="w-full border border-gray-200 rounded px-3 py-2 text-sm ml-0" placeholder="correo1@ejemplo.cl, correo2@ejemplo.cl…" />
+          <div className="ml-6 space-y-2">
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="text-sm bg-[#003366] hover:bg-[#00254d] text-white font-medium px-3 py-1.5 rounded cursor-pointer">
+                📄 Subir CSV
+                <input type="file" accept=".csv,text/csv" className="hidden"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) onCsv(f); e.target.value = ""; }} />
+              </label>
+              {csvMsg && <span className="text-xs text-gray-600">{csvMsg}</span>}
+              {csvList.length > 0 && <button type="button" onClick={() => { setCsvList([]); setCsvMsg(""); }} className="text-xs text-gray-400 hover:underline">Quitar CSV</button>}
+            </div>
+            <p className="text-[11px] text-gray-400">El CSV puede tener una columna de correo (con o sin encabezado); si trae nombre en otra columna, se usa para personalizar. También puedes pegar correos abajo.</p>
+            <textarea value={customEmails} onChange={(e) => setCustomEmails(e.target.value)} rows={3} className="w-full border border-gray-200 rounded px-3 py-2 text-sm" placeholder="correo1@ejemplo.cl, correo2@ejemplo.cl…" />
+          </div>
         )}
         <div className="flex items-center gap-3">
           <button onClick={previewAudience} disabled={busy} className="text-sm bg-[#003366] hover:bg-[#00254d] text-white font-medium px-4 py-2 rounded disabled:opacity-50">Calcular audiencia</button>
