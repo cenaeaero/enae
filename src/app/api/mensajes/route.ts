@@ -50,12 +50,37 @@ export async function POST(request: Request) {
       }
     }
 
+    // ── Canal del mensaje ──
+    // El alumno escribe al canal "admin" (escuela) por defecto. Si un instructor
+    // le había escrito (canal "instructor"), su respuesta continúa ESE hilo.
+    // El staff (admin/instructor) escribe en el canal que corresponde.
+    let audience: "admin" | "instructor" = "admin";
+    let instructorRecipient: string | null = null;
+    if (profile.role === "student") {
+      const { data: lastStaff } = await supabaseAdmin
+        .from("course_messages")
+        .select("audience, sender_profile_id, profiles:sender_profile_id(role, email)")
+        .eq("registration_id", registrationId)
+        .neq("sender_profile_id", profile.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const lastRole = (lastStaff as any)?.profiles?.role;
+      if (lastStaff?.audience === "instructor" && lastRole === "instructor") {
+        audience = "instructor";
+        instructorRecipient = (lastStaff as any)?.profiles?.email || null;
+      }
+    } else if (profile.role === "instructor") {
+      audience = "instructor";
+    }
+
     const { data, error } = await supabaseAdmin
       .from("course_messages")
       .insert({
         registration_id: registrationId,
         sender_profile_id: profile.id,
         message: message.trim(),
+        audience,
       })
       .select()
       .single();
@@ -90,16 +115,16 @@ export async function POST(request: Request) {
           .eq("id", reg.course_id)
           .single();
 
-        const { data: assignments } = await supabaseAdmin
-          .from("course_instructors")
-          .select("instructor_email")
-          .eq("course_id", reg.course_id);
-
+        // Privacidad de canal: el mensaje del alumno a la escuela (canal 'admin')
+        // se notifica SOLO al admin — nunca a los instructores del curso. Si el
+        // alumno está respondiendo a un instructor (canal 'instructor'), solo se
+        // notifica a ese instructor.
         const recipients = new Set<string>();
-        (assignments || []).forEach((a: any) => {
-          if (a.instructor_email) recipients.add(a.instructor_email.toLowerCase());
-        });
-        recipients.add(ADMIN_EMAIL.toLowerCase());
+        if (audience === "instructor" && instructorRecipient) {
+          recipients.add(instructorRecipient.toLowerCase());
+        } else {
+          recipients.add(ADMIN_EMAIL.toLowerCase());
+        }
 
         const studentName = `${reg.first_name || ""} ${reg.last_name || ""}`.trim() || reg.email;
         const courseName = course?.title || "Curso ENAE";

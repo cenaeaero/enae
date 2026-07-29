@@ -51,12 +51,15 @@ export default function AdminMensajesPage() {
     setError("");
     await supabase.auth.getSession();
 
-    // Group messages by registration_id, keep the latest
+    // Group messages by registration_id, keep the latest.
+    // Solo el canal 'admin' (mensajes alumno ↔ escuela); las conversaciones
+    // alumno ↔ instructor viven en el portal del instructor.
     const { data: msgs } = await supabase
       .from("course_messages")
       .select(
-        "registration_id, message, created_at, sender_profile_id, profiles:sender_profile_id(role, first_name, last_name, email)"
+        "registration_id, message, created_at, sender_profile_id, audience, profiles:sender_profile_id(role, first_name, last_name, email)"
       )
+      .eq("audience", "admin")
       .order("created_at", { ascending: false });
 
     if (!msgs || msgs.length === 0) {
