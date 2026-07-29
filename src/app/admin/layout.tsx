@@ -39,6 +39,7 @@ const navSections: NavSection[] = [
     section: "Comunicación",
     items: [
       { href: "/admin/mensajes", label: "Mensajes", icon: "💬" },
+      { href: "/admin/marketing", label: "Marketing", icon: "📣" },
       { href: "/admin/encuestas", label: "Encuestas", icon: "📝" },
     ],
   },
