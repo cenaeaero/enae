@@ -17,13 +17,18 @@ type AlumnoRow = {
   total_courses: number;
   completed_courses: number;
   in_progress_courses: number;
+  course_ids: string[];
 };
+
+type CourseOption = { id: string; title: string };
 
 export default function AdminRegistrosPage() {
   const [alumnos, setAlumnos] = useState<AlumnoRow[]>([]);
+  const [courses, setCourses] = useState<CourseOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [filterCompany, setFilterCompany] = useState("");
+  const [filterCourse, setFilterCourse] = useState("");
   const [filterRole, setFilterRole] = useState<"all" | "student" | "instructor" | "admin">("student");
 
   useEffect(() => { load(); }, []);
@@ -33,6 +38,7 @@ export default function AdminRegistrosPage() {
     const res = await fetch("/api/admin/alumnos-listado");
     const data = await res.json();
     setAlumnos(data.alumnos || []);
+    setCourses(data.courses || []);
     setLoading(false);
   }
 
@@ -47,6 +53,7 @@ export default function AdminRegistrosPage() {
     return alumnos.filter((a) => {
       if (filterRole !== "all" && a.role !== filterRole) return false;
       if (filterCompany && a.organization !== filterCompany) return false;
+      if (filterCourse && !(a.course_ids || []).includes(filterCourse)) return false;
       if (!term) return true;
       return (
         a.first_name.toLowerCase().includes(term) ||
@@ -57,7 +64,7 @@ export default function AdminRegistrosPage() {
         (a.organization || "").toLowerCase().includes(term)
       );
     });
-  }, [alumnos, q, filterCompany, filterRole]);
+  }, [alumnos, q, filterCompany, filterCourse, filterRole]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -79,6 +86,11 @@ export default function AdminRegistrosPage() {
           className="py-2 px-3 border border-gray-300 rounded-lg text-sm">
           <option value="">Todas las empresas</option>
           {companies.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select value={filterCourse} onChange={(e) => setFilterCourse(e.target.value)}
+          className="py-2 px-3 border border-gray-300 rounded-lg text-sm max-w-[260px]">
+          <option value="">Todos los cursos</option>
+          {courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
         </select>
         <select value={filterRole} onChange={(e) => setFilterRole(e.target.value as any)}
           className="py-2 px-3 border border-gray-300 rounded-lg text-sm">
