@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase-service";
 import { createSupabaseServer } from "@/lib/supabase-server";
 import { isFreeFee } from "@/lib/fees";
 import { normalizeOrganization } from "@/lib/organization";
+import { sendAdminRegistrationNotification } from "@/lib/email";
 
 export async function POST(request: Request) {
   try {
@@ -125,6 +126,23 @@ export async function POST(request: Request) {
         { error: "Error al crear registro: " + regError.message },
         { status: 400 }
       );
+    }
+
+    // Avisar al admin de la nueva inscripción (igual que el formulario público).
+    try {
+      const { data: course } = await supabaseAdmin
+        .from("courses")
+        .select("title")
+        .eq("id", courseId)
+        .single();
+      const studentName = `${profile.first_name} ${profile.last_name}`;
+      await sendAdminRegistrationNotification(
+        studentName,
+        profile.email,
+        course?.title || "Curso"
+      );
+    } catch (e) {
+      console.error("Failed to send admin email (registro interno):", e);
     }
 
     return NextResponse.json({
