@@ -196,6 +196,9 @@ export default function Footer() {
             <Link href="/terminos" className="hover:text-white transition">
               Términos de Uso
             </Link>
+            <Link href="/reembolsos" className="hover:text-white transition">
+              Reembolsos
+            </Link>
           </div>
         </div>
       </div>
