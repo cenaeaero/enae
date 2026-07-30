@@ -10,6 +10,19 @@ import {
 // Webhook de Paddle Billing. Confirma el pago internacional (USD).
 // Configurar la URL en Paddle → Developer Tools → Notifications:
 //   https://www.enae.cl/api/pago/paddle/webhook   (evento: transaction.completed)
+
+// GET solo para diagnóstico: confirma en el navegador que el endpoint está desplegado.
+// Paddle SIEMPRE usa POST; este GET no procesa pagos.
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    endpoint: "paddle-webhook",
+    note: "Endpoint activo. Paddle envía los eventos por POST.",
+    env: process.env.PADDLE_ENV || "sandbox",
+    webhook_secret_configured: Boolean(process.env.PADDLE_WEBHOOK_SECRET),
+  });
+}
+
 export async function POST(request: Request) {
   // Leer el cuerpo crudo: la firma se calcula sobre el texto exacto.
   const rawBody = await request.text();
