@@ -37,6 +37,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const ids: string[] = Array.isArray(body.registration_ids) ? body.registration_ids : [];
     const ccAlumnos = body.cc_alumnos === true;
+    const ccSupervisores = body.cc_supervisores === true;
     const mensajeExtra = typeof body.mensaje_extra === "string" ? body.mensaje_extra.slice(0, 1000) : "";
 
     if (ids.length === 0) {
@@ -52,7 +53,7 @@ export async function POST(request: Request) {
     for (const regId of ids) {
       const { data: reg } = await supabaseAdmin
         .from("registrations")
-        .select("id, first_name, last_name, email")
+        .select("id, first_name, last_name, email, supervisor_email")
         .eq("id", regId)
         .maybeSingle();
       if (!reg) { problems.push(`Registro ${regId} no encontrado`); continue; }
@@ -61,9 +62,15 @@ export async function POST(request: Request) {
 
       const { data: prof } = await supabaseAdmin
         .from("profiles")
-        .select("rut")
+        .select("rut, supervisor_email")
         .eq("email", reg.email)
         .maybeSingle();
+
+      const supervisorEmail = prof?.supervisor_email || reg.supervisor_email || null;
+      if (ccSupervisores && !supervisorEmail) {
+        problems.push(`${name}: no tiene email de supervisor registrado`);
+        continue;
+      }
 
       const { data: procedure } = await supabaseAdmin
         .from("dgac_procedures")
@@ -93,6 +100,7 @@ export async function POST(request: Request) {
         examDatetime: procedure.exam_datetime,
         unitCity: procedure.exam_unit_city,
         email: reg.email || null,
+        supervisorEmail,
       });
       procedureIds.push(procedure.id);
     }
@@ -108,6 +116,7 @@ export async function POST(request: Request) {
       const draft = buildSolicitudExamenEmail({
         students,
         ccAlumnos,
+        ccSupervisores,
         esApertura: anyProvincia,
         mensajeExtra: mensajeExtra || undefined,
       });
@@ -117,6 +126,7 @@ export async function POST(request: Request) {
     await sendSolicitudExamenTeoricos({
       students,
       ccAlumnos,
+      ccSupervisores,
       esApertura: anyProvincia,
       mensajeExtra: mensajeExtra || undefined,
     });

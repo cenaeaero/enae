@@ -907,6 +907,7 @@ export type SolicitudExamenStudent = {
   examDatetime: string; // ISO
   unitCity: string;
   email: string | null;
+  supervisorEmail?: string | null;
 };
 
 // Construye el correo (asunto, destinatarios, HTML) sin enviarlo — se usa
@@ -916,10 +917,11 @@ export type SolicitudExamenStudent = {
 export function buildSolicitudExamenEmail(args: {
   students: SolicitudExamenStudent[];
   ccAlumnos: boolean;
+  ccSupervisores?: boolean;
   esApertura: boolean;
   mensajeExtra?: string;
 }): { subject: string; html: string; to: string; cc: string[] } {
-  const { students, ccAlumnos, esApertura, mensajeExtra } = args;
+  const { students, ccAlumnos, ccSupervisores, esApertura, mensajeExtra } = args;
 
   const rows = students.map((s) => `
     <tr>
@@ -941,6 +943,9 @@ export function buildSolicitudExamenEmail(args: {
   const cc = [ADMIN_EMAIL];
   if (ccAlumnos) {
     for (const s of students) if (s.email) cc.push(s.email);
+  }
+  if (ccSupervisores) {
+    for (const s of students) if (s.supervisorEmail) cc.push(s.supervisorEmail);
   }
 
   const html = `
@@ -986,6 +991,7 @@ export function buildSolicitudExamenEmail(args: {
 export async function sendSolicitudExamenTeoricos(args: {
   students: SolicitudExamenStudent[];
   ccAlumnos: boolean;
+  ccSupervisores?: boolean;
   esApertura: boolean;
   mensajeExtra?: string;
 }) {

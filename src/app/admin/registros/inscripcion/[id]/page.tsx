@@ -149,6 +149,7 @@ export default function RegistroDetailPage() {
   const [apendiceAdminMsg, setApendiceAdminMsg] = useState("");
   const [apendiceAdminUploading, setApendiceAdminUploading] = useState(false);
   const [ccAlumno, setCcAlumno] = useState(true);
+  const [ccSupervisor, setCcSupervisor] = useState(false);
   const [sendingSolicitud, setSendingSolicitud] = useState(false);
   const [solicitudMsg, setSolicitudMsg] = useState("");
   const [draft, setDraft] = useState<{ subject: string; html: string; to: string; cc: string[] } | null>(null);
@@ -435,36 +436,32 @@ export default function RegistroDetailPage() {
     if (!procedure) return;
     setSaving(field);
     try {
-      // Get current value for history
-      const oldValue = String((procedure as any)[field] ?? "");
-      const newValue = String(value ?? "");
+      // Guardar vía API admin (service role). El cliente de navegador queda
+      // bloqueado por RLS en dgac_procedures (SELECT sí, UPDATE no), así que el
+      // cambio no persistía. El PATCH también registra el historial.
+      const res = await fetch("/api/admin/dgac", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: procedure.id, field, value }),
+      });
+      const json = await res.json().catch(() => ({}));
 
-      const { error } = await supabase
-        .from("dgac_procedures")
-        .update({ [field]: value, updated_at: new Date().toISOString() })
-        .eq("id", procedure.id);
-
-      if (!error) {
+      if (res.ok && json.success) {
         setProcedure((prev) => (prev ? { ...prev, [field]: value } : null));
 
-        // Log change in history
-        await supabase.from("dgac_procedure_history").insert({
-          procedure_id: procedure.id,
-          field_name: field,
-          old_value: oldValue,
-          new_value: newValue,
-        });
-
-        // Reload history
+        // Recargar historial
         const { data: histData } = await supabase
           .from("dgac_procedure_history")
           .select("*")
           .eq("procedure_id", procedure.id)
           .order("changed_at", { ascending: false });
-        setHistory((histData || []) as HistoryEntry[]);
+        if (histData) setHistory(histData as HistoryEntry[]);
+      } else {
+        alert("No se pudo guardar el cambio: " + (json.error || "verifica tus permisos e intenta de nuevo"));
       }
     } catch (err) {
       console.error("Error updating DGAC field:", err);
+      alert("Error de conexión al guardar el cambio.");
     }
     setSaving(null);
   }
@@ -558,7 +555,7 @@ export default function RegistroDetailPage() {
       const res = await fetch("/api/admin/dgac/solicitar-examen", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ registration_ids: [id], cc_alumnos: ccAlumno, preview: true }),
+        body: JSON.stringify({ registration_ids: [id], cc_alumnos: ccAlumno, cc_supervisores: ccSupervisor, preview: true }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -581,7 +578,7 @@ export default function RegistroDetailPage() {
       const res = await fetch("/api/admin/dgac/solicitar-examen", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ registration_ids: [id], cc_alumnos: ccAlumno }),
+        body: JSON.stringify({ registration_ids: [id], cc_alumnos: ccAlumno, cc_supervisores: ccSupervisor }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -1343,6 +1340,10 @@ export default function RegistroDetailPage() {
                     <label className="flex items-center gap-2 text-sm text-gray-600">
                       <input type="checkbox" checked={ccAlumno} onChange={(e) => setCcAlumno(e.target.checked)} className="rounded" />
                       Enviar copia al alumno
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-gray-600" title={profile.supervisor_email ? `Copia a ${profile.supervisor_email}` : "El alumno no tiene email de supervisor registrado"}>
+                      <input type="checkbox" checked={ccSupervisor} onChange={(e) => setCcSupervisor(e.target.checked)} className="rounded" />
+                      Enviar copia al supervisor
                     </label>
                     <button
                       onClick={verBorradorTeoricos}
