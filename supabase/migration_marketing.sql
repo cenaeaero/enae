@@ -27,7 +27,8 @@ CREATE TABLE IF NOT EXISTS email_campaigns (
   created_by         text,
   created_at         timestamptz NOT NULL DEFAULT now(),
   sent_at            timestamptz,
-  total_recipients   integer DEFAULT 0
+  total_recipients   integer DEFAULT 0,
+  daily_batch        integer NOT NULL DEFAULT 100   -- correos por día (cron diario envía el resto)
 );
 
 CREATE TABLE IF NOT EXISTS email_recipients (
