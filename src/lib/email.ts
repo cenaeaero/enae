@@ -1005,3 +1005,79 @@ export async function sendSolicitudExamenTeoricos(args: {
     html,
   });
 }
+
+export const AYUDA_SIPA_EMAIL = process.env.AYUDA_SIPA_EMAIL || "ayudasipa@dgac.gob.cl";
+
+// Solicitud a Ayuda SIPA (DGAC) para ACTUALIZAR la credencial de Operador RPAS
+// con una habilitación (p.ej. vuelo nocturno VNOC). NO coordina fecha de examen:
+// solo informa que el alumno terminó el curso y pide la actualización, referenciando
+// el folio bajo el cual ya se subieron el Apéndice C y el certificado del curso.
+export function buildSolicitudCredencialSIPA(args: {
+  studentName: string;
+  rut: string;
+  credencial?: string | null;
+  courseName: string;
+  habilitacion: string;
+  folio: string;
+  ccAlumno?: boolean;
+  ccSupervisor?: boolean;
+  studentEmail?: string | null;
+  supervisorEmail?: string | null;
+  mensajeExtra?: string;
+}): { subject: string; html: string; to: string; cc: string[] } {
+  const { studentName, rut, credencial, courseName, habilitacion, folio, mensajeExtra } = args;
+
+  const subject = `ENAE - Solicitud de actualización de credencial RPAS - ${studentName}`;
+
+  const cc = [ADMIN_EMAIL];
+  if (args.ccAlumno && args.studentEmail) cc.push(args.studentEmail);
+  if (args.ccSupervisor && args.supervisorEmail) cc.push(args.supervisorEmail);
+
+  const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;">
+        <div style="background: #003366; padding: 20px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 20px;">Escuela de Navegación Aérea - ENAE</h1>
+          <p style="color: #93C5FD; margin: 5px 0 0; font-size: 12px;">www.enae.cl · Certificada ISO 9001:2015</p>
+        </div>
+        <div style="padding: 30px; background: #f9fafb;">
+          <p style="color: #111827;">Estimados Ayuda SIPA, DGAC:</p>
+          <p style="color: #374151;">
+            Informamos que el/la alumno/a individualizado/a a continuación ha <strong>completado
+            satisfactoriamente</strong> el curso de nuestra escuela, y <strong>solicitamos la actualización
+            de su credencial de Operador RPAS</strong> con la habilitación correspondiente.
+          </p>
+          <table style="border-collapse: collapse; width: 100%; margin: 20px 0; font-size: 14px; color: #111827;">
+            <tr><td style="border: 1px solid #d1d5db; padding: 8px 10px; background:#eef3f8; font-weight:bold; width:38%;">Alumno</td><td style="border: 1px solid #d1d5db; padding: 8px 10px;">${studentName}</td></tr>
+            <tr><td style="border: 1px solid #d1d5db; padding: 8px 10px; background:#eef3f8; font-weight:bold;">RUT / Pasaporte</td><td style="border: 1px solid #d1d5db; padding: 8px 10px;">${rut}</td></tr>
+            ${credencial ? `<tr><td style="border: 1px solid #d1d5db; padding: 8px 10px; background:#eef3f8; font-weight:bold;">N° de Licencia / Credencial</td><td style="border: 1px solid #d1d5db; padding: 8px 10px;">${credencial}</td></tr>` : ""}
+            <tr><td style="border: 1px solid #d1d5db; padding: 8px 10px; background:#eef3f8; font-weight:bold;">Curso aprobado</td><td style="border: 1px solid #d1d5db; padding: 8px 10px;">${courseName}</td></tr>
+            <tr><td style="border: 1px solid #d1d5db; padding: 8px 10px; background:#eef3f8; font-weight:bold;">Habilitación solicitada</td><td style="border: 1px solid #d1d5db; padding: 8px 10px;">${habilitacion}</td></tr>
+            <tr><td style="border: 1px solid #d1d5db; padding: 8px 10px; background:#eef3f8; font-weight:bold;">N° de Folio</td><td style="border: 1px solid #d1d5db; padding: 8px 10px;"><strong>${folio}</strong></td></tr>
+          </table>
+          <p style="color: #374151;">
+            Bajo el folio indicado hemos subido el <strong>Apéndice C</strong> y el <strong>certificado del
+            curso</strong> correspondientes. Quedamos atentos a la actualización de la credencial.
+          </p>
+          ${mensajeExtra ? `<p style="color: #4b5563; font-size: 14px; padding: 10px; background: #f3f4f6; border-radius: 4px;">${mensajeExtra}</p>` : ""}
+          <p style="color: #374151;">Atentamente,<br/><strong>Escuela de Navegación Aérea - ENAE</strong><br/>${ADMIN_EMAIL}<br/><span style="font-size: 12px; color: #6b7280;">AOC 1521 DGAC · Certificada ISO 9001:2015 — Cert. N° ESC/QMS/G26/5904</span></p>
+        </div>
+        <div style="background: #001d3d; padding: 15px; text-align: center;">
+          <p style="color: #93C5FD; margin: 0; font-size: 12px;">Escuela de Navegación Aérea | AOC 1521 DGAC | Certificada ISO 9001:2015</p>
+        </div>
+      </div>
+    `;
+
+  return { subject, html, to: AYUDA_SIPA_EMAIL, cc: Array.from(new Set(cc.map((e) => e.toLowerCase()))) };
+}
+
+export async function sendSolicitudCredencialSIPA(args: Parameters<typeof buildSolicitudCredencialSIPA>[0]) {
+  const { subject, html, to, cc } = buildSolicitudCredencialSIPA(args);
+  await transporter.sendMail({
+    from: `"Escuela de Navegación Aérea - ENAE" <${FROM}>`,
+    to,
+    cc,
+    replyTo: ADMIN_EMAIL,
+    subject,
+    html,
+  });
+}

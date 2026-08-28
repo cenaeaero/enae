@@ -44,6 +44,7 @@ type DgacProcedure = {
   unidad_coordinada: boolean;
   unidad_contacto: string | null;
   solicitud_teoricos_at: string | null;
+  solicitud_credencial_at?: string | null;
   exam_datetime: string | null;
   exam_unit_city: string | null;
 };
@@ -154,6 +155,7 @@ export default function RegistroDetailPage() {
   const [solicitudMsg, setSolicitudMsg] = useState("");
   const [draft, setDraft] = useState<{ subject: string; html: string; to: string; cc: string[] } | null>(null);
   const [loadingDraft, setLoadingDraft] = useState(false);
+  const [draftKind, setDraftKind] = useState<"teoricos" | "sipa">("teoricos");
 
   const loadData = useCallback(async () => {
     // Load registration
@@ -551,6 +553,7 @@ export default function RegistroDetailPage() {
     if (!procedure) return;
     setLoadingDraft(true);
     setSolicitudMsg("");
+    setDraftKind("teoricos");
     try {
       const res = await fetch("/api/admin/dgac/solicitar-examen", {
         method: "POST",
@@ -587,6 +590,55 @@ export default function RegistroDetailPage() {
       } else {
         setSolicitudMsg(`Solicitud enviada a ${json.sent_to}.`);
         setProcedure((p) => p ? { ...p, solicitud_teoricos_at: new Date().toISOString() } : null);
+        setDraft(null);
+      }
+    } catch (err: any) {
+      setSolicitudMsg(`Error: ${err.message || "Sin conexion"}`);
+    }
+    setSendingSolicitud(false);
+  }
+
+  // Solicitud a Ayuda SIPA (actualización de credencial por habilitación) — borrador
+  async function verBorradorSipa() {
+    if (!procedure) return;
+    setLoadingDraft(true);
+    setSolicitudMsg("");
+    setDraftKind("sipa");
+    try {
+      const res = await fetch("/api/admin/dgac/solicitar-credencial", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registration_id: id, cc_alumno: ccAlumno, cc_supervisor: ccSupervisor, preview: true }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        const detail = Array.isArray(json.missing) && json.missing.length > 0 ? ` — ${json.missing.join("; ")}` : "";
+        setSolicitudMsg(`Error: ${json.error || "No se pudo generar el borrador"}${detail}`);
+      } else {
+        setDraft({ subject: json.subject, html: json.html, to: json.to, cc: json.cc || [] });
+      }
+    } catch (err: any) {
+      setSolicitudMsg(`Error: ${err.message || "Sin conexion"}`);
+    }
+    setLoadingDraft(false);
+  }
+
+  async function confirmarEnvioSipa() {
+    setSendingSolicitud(true);
+    setSolicitudMsg("");
+    try {
+      const res = await fetch("/api/admin/dgac/solicitar-credencial", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registration_id: id, cc_alumno: ccAlumno, cc_supervisor: ccSupervisor }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        const detail = Array.isArray(json.missing) && json.missing.length > 0 ? ` — ${json.missing.join("; ")}` : "";
+        setSolicitudMsg(`Error: ${json.error || "No se pudo enviar"}${detail}`);
+      } else {
+        setSolicitudMsg(`Solicitud enviada a ${json.sent_to}.`);
+        setProcedure((p) => p ? { ...p, solicitud_credencial_at: new Date().toISOString() } : null);
         setDraft(null);
       }
     } catch (err: any) {
@@ -1373,6 +1425,48 @@ export default function RegistroDetailPage() {
               );
             })()}
 
+            {/* Solicitud de actualización de credencial — Ayuda SIPA (habilitaciones) */}
+            {hasDgacCert && (
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <p className="text-sm font-medium text-gray-700 mb-1">Actualización de credencial RPAS — Ayuda SIPA</p>
+                <p className="text-xs text-gray-500 mb-3">
+                  Para habilitaciones (p. ej. vuelo nocturno). Informa a Ayuda SIPA que el alumno terminó el
+                  curso satisfactoriamente y solicita <strong>actualizar su credencial</strong>, referenciando
+                  el N° de Folio bajo el cual subiste el Apéndice C y el certificado. <em>No coordina fecha de examen.</em>
+                </p>
+                <div className="flex items-center gap-4 flex-wrap">
+                  <span className="text-xs text-gray-500">Folio: <strong className="text-gray-700">{procedure.folio_number || "— (ingrésalo en el trámite)"}</strong></span>
+                  <label className="flex items-center gap-2 text-sm text-gray-600">
+                    <input type="checkbox" checked={ccAlumno} onChange={(e) => setCcAlumno(e.target.checked)} className="rounded" />
+                    Copia al alumno
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-gray-600" title={profile.supervisor_email ? `Copia a ${profile.supervisor_email}` : "El alumno no tiene email de supervisor"}>
+                    <input type="checkbox" checked={ccSupervisor} onChange={(e) => setCcSupervisor(e.target.checked)} className="rounded" />
+                    Copia al supervisor
+                  </label>
+                  <button
+                    onClick={verBorradorSipa}
+                    disabled={loadingDraft || sendingSolicitud || !procedure.folio_number}
+                    className="bg-[#0072CE] hover:bg-[#005fa3] text-white px-5 py-2 rounded-lg text-sm font-medium transition disabled:opacity-50"
+                    title={!procedure.folio_number ? "Ingresa el N° de Folio primero" : ""}
+                  >
+                    {loadingDraft ? "Generando borrador..." : "Ver borrador: actualización de credencial (SIPA)"}
+                  </button>
+                  {procedure.solicitud_credencial_at && (
+                    <span className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1">
+                      Solicitud enviada el {new Date(procedure.solicitud_credencial_at).toLocaleString("es-CL")}
+                    </span>
+                  )}
+                </div>
+                {!procedure.folio_number && (
+                  <p className="text-xs text-amber-600 mt-2">Ingresa el N° de Folio en el trámite DGAC para habilitar el envío a SIPA.</p>
+                )}
+                {draftKind === "sipa" && solicitudMsg && (
+                  <p className={`text-xs mt-2 ${solicitudMsg.startsWith("Error") ? "text-red-600" : "text-green-700"}`}>{solicitudMsg}</p>
+                )}
+              </div>
+            )}
+
             {/* Apéndice C firmado subido por el alumno */}
             <div className="mt-4 pt-4 border-t border-gray-100">
               <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -1555,7 +1649,7 @@ export default function RegistroDetailPage() {
                 Cancelar
               </button>
               <button
-                onClick={confirmarEnvioTeoricos}
+                onClick={draftKind === "sipa" ? confirmarEnvioSipa : confirmarEnvioTeoricos}
                 disabled={sendingSolicitud}
                 className="px-5 py-2 rounded-lg text-sm font-medium text-white bg-[#0072CE] hover:bg-[#005fa3] transition disabled:opacity-50"
               >
