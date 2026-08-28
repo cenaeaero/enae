@@ -458,7 +458,7 @@ export default function RegistroPage() {
                     Información Laboral
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Cargo</label><input type="text" data-field="jobTitle" className="w-full py-2.5 px-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0072CE]" /></div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Profesión</label><input type="text" data-field="jobTitle" className="w-full py-2.5 px-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0072CE]" /></div>
                     <div><label className="block text-sm font-medium text-gray-700 mb-1">Organización</label><input type="text" data-field="organization" className="w-full py-2.5 px-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0072CE]" /></div>
                     <div className="sm:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Organización</label>

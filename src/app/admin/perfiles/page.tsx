@@ -528,7 +528,7 @@ export default function AdminPerfilesPage() {
                               value={profile.secondary_phone}
                             />
                             <DetailField
-                              label="Cargo"
+                              label="Profesión"
                               value={profile.job_title}
                             />
                             <div>
@@ -769,7 +769,7 @@ function EditForm({
         {field("birth_date", "Fecha nacimiento", "date")}
         {field("phone", "Teléfono")}
         {field("secondary_phone", "Tel. secundario")}
-        {field("job_title", "Cargo")}
+        {field("job_title", "Profesión")}
         {field("organization", "Organización")}
         {field("organization_type", "Tipo organización")}
         {field("address", "Dirección")}

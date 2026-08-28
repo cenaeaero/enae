@@ -201,7 +201,7 @@ export default function PerfilPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">
-                Cargo
+                Profesión
               </label>
               <input
                 type="text"

@@ -464,11 +464,12 @@ export default function AdminInstructoresPage() {
                               className="rounded" />
                           </th>
                           <th className="px-5 py-2">Alumno</th>
+                          <th className="px-5 py-2">Empresa</th>
                           <th className="px-5 py-2">Curso</th>
                           <th className="px-5 py-2">Tipo</th>
                           <th className="px-5 py-2">Ciudad · Fecha ↑</th>
                           <th className="px-5 py-2">Estado</th>
-                          <th className="px-5 py-2">Evaluación</th>
+                          <th className="px-5 py-2">Nota evaluación</th>
                           <th className="px-5 py-2"></th>
                         </tr>
                       </thead>
@@ -490,6 +491,7 @@ export default function AdminInstructoresPage() {
                                 </a>
                               ) : "—"}
                             </td>
+                            <td className="px-5 py-2.5 text-xs text-gray-600">{a.registrations?.organization || "—"}</td>
                             <td className="px-5 py-2.5 text-xs text-gray-600">{a.registrations?.courses?.title || "—"}</td>
                             <td className="px-5 py-2.5 text-xs">{KIND_LABEL[a.kind] || a.kind}</td>
                             <td className={`px-5 py-2.5 text-xs ${proxima ? "font-semibold text-[#003366]" : "text-gray-600"}`}>
@@ -508,8 +510,8 @@ export default function AdminInstructoresPage() {
                             </td>
                             <td className="px-5 py-2.5">
                               {isEvaluated(a) ? (
-                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded whitespace-nowrap" title={`Teo: ${a.grade_theoretical ?? "—"} · Prá: ${a.grade_practical ?? "—"}${a.evaluation_file_url ? " · Hoja subida" : ""}`}>
-                                  ✓ Evaluado{a.grade_practical != null ? ` · ${a.grade_practical}%` : a.grade_theoretical != null ? ` · ${a.grade_theoretical}%` : ""}
+                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded whitespace-nowrap" title={`Teórico: ${a.grade_theoretical ?? "—"} · Práctico: ${a.grade_practical ?? "—"}${a.evaluation_file_url ? " · Hoja subida" : ""}`}>
+                                  ✓ {[a.grade_theoretical != null ? `Teo ${a.grade_theoretical}%` : null, a.grade_practical != null ? `Prá ${a.grade_practical}%` : null].filter(Boolean).join(" · ") || "Evaluado"}
                                 </span>
                               ) : (
                                 <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded">Sin evaluar</span>
