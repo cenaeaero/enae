@@ -764,8 +764,8 @@ export default function AdminInscripcionPage() {
                       <td colSpan={9} className="px-3 py-3">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                           <div>
-                            <label className="block text-gray-500 mb-0.5">Cargo</label>
-                            <input type="text" value={s.jobTitle} onChange={(e) => updateStudent(idx, "jobTitle", e.target.value)} className="w-full border border-gray-200 rounded px-2 py-1" placeholder="Cargo" />
+                            <label className="block text-gray-500 mb-0.5">Profesión</label>
+                            <input type="text" value={s.jobTitle} onChange={(e) => updateStudent(idx, "jobTitle", e.target.value)} className="w-full border border-gray-200 rounded px-2 py-1" placeholder="Profesión" />
                           </div>
                           <div>
                             <label className="block text-gray-500 mb-0.5">Tipo Organización</label>

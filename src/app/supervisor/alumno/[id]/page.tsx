@@ -169,7 +169,7 @@ export default function SupervisorAlumnoDetail({ params }: { params: Promise<{ i
               <Info label="Email" value={p.email} />
               <Info label="Teléfono" value={p.phone || "—"} />
               <Info label="Empresa" value={p.companies?.name || p.organization || "—"} />
-              <Info label="Cargo" value={p.job_title || "—"} />
+              <Info label="Profesión" value={p.job_title || "—"} />
               <Info label="Ciudad" value={p.city || "—"} />
               <Info label="F. nacimiento" value={fmtDate(p.birth_date)} />
             </div>
@@ -313,7 +313,7 @@ export default function SupervisorAlumnoDetail({ params }: { params: Promise<{ i
               {[
                 ["phone", "Teléfono"], ["secondary_phone", "Tel. secundario"],
                 ["personal_email", "Email personal"], ["corporate_email", "Email empresa"],
-                ["job_title", "Cargo"], ["birth_date", "Fecha nacimiento"],
+                ["job_title", "Profesión"], ["birth_date", "Fecha nacimiento"],
                 ["address", "Dirección"], ["city", "Ciudad"],
                 ["state", "Región"], ["country", "País"], ["postal_code", "Código postal"],
               ].map(([k, label]) => (

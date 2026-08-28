@@ -334,7 +334,7 @@ export default function AlumnoDossierPage({ params }: { params: Promise<{ id: st
               <Info label="Folio Alumno" value={p.folio_enae || "—"} mono />
               <Info label="Email" value={p.email} />
               <Info label="Teléfono" value={p.phone || "—"} />
-              <Info label="Cargo" value={p.job_title || "—"} />
+              <Info label="Profesión" value={p.job_title || "—"} />
               <Info label="Empresa actual" value={
                 p.companies ? <Link href={`/admin/empresas`} className="text-[#0072CE] hover:underline">{p.companies.name}</Link> : (p.organization || "—")
               } />

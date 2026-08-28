@@ -737,7 +737,7 @@ export default function RegistroDetailPage() {
             <ReadField label="Telefono Secundario" value={profile.secondary_phone} />
             <ReadField label="Organizacion" value={profile.organization} />
             <ReadField label="Tipo Organizacion" value={profile.organization_type} />
-            <ReadField label="Cargo" value={profile.job_title} />
+            <ReadField label="Profesión" value={profile.job_title} />
             <ReadField label="Direccion" value={profile.address} />
             <ReadField label="Ciudad" value={profile.city} />
             <ReadField label="Region" value={profile.state} />
@@ -759,7 +759,7 @@ export default function RegistroDetailPage() {
             <EditField label="Telefono Secundario" value={editForm.secondary_phone} onChange={(v) => setEditForm({ ...editForm, secondary_phone: v })} />
             <EditField label="Organizacion" value={editForm.organization} onChange={(v) => setEditForm({ ...editForm, organization: v })} />
             <EditField label="Tipo Organizacion" value={editForm.organization_type} onChange={(v) => setEditForm({ ...editForm, organization_type: v })} />
-            <EditField label="Cargo" value={editForm.job_title} onChange={(v) => setEditForm({ ...editForm, job_title: v })} />
+            <EditField label="Profesión" value={editForm.job_title} onChange={(v) => setEditForm({ ...editForm, job_title: v })} />
             <EditField label="Direccion" value={editForm.address} onChange={(v) => setEditForm({ ...editForm, address: v })} />
             <EditField label="Ciudad" value={editForm.city} onChange={(v) => setEditForm({ ...editForm, city: v })} />
             <EditField label="Region" value={editForm.state} onChange={(v) => setEditForm({ ...editForm, state: v })} />
