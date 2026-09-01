@@ -159,15 +159,25 @@ export async function autoGradeRegistration(registrationId: string, courseId: st
     .update(updatePayload)
     .eq("id", registrationId);
 
-  // Auto-issue diploma if approved and none exists yet
+  // Auto-issue diploma if approved and none exists yet.
+  // If a diploma already exists, keep its final_score in sync with the latest
+  // grade (otherwise the issued diploma stays frozen at the score it had when
+  // it was first emitted, and regrades never reach the diploma/PDF).
   if (allGraded && gradeStatus === "approved") {
     const { data: existingDiploma } = await supabaseAdmin
       .from("diplomas")
-      .select("id")
+      .select("id, final_score")
       .eq("registration_id", registrationId)
       .maybeSingle();
 
-    if (!existingDiploma) {
+    if (existingDiploma) {
+      if (existingDiploma.final_score !== finalScore) {
+        await supabaseAdmin
+          .from("diplomas")
+          .update({ final_score: finalScore, status: "approved" })
+          .eq("id", existingDiploma.id);
+      }
+    } else {
       const { data: regFull } = await supabaseAdmin
         .from("registrations")
         .select("first_name, last_name, theoretical_start, practical_end, course_id")
