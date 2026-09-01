@@ -20,6 +20,9 @@ export type DgacCertificateData = {
   aocNumber?: string;
   resolutionNumber?: string;
   danNorms?: string;
+  // Overrides por curso (si null/undefined, se usa el texto DAN 151 por defecto):
+  compendioText?: string | null; // párrafos del COMPENDIO (separados por doble salto de línea)
+  macText?: string | null;       // párrafo de cierre (MAC) de la página 2
 };
 
 const MONTHS_ES = [
@@ -140,20 +143,21 @@ export async function generateDgacCertificatePdf(data: DgacCertificateData): Pro
   y += 5;
 
   doc.setFont("helvetica", "normal");
-  const compendio1 =
+  const defaultCompendio =
     `El programa se desarrolla conforme a los requerimientos establecidos por la Dirección General de ` +
     `Aeronáutica Civil (DGAC) mediante la Norma Aeronáutica DAN 151, que regula la formación y evaluación ` +
-    `para la obtención de la Credencial de Operador de Aeronaves Pilotadas a Distancia (RPA).`;
-  y = writeJustified(doc, compendio1, mx, y, contentW, 4.8);
-  y += 3;
-
-  const compendio2 =
+    `para la obtención de la Credencial de Operador de Aeronaves Pilotadas a Distancia (RPA).` +
+    `\n\n` +
     `El curso contempla los contenidos mínimos exigidos por la autoridad aeronáutica y establece las ` +
     `responsabilidades del piloto a distancia conforme al Código Aeronáutico de Chile, en relación con la ` +
     `seguridad operacional, la protección de personas y bienes, y el cumplimiento de las normas aplicables ` +
     `al espacio aéreo nacional.`;
-  y = writeJustified(doc, compendio2, mx, y, contentW, 4.8);
-  y += 4;
+  const compendioText = (data.compendioText && data.compendioText.trim()) || defaultCompendio;
+  const compendioParas = compendioText.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+  compendioParas.forEach((p, i) => {
+    y = writeJustified(doc, p, mx, y, contentW, 4.8);
+    y += i < compendioParas.length - 1 ? 3 : 4;
+  });
 
   // Habilitaciones bullet — render whatever the course defines, uppercased + bold.
   doc.setFont("helvetica", "bold");
@@ -255,7 +259,7 @@ export async function generateDgacCertificatePdf(data: DgacCertificateData): Pro
   doc.line(mx, y2, pw - mx, y2);
   y2 += 6;
 
-  const macParagraph =
+  const macParagraph = (data.macText && data.macText.trim()) ||
     `El curso cumple con los requisitos académicos y técnicos establecidos por la Escuela de Navegación ` +
     `Aérea SpA (ENAE) como Medio Aceptable de Cumplimiento (MAC) relativo a la formación, habilitación y ` +
     `certificación de pilotos que operen Aeronaves Pilotadas a Distancia (RPAS), conforme a la Norma ` +

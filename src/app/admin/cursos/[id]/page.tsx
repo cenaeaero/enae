@@ -64,6 +64,13 @@ export default function EditCoursePage({
   const [apendiceCHabilitationText, setApendiceCHabilitationText] = useState("");
   const [hasDgacCertificate, setHasDgacCertificate] = useState(false);
   const [dgacHabilitaciones, setDgacHabilitaciones] = useState("");
+  // Config del Certificado DGAC (fechas/ciudad/horas/textos reales del curso)
+  const [certCity, setCertCity] = useState("");
+  const [certStartDate, setCertStartDate] = useState("");
+  const [certEndDate, setCertEndDate] = useState("");
+  const [certHours, setCertHours] = useState<string>("");
+  const [certCompendio, setCertCompendio] = useState("");
+  const [certMacText, setCertMacText] = useState("");
   const [brochureUrl, setBrochureUrl] = useState<string | null>(null);
   const [allowAttendanceChoice, setAllowAttendanceChoice] = useState(false);
   const [minAttendancePct, setMinAttendancePct] = useState(90);
@@ -105,6 +112,12 @@ export default function EditCoursePage({
       setApendiceCHabilitationText(data.apendice_c_habilitation_text || "");
       setHasDgacCertificate(!!data.has_dgac_certificate);
       setDgacHabilitaciones(data.dgac_habilitaciones || "");
+      setCertCity((data as any).cert_city || "");
+      setCertStartDate((data as any).cert_start_date || "");
+      setCertEndDate((data as any).cert_end_date || "");
+      setCertHours((data as any).cert_hours != null ? String((data as any).cert_hours) : "");
+      setCertCompendio((data as any).cert_compendio || "");
+      setCertMacText((data as any).cert_mac_text || "");
       setBrochureUrl(data.brochure_url || null);
       setAllowAttendanceChoice(!!data.allow_attendance_choice);
       setMinAttendancePct(data.min_attendance_pct ?? 90);
@@ -171,6 +184,13 @@ export default function EditCoursePage({
         allow_attendance_choice: allowAttendanceChoice,
         min_attendance_pct: minAttendancePct,
         dgac_habilitaciones: (hasDgacCertificate || apendiceCRequired) ? ((apendiceCHabilitationText || "").trim() || null) : null,
+        // Config del Certificado DGAC por curso
+        cert_city: certCity.trim() || null,
+        cert_start_date: certStartDate || null,
+        cert_end_date: certEndDate || null,
+        cert_hours: certHours === "" ? null : Number(certHours),
+        cert_compendio: certCompendio.trim() || null,
+        cert_mac_text: certMacText.trim() || null,
       });
 
       // Sync module names with course_modules table (LMS)
@@ -666,6 +686,45 @@ export default function EditCoursePage({
                 className="w-full py-2.5 px-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0072CE] bg-white"
                 placeholder="MATRICE 4 SERIES"
               />
+            </div>
+          )}
+
+          {hasDgacCertificate && (
+            <div className="mt-4 border-t border-gray-100 pt-4">
+              <h3 className="text-sm font-semibold text-[#003366] mb-1">Certificado DGAC — fechas y textos del curso</h3>
+              <p className="text-xs text-gray-500 mb-3">
+                Estos datos van en el <strong>Certificado DGAC</strong> de este curso. Las fechas y la ciudad son las <strong>reales del curso</strong> (no las de inscripción). Los textos son editables: déjalos vacíos para usar el texto por defecto (credencial DAN 151), o escribe uno propio para cursos técnicos (ej. Termografía).
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Ciudad</label>
+                  <input type="text" value={certCity} onChange={(e) => setCertCity(e.target.value)}
+                    className="w-full py-2 px-3 border border-gray-300 rounded text-sm" placeholder="Requínoa, O'Higgins" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Fecha inicio</label>
+                  <input type="date" value={certStartDate} onChange={(e) => setCertStartDate(e.target.value)}
+                    className="w-full py-2 px-3 border border-gray-300 rounded text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Fecha término</label>
+                  <input type="date" value={certEndDate} onChange={(e) => setCertEndDate(e.target.value)}
+                    className="w-full py-2 px-3 border border-gray-300 rounded text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Horas totales</label>
+                  <input type="number" min={0} value={certHours} onChange={(e) => setCertHours(e.target.value)}
+                    className="w-full py-2 px-3 border border-gray-300 rounded text-sm" placeholder="12" />
+                </div>
+              </div>
+              <label className="block text-xs text-gray-500 mb-1">Texto COMPENDIO (separa párrafos con línea en blanco)</label>
+              <textarea value={certCompendio} onChange={(e) => setCertCompendio(e.target.value)} rows={4}
+                className="w-full py-2 px-3 border border-gray-300 rounded text-sm mb-3"
+                placeholder="Vacío = texto por defecto (DAN 151, credencial de operador RPA). Para cursos técnicos escribe el compendio propio del curso." />
+              <label className="block text-xs text-gray-500 mb-1">Texto de cierre (página 2)</label>
+              <textarea value={certMacText} onChange={(e) => setCertMacText(e.target.value)} rows={3}
+                className="w-full py-2 px-3 border border-gray-300 rounded text-sm"
+                placeholder="Vacío = texto MAC por defecto (DAN 151). Para cursos técnicos: p. ej. 'Curso de especialización técnica complementario a la formación del operador RPAS…'." />
             </div>
           )}
         </div>

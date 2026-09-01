@@ -111,6 +111,11 @@ export async function POST(request: Request) {
     const totalHours = (theoretical + practical) || c.total_hours || c.hours || 34;
     const completedAt = reg.completed_at || new Date().toISOString();
     const startAt = reg.created_at || completedAt;
+    // Config del certificado por curso (fechas/ciudad/horas/textos reales del curso).
+    const certStart = c.cert_start_date ? `${c.cert_start_date}T12:00:00` : startAt;
+    const certEnd = c.cert_end_date ? `${c.cert_end_date}T12:00:00` : completedAt;
+    const certCity = c.cert_city || reg.instruction_city || "Antofagasta";
+    const certHours = c.cert_hours || totalHours;
 
     const { data: modules } = await supabaseAdmin
       .from("course_modules")
@@ -134,16 +139,18 @@ export async function POST(request: Request) {
       studentName: `${reg.first_name || ""} ${reg.last_name || ""}`.trim(),
       rut: prof?.rut || null,
       courseName: c.title,
-      city: reg.instruction_city || "Antofagasta",
-      startDate: startAt,
-      endDate: completedAt,
-      totalHours,
+      city: certCity,
+      startDate: certStart,
+      endDate: certEnd,
+      totalHours: certHours,
       folio: prof?.folio_enae || null,
-      year: new Date(completedAt).getFullYear(),
+      year: new Date(certEnd).getFullYear(),
       habilitaciones: c.dgac_habilitaciones || c.apendice_c_habilitation_text || null,
       modules: modules || null,
       verificationUrl,
       verificationCode,
+      compendioText: c.cert_compendio || null,
+      macText: c.cert_mac_text || null,
     });
 
     const folio = (prof?.folio_enae || "SIN_FOLIO").replace(/[^A-Za-z0-9]+/g, "_");
