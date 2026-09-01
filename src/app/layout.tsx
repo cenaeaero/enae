@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import LayoutShell from "@/components/LayoutShell";
 import CookieBanner from "@/components/CookieBanner";
+import ChatwootWidget from "@/components/ChatwootWidget";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,6 +34,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <LayoutShell>{children}</LayoutShell>
         <CookieBanner />
+        <ChatwootWidget />
       </body>
     </html>
   );
