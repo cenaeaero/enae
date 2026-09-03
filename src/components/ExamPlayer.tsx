@@ -232,7 +232,7 @@ export default function ExamPlayer({ examId, registrationId, onComplete }: Props
                       <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold ${item.is_correct ? "bg-green-500 text-white" : "bg-red-500 text-white"}`}>
                         {item.is_correct ? "✓" : "✗"}
                       </div>
-                      <p className="text-sm font-medium text-gray-800">
+                      <p className="text-sm font-medium text-gray-800 whitespace-pre-line">
                         <span className="text-gray-400 mr-1">{idx + 1}.</span>
                         {item.question_text}
                       </p>
@@ -298,7 +298,7 @@ export default function ExamPlayer({ examId, registrationId, onComplete }: Props
       <div className="space-y-6">
         {questions.map((q, idx) => (
           <div key={q.id} className="bg-gray-50 rounded-lg p-4 border border-gray-100">
-            <p className="text-sm font-medium text-gray-800 mb-3">
+            <p className="text-sm font-medium text-gray-800 mb-3 whitespace-pre-line">
               <span className="text-gray-400 mr-2">{idx + 1}.</span>
               {q.question_text}
             </p>
