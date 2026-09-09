@@ -21,9 +21,15 @@ body {
 html {
   scroll-behavior: smooth;
   overflow-x: hidden;
-  /* Reserva siempre el espacio de la barra de scroll vertical para que, al
-     cambiar de alto el contenido (p. ej. el iframe de un módulo como
-     "Factores Humanos" que se auto-redimensiona), la barra no aparezca/
-     desaparezca corriendo el contenido centrado y la cabecera del alumno. */
+  /* La barra de scroll vertical SIEMPRE presente + su hueco reservado. Esto
+     evita que, al cambiar de alto el contenido (p. ej. el iframe de un módulo
+     como "Factores Humanos" que se auto-redimensiona), la barra aparezca/
+     desaparezca cambiando el ancho de la página: ese cambio de ancho re-acomoda
+     el contenido del iframe, que reporta un nuevo alto, que vuelve a togglear la
+     barra… un loop infinito ("cambia cada 1 segundo"). Con la barra fija el ancho
+     nunca cambia y el loop no puede arrancar. overflow-y:scroll funciona en todo
+     navegador (incl. Safari antiguo); scrollbar-gutter mejora el aspecto donde
+     está soportado. */
+  overflow-y: scroll;
   scrollbar-gutter: stable;
 }
