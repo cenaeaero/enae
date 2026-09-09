@@ -1893,8 +1893,8 @@ d.addEventListener('mousedown',function(e){if(e.detail>1)e.preventDefault();},tr
 (function(){
   var lastH=0;
   function r(){
-    var h=document.body.scrollHeight||document.documentElement.scrollHeight;
-    if(h!==lastH){lastH=h;window.parent.postMessage({type:'iframe-height',height:h,id:'${les.id}'},'*');}
+    var h=Math.ceil(document.body.scrollHeight||document.documentElement.scrollHeight);
+    if(Math.abs(h-lastH)>2){lastH=h;window.parent.postMessage({type:'iframe-height',height:h,id:'${les.id}'},'*');}
     setTimeout(r,500);
   }
   if(document.readyState==='complete')r();else window.addEventListener('load',r);
@@ -1940,8 +1940,12 @@ d.addEventListener('mousedown',function(e){if(e.detail>1)e.preventDefault();},tr
                                               if (e.data?.type === 'iframe-height' && e.data?.id === les.id) {
                                                 const newH = e.data.height;
                                                 const curH = parseInt(el.style.height) || 0;
-                                                // Only update if significantly different (avoid grow loop)
-                                                if (Math.abs(newH - curH) > 5) {
+                                                // Anti-oscilación ("cambia cada 1 segundo"): crecer siempre
+                                                // (nunca recortar el contenido), pero encoger sólo ante un
+                                                // cambio real —p. ej. pasar a otra lección más corta—, nunca
+                                                // ante el rebote de ~15px que provoca la barra de scroll al
+                                                // aparecer/desaparecer. Así el alto deja de rebotar.
+                                                if (newH > curH || curH - newH > 24) {
                                                   el.style.height = `${newH}px`;
                                                 }
                                               }
