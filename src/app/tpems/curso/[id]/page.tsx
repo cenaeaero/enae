@@ -1868,6 +1868,12 @@ export default function TpemsCourseDetail() {
 *{-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;}
 img,video,canvas,svg{pointer-events:none!important;-webkit-user-drag:none!important;}
 iframe{pointer-events:auto!important;}
+/* El iframe NUNCA debe scrollear por dentro: sólo la ventana scrollea (con su
+   barra fija). Si el iframe mostrara su propia barra vertical, restaría ancho,
+   re-acomodaría el contenido a un alto distinto y volvería a rebotar cada 500ms
+   (le pasaba a 8.2 en adelante). scrollHeight sigue midiendo el alto real aunque
+   overflow sea hidden, y el padre siempre agranda el iframe para que todo quepa. */
+html,body{overflow:hidden!important;}
 @media print{html,body{display:none!important;visibility:hidden!important;}}
 ::selection{background:transparent!important;color:inherit!important;}
 ::-moz-selection{background:transparent!important;color:inherit!important;}
