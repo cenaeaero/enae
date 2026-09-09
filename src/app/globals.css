@@ -21,4 +21,9 @@ body {
 html {
   scroll-behavior: smooth;
   overflow-x: hidden;
+  /* Reserva siempre el espacio de la barra de scroll vertical para que, al
+     cambiar de alto el contenido (p. ej. el iframe de un módulo como
+     "Factores Humanos" que se auto-redimensiona), la barra no aparezca/
+     desaparezca corriendo el contenido centrado y la cabecera del alumno. */
+  scrollbar-gutter: stable;
 }
