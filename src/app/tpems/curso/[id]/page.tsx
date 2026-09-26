@@ -124,10 +124,9 @@ export default function TpemsCourseDetail() {
   const [apendiceFileUrl, setApendiceFileUrl] = useState<string | null>(null);
   const [apendiceUploading, setApendiceUploading] = useState(false);
   const [apendiceMsg, setApendiceMsg] = useState<string | null>(null);
-  // Cédula de identidad (ambos lados, PDF)
-  const [cedulaFrenteUrl, setCedulaFrenteUrl] = useState<string | null>(null);
-  const [cedulaReversoUrl, setCedulaReversoUrl] = useState<string | null>(null);
-  const [cedulaUploading, setCedulaUploading] = useState<"frente" | "reverso" | null>(null);
+  // Cédula de identidad (un solo PDF con ambos lados)
+  const [cedulaUrl, setCedulaUrl] = useState<string | null>(null);
+  const [cedulaUploading, setCedulaUploading] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [modules, setModules] = useState<CourseModule[]>([]);
   const [progress, setProgress] = useState<ModuleProgress[]>([]);
@@ -884,12 +883,11 @@ export default function TpemsCourseDetail() {
           }
           const { data: proc } = await supabase
             .from("dgac_procedures")
-            .select("apendice_c_file_url, cedula_frente_url, cedula_reverso_url")
+            .select("apendice_c_file_url, cedula_url")
             .eq("registration_id", r.id)
             .maybeSingle();
           if (proc?.apendice_c_file_url) setApendiceFileUrl(proc.apendice_c_file_url);
-          if (proc?.cedula_frente_url) setCedulaFrenteUrl(proc.cedula_frente_url);
-          if (proc?.cedula_reverso_url) setCedulaReversoUrl(proc.cedula_reverso_url);
+          if (proc?.cedula_url) setCedulaUrl(proc.cedula_url);
         }
 
         // Load course modules (hide instructor-only modules from student view)
@@ -1492,67 +1490,56 @@ export default function TpemsCourseDetail() {
               <p className="text-xs text-gray-500 mt-3">{apendiceMsg}</p>
             )}
 
-            {/* Cédula de identidad — ambos lados en PDF */}
+            {/* Cédula de identidad — un solo PDF con ambos lados */}
             <div className="mt-5 pt-5 border-t border-gray-100">
-              <h3 className="text-sm font-bold text-[#003366] mb-1">Cédula de identidad (PDF)</h3>
-              <p className="text-xs text-gray-500 mb-3">
-                Sube tu cédula por ambos lados, cada uno en un archivo <strong>PDF</strong>.
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {([
-                  { side: "frente" as const, label: "Frente", url: cedulaFrenteUrl, setUrl: setCedulaFrenteUrl },
-                  { side: "reverso" as const, label: "Reverso", url: cedulaReversoUrl, setUrl: setCedulaReversoUrl },
-                ]).map(({ side, label, url, setUrl }) => (
-                  <div key={side} className="border border-gray-200 rounded-xl p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-semibold text-gray-600 uppercase">{label}</span>
-                      {url && (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-md">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                          Cargada
-                        </span>
-                      )}
-                    </div>
-                    <label className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg transition cursor-pointer w-full justify-center ${cedulaUploading === side ? "bg-gray-200 text-gray-400 cursor-wait" : url ? "bg-gray-100 hover:bg-gray-200 text-gray-700" : "bg-[#0072CE] hover:bg-[#005BA1] text-white"}`}>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-                      {cedulaUploading === side ? "Subiendo..." : url ? "Reemplazar PDF" : "Subir PDF"}
-                      <input
-                        type="file"
-                        accept="application/pdf"
-                        className="hidden"
-                        disabled={cedulaUploading !== null}
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
-                            setApendiceMsg("La cédula debe subirse en formato PDF.");
-                            (e.target as HTMLInputElement).value = "";
-                            return;
-                          }
-                          setCedulaUploading(side);
-                          setApendiceMsg(null);
-                          try {
-                            const fd = new FormData();
-                            fd.append("file", file);
-                            fd.append("registration_id", course.id);
-                            fd.append("side", side);
-                            const res = await fetch("/api/apendice-c/cedula", { method: "POST", body: fd });
-                            const json = await res.json();
-                            if (!res.ok) throw new Error(json?.error || "Upload falló");
-                            setUrl(json.url);
-                            setApendiceMsg(`Cédula (${label.toLowerCase()}) subida correctamente.`);
-                          } catch (err: any) {
-                            setApendiceMsg("Error subiendo cédula: " + (err?.message || "desconocido"));
-                          } finally {
-                            setCedulaUploading(null);
-                            (e.target as HTMLInputElement).value = "";
-                          }
-                        }}
-                      />
-                    </label>
-                  </div>
-                ))}
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-sm font-bold text-[#003366]">Cédula de identidad (PDF)</h3>
+                {cedulaUrl && (
+                  <span className="inline-flex items-center gap-1 text-[11px] text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-md">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                    Cargada
+                  </span>
+                )}
               </div>
+              <p className="text-xs text-gray-500 mb-3">
+                Sube <strong>un solo archivo PDF</strong> con tu cédula por ambos lados (frente y reverso).
+              </p>
+              <label className={`inline-flex items-center gap-2 text-sm font-semibold px-5 py-2.5 rounded-xl transition cursor-pointer ${cedulaUploading ? "bg-gray-200 text-gray-400 cursor-wait" : cedulaUrl ? "bg-gray-100 hover:bg-gray-200 text-gray-700" : "bg-[#0072CE] hover:bg-[#005BA1] text-white"}`}>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                {cedulaUploading ? "Subiendo..." : cedulaUrl ? "Reemplazar PDF" : "Subir PDF de la cédula"}
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  className="hidden"
+                  disabled={cedulaUploading}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+                      setApendiceMsg("La cédula debe subirse en formato PDF.");
+                      (e.target as HTMLInputElement).value = "";
+                      return;
+                    }
+                    setCedulaUploading(true);
+                    setApendiceMsg(null);
+                    try {
+                      const fd = new FormData();
+                      fd.append("file", file);
+                      fd.append("registration_id", course.id);
+                      const res = await fetch("/api/apendice-c/cedula", { method: "POST", body: fd });
+                      const json = await res.json();
+                      if (!res.ok) throw new Error(json?.error || "Upload falló");
+                      setCedulaUrl(json.url);
+                      setApendiceMsg("Cédula subida correctamente.");
+                    } catch (err: any) {
+                      setApendiceMsg("Error subiendo cédula: " + (err?.message || "desconocido"));
+                    } finally {
+                      setCedulaUploading(false);
+                      (e.target as HTMLInputElement).value = "";
+                    }
+                  }}
+                />
+              </label>
             </div>
           </div>
         )}
