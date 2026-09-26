@@ -23,6 +23,8 @@ type ApendiceRow = {
   apendice_c_required: boolean;
   apendice_c_file_url: string | null;
   apendice_c_uploaded_at: string | null;
+  cedula_frente_url: string | null;
+  cedula_reverso_url: string | null;
 };
 
 export default function AdminApendiceCPage() {
@@ -63,14 +65,14 @@ export default function AdminApendiceCPage() {
     const regIds = apRegs.map((r) => r.id);
 
     // Fetch dgac_procedures to know which have already uploaded
-    const procsByReg: Record<string, { file_url: string | null; uploaded_at: string | null }> = {};
+    const procsByReg: Record<string, { file_url: string | null; uploaded_at: string | null; cedula_frente_url: string | null; cedula_reverso_url: string | null }> = {};
     if (regIds.length > 0) {
       const PAGE = 1000;
       let from = 0;
       while (true) {
         const { data: page } = await supabase
           .from("dgac_procedures")
-          .select("registration_id, apendice_c_file_url, apendice_c_uploaded_at")
+          .select("registration_id, apendice_c_file_url, apendice_c_uploaded_at, cedula_frente_url, cedula_reverso_url")
           .in("registration_id", regIds)
           .range(from, from + PAGE - 1);
         if (!page || page.length === 0) break;
@@ -79,6 +81,8 @@ export default function AdminApendiceCPage() {
             procsByReg[p.registration_id] = {
               file_url: p.apendice_c_file_url,
               uploaded_at: p.apendice_c_uploaded_at,
+              cedula_frente_url: p.cedula_frente_url,
+              cedula_reverso_url: p.cedula_reverso_url,
             };
           }
         });
@@ -118,7 +122,7 @@ export default function AdminApendiceCPage() {
     }
 
     const out: ApendiceRow[] = apRegs.map((r) => {
-      const proc = procsByReg[r.id] || { file_url: null, uploaded_at: null };
+      const proc = procsByReg[r.id] || { file_url: null, uploaded_at: null, cedula_frente_url: null, cedula_reverso_url: null };
       const profile = r.email ? profilesByEmail[String(r.email).toLowerCase()] : null;
       return {
         registration_id: r.id,
@@ -139,6 +143,8 @@ export default function AdminApendiceCPage() {
         apendice_c_required: !!r.courses?.apendice_c_required,
         apendice_c_file_url: proc.file_url,
         apendice_c_uploaded_at: proc.uploaded_at,
+        cedula_frente_url: proc.cedula_frente_url,
+        cedula_reverso_url: proc.cedula_reverso_url,
       };
     });
 
@@ -191,6 +197,25 @@ export default function AdminApendiceCPage() {
       const res = await fetch(`/api/apendice-c/download?registration_id=${r.registration_id}`);
       const json = await res.json();
       if (!res.ok || !json.url) throw new Error(json?.error || "Error abriendo documento");
+      window.open(json.url, "_blank");
+    } catch (err: any) {
+      alert("Error: " + (err?.message || "Error desconocido"));
+    } finally {
+      setDownloading(null);
+    }
+  }
+
+  async function viewCedula(r: ApendiceRow, side: "frente" | "reverso") {
+    const url = side === "frente" ? r.cedula_frente_url : r.cedula_reverso_url;
+    if (!url) {
+      alert(`El alumno aún no ha subido la cédula (${side}).`);
+      return;
+    }
+    setDownloading(`cedula-${side}-${r.registration_id}`);
+    try {
+      const res = await fetch(`/api/apendice-c/cedula?registration_id=${r.registration_id}&side=${side}`);
+      const json = await res.json();
+      if (!res.ok || !json.url) throw new Error(json?.error || "Error abriendo cédula");
       window.open(json.url, "_blank");
     } catch (err: any) {
       alert("Error: " + (err?.message || "Error desconocido"));
@@ -472,6 +497,26 @@ export default function AdminApendiceCPage() {
                               {downloading === `dl-${r.registration_id}` ? "..." : "📥 Descargar"}
                             </button>
                           </>
+                        )}
+                        {r.cedula_frente_url && (
+                          <button
+                            onClick={() => viewCedula(r, "frente")}
+                            disabled={downloading === `cedula-frente-${r.registration_id}`}
+                            className="inline-flex items-center gap-1 text-xs text-teal-700 hover:text-teal-900 hover:bg-teal-50 px-2 py-1 rounded transition disabled:opacity-50"
+                            title="Ver cédula (frente)"
+                          >
+                            {downloading === `cedula-frente-${r.registration_id}` ? "..." : "🪪 Cédula frente"}
+                          </button>
+                        )}
+                        {r.cedula_reverso_url && (
+                          <button
+                            onClick={() => viewCedula(r, "reverso")}
+                            disabled={downloading === `cedula-reverso-${r.registration_id}`}
+                            className="inline-flex items-center gap-1 text-xs text-teal-700 hover:text-teal-900 hover:bg-teal-50 px-2 py-1 rounded transition disabled:opacity-50"
+                            title="Ver cédula (reverso)"
+                          >
+                            {downloading === `cedula-reverso-${r.registration_id}` ? "..." : "🪪 Cédula reverso"}
+                          </button>
                         )}
                         <button
                           onClick={() => triggerUpload(r.registration_id)}
