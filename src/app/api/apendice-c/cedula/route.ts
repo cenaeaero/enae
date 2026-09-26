@@ -2,19 +2,12 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-service";
 import { createSupabaseServer } from "@/lib/supabase-server";
 
-// Cédula de identidad (frente/reverso, PDF) para el trámite DGAC.
+// Cédula de identidad (un solo PDF con ambos lados) para el trámite DGAC.
 // Se almacena en el mismo bucket "apendice-c" y se referencia desde
-// dgac_procedures.cedula_frente_url / cedula_reverso_url.
-
-const SIDES = { frente: "cedula_frente_url", reverso: "cedula_reverso_url" } as const;
-type Side = keyof typeof SIDES;
-
-function isValidSide(s: string | null): s is Side {
-  return s === "frente" || s === "reverso";
-}
+// dgac_procedures.cedula_url.
 
 // Verifica que el usuario autenticado sea el dueño del registro o admin.
-async function authorize(request: Request, registrationId: string) {
+async function authorize(registrationId: string) {
   const supabase = await createSupabaseServer();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user?.email) {
@@ -46,22 +39,21 @@ async function authorize(request: Request, registrationId: string) {
 async function getProc(registrationId: string) {
   const { data } = await supabaseAdmin
     .from("dgac_procedures")
-    .select("id, cedula_frente_url, cedula_reverso_url")
+    .select("id, cedula_url")
     .eq("registration_id", registrationId)
     .maybeSingle();
   return data;
 }
 
-// POST: subir un lado de la cédula (solo PDF)
+// POST: subir la cédula (un solo PDF con ambos lados)
 export async function POST(request: Request) {
   try {
     const form = await request.formData();
     const file = form.get("file") as File | null;
     const registrationId = form.get("registration_id") as string | null;
-    const side = form.get("side") as string | null;
 
-    if (!file || !registrationId || !isValidSide(side)) {
-      return NextResponse.json({ error: "file, registration_id y side (frente|reverso) requeridos" }, { status: 400 });
+    if (!file || !registrationId) {
+      return NextResponse.json({ error: "file y registration_id requeridos" }, { status: 400 });
     }
 
     // Solo PDF
@@ -70,10 +62,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "La cédula debe subirse en formato PDF." }, { status: 400 });
     }
 
-    const auth = await authorize(request, registrationId);
+    const auth = await authorize(registrationId);
     if (auth.error) return auth.error;
 
-    const path = `${registrationId}/cedula-${side}-${Date.now()}.pdf`;
+    const path = `${registrationId}/cedula-${Date.now()}.pdf`;
     const arrayBuffer = await file.arrayBuffer();
     const { error: uploadError } = await supabaseAdmin.storage
       .from("apendice-c")
@@ -83,19 +75,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: uploadError.message }, { status: 500 });
     }
 
-    const column = SIDES[side];
     const existingProc = await getProc(registrationId);
-
     if (existingProc) {
       await supabaseAdmin
         .from("dgac_procedures")
-        .update({ [column]: path, cedula_uploaded_at: new Date().toISOString() })
+        .update({ cedula_url: path, cedula_uploaded_at: new Date().toISOString() })
         .eq("id", existingProc.id);
     } else {
       await supabaseAdmin.from("dgac_procedures").insert({
         registration_id: registrationId,
         procedure_type: "nueva",
-        [column]: path,
+        cedula_url: path,
         cedula_uploaded_at: new Date().toISOString(),
       });
     }
@@ -107,28 +97,26 @@ export async function POST(request: Request) {
   }
 }
 
-// GET: URL firmada para ver/descargar un lado
+// GET: URL firmada para ver/descargar la cédula
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const registrationId = searchParams.get("registration_id");
-    const side = searchParams.get("side");
-    if (!registrationId || !isValidSide(side)) {
-      return NextResponse.json({ error: "registration_id y side requeridos" }, { status: 400 });
+    if (!registrationId) {
+      return NextResponse.json({ error: "registration_id requerido" }, { status: 400 });
     }
 
-    const auth = await authorize(request, registrationId);
+    const auth = await authorize(registrationId);
     if (auth.error) return auth.error;
 
     const proc = await getProc(registrationId);
-    const filePath = proc?.[SIDES[side]] as string | null | undefined;
-    if (!filePath) {
+    if (!proc?.cedula_url) {
       return NextResponse.json({ error: "Sin archivo" }, { status: 404 });
     }
 
     const { data: signed, error: signedError } = await supabaseAdmin.storage
       .from("apendice-c")
-      .createSignedUrl(filePath, 300);
+      .createSignedUrl(proc.cedula_url, 300);
     if (signedError || !signed) {
       return NextResponse.json({ error: signedError?.message || "Error firmando URL" }, { status: 500 });
     }
@@ -140,30 +128,28 @@ export async function GET(request: Request) {
   }
 }
 
-// DELETE: eliminar un lado para volver a subir
+// DELETE: eliminar la cédula para volver a subirla
 export async function DELETE(request: Request) {
   try {
-    const { registration_id, side } = await request.json();
-    if (!registration_id || !isValidSide(side)) {
-      return NextResponse.json({ error: "registration_id y side requeridos" }, { status: 400 });
+    const { registration_id } = await request.json();
+    if (!registration_id) {
+      return NextResponse.json({ error: "registration_id requerido" }, { status: 400 });
     }
 
-    const auth = await authorize(request, registration_id);
+    const auth = await authorize(registration_id);
     if (auth.error) return auth.error;
 
     const proc = await getProc(registration_id);
-    const column = SIDES[side];
-    const filePath = proc?.[column] as string | null | undefined;
-    if (!proc || !filePath) {
+    if (!proc?.cedula_url) {
       return NextResponse.json({ error: "No hay documento para eliminar" }, { status: 404 });
     }
 
-    const { error: removeErr } = await supabaseAdmin.storage.from("apendice-c").remove([filePath]);
+    const { error: removeErr } = await supabaseAdmin.storage.from("apendice-c").remove([proc.cedula_url]);
     if (removeErr) console.warn("Cedula storage remove warning:", removeErr.message);
 
     await supabaseAdmin
       .from("dgac_procedures")
-      .update({ [column]: null })
+      .update({ cedula_url: null })
       .eq("id", proc.id);
 
     return NextResponse.json({ success: true });
