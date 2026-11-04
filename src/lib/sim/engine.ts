@@ -734,6 +734,11 @@ export class SimEngine {
       // despegue (con autorización UTM si la operación la requiere)
       if (!tr.airborne) {
         if (this.t < f.startT) continue;
+        // suspendida en tierra por instrucción UTM (espera / aterrice / RTL antes del despegue)
+        if (tr.pmode === 'LOITER' || tr.pmode === 'LAND' || tr.pmode === 'RTL' || tr.pmode === 'DIVERT') {
+          if (!this.waitLogged.has(f.callsign + '#S')) { this.waitLogged.add(f.callsign + '#S'); this.addLog(`${f.callsign} EN TIERRA — OPERACIÓN SUSPENDIDA POR UTM`, 'INFO'); }
+          continue;
+        }
         if (f.req) {
           const ok = tr.auth === 'APPROVED' || tr.auth === 'MODIFIED';
           if (!ok) {
@@ -978,7 +983,8 @@ export class SimEngine {
         if (!man) {
           const prev = this.pairD.get(key);
           this.pairD.set(key, dH);
-          if (prev != null && dH < prev && dH < 1500 && dV < 30 && !this.conflictSeen.has(key)) {
+          if (this.conflictSeen.has(key) && dH > 4000) this.conflictSeen.delete(key); // el par se separó: puede volver a entrar en conflicto
+          if (prev != null && dH < prev && dH < 2500 && dV < 30 && !this.conflictSeen.has(key)) {
             this.conflictSeen.add(key);
             this.occ('CONFLICT', [a.callsign, b.callsign], `CONFLICTO ${a.callsign} / ${b.callsign}`, { ref: key });
           }
