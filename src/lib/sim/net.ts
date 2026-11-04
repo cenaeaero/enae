@@ -136,16 +136,14 @@ export async function logAction(
   });
 }
 
-export function subscribeActions(
-  sessionId: string,
-  cb: (a: { sim_t: number; action: string; detail: Record<string, unknown> | null }) => void
-): RealtimeChannel {
+export interface ActionRow { position_id: string | null; sim_t: number; action: string; detail: Record<string, unknown> | null }
+export function subscribeActions(sessionId: string, cb: (a: ActionRow) => void): RealtimeChannel {
   return simDb()
     .channel(`sim_actions_${sessionId}`)
     .on(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'sim_actions', filter: `session_id=eq.${sessionId}` },
-      (payload) => cb(payload.new as { sim_t: number; action: string; detail: Record<string, unknown> | null })
+      (payload) => cb(payload.new as ActionRow)
     )
     .subscribe();
 }
@@ -191,22 +189,32 @@ export function subscribeLiveTracks(code: string, cb: (t: LiveTrack) => void): R
     .subscribe();
 }
 
+// puestos evaluables de la sesión: Operadores UTM (controller) y Pilotos (pilot)
 export interface EvalPosition { id: string; student_name: string; role: string }
-export interface EvalAction { position_id: string | null; sim_t: number; action: string; detail: { flight?: string } | null }
-export interface EvalEvent { sim_t: number; flight: string; event_type: string }
+export async function fetchEvalPositions(sessionId: string): Promise<EvalPosition[]> {
+  const { data } = await simDb()
+    .from('sim_positions')
+    .select('id,student_name,role')
+    .eq('session_id', sessionId)
+    .in('role', ['controller', 'pilot']);
+  return (data ?? []) as EvalPosition[];
+}
 
-export async function fetchEvalData(sessionId: string) {
-  const db = simDb();
-  const [pos, act, ev] = await Promise.all([
-    db.from('sim_positions').select('id,student_name,role').eq('session_id', sessionId).eq('role', 'controller'),
-    db.from('sim_actions').select('position_id,sim_t,action,detail').eq('session_id', sessionId).order('sim_t'),
-    db.from('sim_events').select('sim_t,flight,event_type').eq('session_id', sessionId).order('sim_t'),
-  ]);
-  return {
-    positions: (pos.data ?? []) as EvalPosition[],
-    actions: (act.data ?? []) as EvalAction[],
-    events: (ev.data ?? []) as EvalEvent[],
-  };
+// ejercicios aprobados por alumno (para el prerrequisito de nivel) — vía API de servidor
+export async function fetchPassedExercises(names: string[]): Promise<Record<string, string[]> | null> {
+  if (!names.length) return {};
+  try {
+    const r = await fetch('/api/sim/aprobados', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ names }),
+    });
+    if (!r.ok) return null;
+    const j = await r.json();
+    return (j.passed ?? null) as Record<string, string[]> | null;
+  } catch {
+    return null;
+  }
 }
 
 // roster de puestos conectados a la sesión (sectores/controladores, AFTN, pilotos)

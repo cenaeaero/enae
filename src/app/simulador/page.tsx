@@ -4,18 +4,19 @@
 // Réplica de la posición de control (lámina 12 deck CONDOR): ventanas grises
 // arrastrables estilo consola, barra superior de estado y botonera densa inferior.
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { SimEngine, type TrackState, type Zone, type Scenario, type SimEvent } from '@/lib/sim/engine';
-import { SCENARIOS } from '@/lib/sim/scenarios';
+import { Fragment, useEffect, useRef, useState, useCallback } from 'react';
+import { SimEngine, type TrackState, type Zone, type Scenario, type SimEvent, type PMode, type InstrKind } from '@/lib/sim/engine';
+import { SCENARIOS, prerequisiteOf } from '@/lib/sim/scenarios';
+import { evaluate, minScoreFor, COMP_SHORT, type Report, type EvalPos } from '@/lib/sim/evaluacion';
 import {
   simDb, createSession, joinSession, publishState, subscribeState,
-  subscribeActions, logAction, logEvent, countPositions, fetchEvalData, listPositions,
+  subscribeActions, logAction, logEvent, countPositions, fetchEvalPositions, fetchPassedExercises, listPositions,
   subscribeLiveTracks,
   simConfigOk,
   saveBase, listBases, loadBaseData, deleteBase, updateBase, saveExercise, listExercises, loadExerciseData, deleteExercise, updateExercise,
   type SavedRow,
 } from '@/lib/sim/net';
-import { certificadoPdf } from '@/lib/sim/certificado';
+import { certificadoPdf, informePdf, ROLE_TXT } from '@/lib/sim/certificado';
 import { supabase as enaeAuth } from '@/lib/supabase';
 import type { SimMsg } from '@/lib/sim/engine';
 
@@ -294,16 +295,18 @@ function Win({
   );
 }
 
-type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone' | 'eval' | 'aftn' | 'layers' | 'zonemaker' | 'exercise' | 'fpl' | 'meteo' | 'cpdlc' | 'arr' | 'aux' | 'hfs' | 'pilot' | 'positions';
+type WinId = 'flights' | 'stations' | 'sectors' | 'time' | 'msg' | 'instructor' | 'zone' | 'eval' | 'aftn' | 'layers' | 'zonemaker' | 'exercise' | 'fpl' | 'meteo' | 'cpdlc' | 'arr' | 'aux' | 'hfs' | 'pilot' | 'positions' | 'utm' | 'brief';
 
-interface EvalRow {
-  position_id: string | null;
-  student_name: string;
-  score: number;
-  passed: boolean;
-  competencies: Record<string, unknown>;
+interface EvalRow extends Report {
   folio: string | null;
+  prereq: 'OK' | 'PENDIENTE' | 'N/A' | 'SIN VERIFICAR';
 }
+const AUTH_TXT: Record<string, string> = { PENDING: 'PENDIENTE', APPROVED: 'APROBADA', DENIED: 'RECHAZADA', MODIFIED: 'MODIFICADA' };
+const ACT_TXT: Record<string, string> = {
+  ACK_ALARM: 'RECONOCIMIENTO', DECLARE_CONTINGENCY: 'CONTINGENCIA', ORDER_RTH: 'ORDEN RTH', UTM_INSTR: 'INSTRUCCIÓN', READBACK: 'COLACIÓN',
+  AUTH_APPROVE: 'APROBACIÓN', AUTH_DENY: 'RECHAZO', AUTH_MODIFY: 'MODIFICACIÓN', NOTAM_ACT: 'ACTIVACIÓN NOTAM', HANDOVER: 'HANDOVER',
+  PILOT_CLAIM: 'TOMA DE MANDO', PILOT_TAKEOFF: 'DESPEGUE', PILOT_REPORT: 'INFORME', ACK_MSG: 'ACUSE', CPDLC_MSG: 'CPDLC', RELAY_ALERT: 'ALERTA',
+};
 
 export default function SimuladorPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -427,10 +430,13 @@ export default function SimuladorPage() {
     hfs: { x: 360, y: 300, open: false },
     pilot: { x: 80, y: 300, open: false },
     positions: { x: 150, y: 60, open: false },
+    utm: { x: 1130, y: 60, open: false },
+    brief: { x: 300, y: 70, open: false },
   });
   const [evalRows, setEvalRows] = useState<EvalRow[]>([]);
   const [evalBusy, setEvalBusy] = useState(false);
   const [evalSaved, setEvalSaved] = useState(false);
+  const [evalOpen, setEvalOpen] = useState<number | null>(null); // fila con detalle desplegado
 
   // autenticación (cuentas del portal ENAE)
   const [auth, setAuth] = useState<'checking' | 'login' | 'ok'>('checking');
@@ -455,6 +461,8 @@ export default function SimuladorPage() {
   const [peers, setPeers] = useState(1);
   const [roster, setRoster] = useState<{ role: string; name: string }[]>([]); // puestos conectados (POSICIONES)
   const lastPubRef = useRef(0);
+  const posIdRef = useRef<string | null>(null);
+  useEffect(() => { posIdRef.current = positionId; }, [positionId]);
   const lastNetRef = useRef(0); // epoch ms del último estado recibido por Realtime (alumno)
 
   if (!engineRef.current) engineRef.current = new SimEngine(SCENARIOS[0]);
@@ -547,6 +555,13 @@ export default function SimuladorPage() {
   // sesión del portal ENAE al cargar
   useEffect(() => {
     (async () => {
+      // pruebas locales (sólo `next dev`, nunca en producción): ?devsim entra como instructor sin login
+      if (process.env.NODE_ENV === 'development' && new URLSearchParams(window.location.search).has('devsim')) {
+        setAuthRole('instructor');
+        setUserName('INSTRUCTOR DEV');
+        setAuth('ok');
+        return;
+      }
       const { data: { user } } = await enaeAuth.auth.getUser();
       if (!user?.email) {
         setAuth('login');
@@ -723,21 +738,9 @@ export default function SimuladorPage() {
   useEffect(() => {
     if (mode !== 'instructor' || !sessionId) return;
     const ch = subscribeActions(sessionId, (a) => {
-      const flight = a.detail ? String((a.detail as { flight?: string }).flight ?? '') : '';
-      if (a.action === 'ORDER_RTH' && flight) eng.injectEvent(flight, 'RTH');
-      if (a.action === 'DECLARE_CONTINGENCY' && flight)
-        eng.addLog(`${flight} CONTINGENCIA DECLARADA POR CONTROLADOR`, 'WARN');
-      if (a.action === 'ACK_ALARM' && flight) eng.addLog(`${flight} ALARMA RECONOCIDA POR CONTROLADOR`, 'INFO');
-      if (a.action === 'PILOT_CMD' && flight) {
-        const d = a.detail as { mode?: 'AUTO' | 'LOITER' | 'RTL' | 'GUIDED'; dAlt?: number; dHdg?: number; dSpd?: number; hdg?: number };
-        eng.applyPilotCommand(flight, { mode: d.mode, dAlt: d.dAlt, dHdg: d.dHdg, dSpd: d.dSpd, hdg: d.hdg });
-      }
-      if (a.action === 'ACK_MSG' && flight) eng.addLog(`${flight} MENSAJE ACUSADO POR OPERACIONES`, 'INFO');
-      if (a.action === 'RELAY_ALERT' && flight) eng.addLog(`${flight} OPERACIONES ALERTA AL CONTROLADOR`, 'WARN');
-      if (a.action === 'CPDLC_MSG' && flight) {
-        const text = a.detail ? String((a.detail as { text?: string }).text ?? '') : '';
-        eng.addLog(`${flight} CPDLC DEL CONTROLADOR: ${text}`, 'INFO');
-      }
+      // las acciones propias del supervisor ya se aplicaron localmente
+      if (a.position_id && a.position_id === posIdRef.current) return;
+      eng.applyAction(a.action, a.detail, a.position_id ?? 'REMOTO');
     });
     const iv = setInterval(() => countPositions(sessionId).then(setPeers).catch(() => {}), 8000);
     return () => {
@@ -2250,6 +2253,8 @@ export default function SimuladorPage() {
     const s = SCENARIOS.find((x) => x.id === selScenarioId) ?? SCENARIOS[0];
     eng.scenario = JSON.parse(JSON.stringify(s));
     eng.reset();
+    setEvalRows([]);
+    setWin('eval', { open: false });
     setSelected(null);
     setPan({ x: 0, y: 0 });
     setRot(0);
@@ -2259,6 +2264,8 @@ export default function SimuladorPage() {
   };
   const startLocal = () => {
     applyScenario();
+    setWin('brief', { open: true });
+    setWin('utm', { open: true });
     setMode('local');
   };
   const startInstructor = async () => {
@@ -2271,6 +2278,7 @@ export default function SimuladorPage() {
       setSessionCode(r.code);
       setPositionId(r.positionId);
       setWin('exercise', { open: true });
+      setWin('brief', { open: true });
       setMode('instructor');
     } catch (e) {
       setLobbyErr((e as Error).message || 'Error creando sesión');
@@ -2296,6 +2304,8 @@ export default function SimuladorPage() {
       setPositionId(r.positionId);
       if (posRole === 'aftn') setWin('aftn', { open: true });
       if (posRole === 'pilot') setWin('pilot', { open: true });
+      if (posRole === 'controller') setWin('utm', { open: true });
+      setWin('brief', { open: true });
       setMode('student');
     } catch (e) {
       setLobbyErr((e as Error).message || 'Error uniéndose a la sesión');
@@ -2329,7 +2339,7 @@ export default function SimuladorPage() {
   };
 
   // comando del piloto: directo al motor (instructor/local) o vía sim_actions (piloto remoto → instructor lo aplica)
-  const pilotCmd = (cmd: { mode?: 'AUTO' | 'LOITER' | 'RTL' | 'GUIDED'; dAlt?: number; dHdg?: number; dSpd?: number; hdg?: number }) => {
+  const pilotCmd = (cmd: { mode?: PMode; dAlt?: number; dHdg?: number; dSpd?: number; hdg?: number }) => {
     if (!selected) { eng.addLog('PILOTO: SELECCIONE SU AERONAVE', 'WARN'); return; }
     // colación (read-back) con el VALOR RESULTANTE (base = valor comandado si existe, si no el actual)
     const tr0 = eng.tracks.get(selected);
@@ -2348,7 +2358,8 @@ export default function SimuladorPage() {
       if (sessionId) logAction(sessionId, positionId, eng.t, 'PILOT_CMD', { flight: selected, ...cmd }).catch(() => {});
       eng.addLog(`${selected} PILOTO ▸ ${rb} TRANSMITIDO`, 'INFO');
     } else {
-      eng.applyPilotCommand(selected, cmd);
+      eng.applyAction('PILOT_CMD', { flight: selected, ...cmd }, positionId ?? 'LOCAL');
+      if (sessionId) logAction(sessionId, positionId, eng.t, 'PILOT_CMD', { flight: selected, ...cmd }).catch(() => {});
     }
     force((x) => x + 1);
   };
@@ -2359,11 +2370,26 @@ export default function SimuladorPage() {
     if (mode === 'instructor' && sessionId) logEvent(sessionId, eng.t, cs, ev, userName || 'INSTRUCTOR').catch(() => {});
   };
 
-  // alumno-controlador: órdenes registradas para evaluación
+  // acción de un puesto (Operador UTM / Piloto): el alumno la transmite (el supervisor la aplica al motor);
+  // en modo local/supervisor se aplica directo. Todas quedan en sim_actions y en el registro de evaluación.
+  const act = (action: string, detail: Record<string, unknown>) => {
+    if (mode === 'student') {
+      if (!sessionId) return;
+      logAction(sessionId, positionId, eng.t, action, detail).catch(() => {});
+      eng.addLog(`${detail.flight ? detail.flight + ' ' : ''}${ACT_TXT[action] ?? action} TRANSMITIDA`, 'INFO');
+    } else {
+      eng.applyAction(action, detail, positionId ?? 'LOCAL');
+      if (sessionId) logAction(sessionId, positionId, eng.t, action, detail).catch(() => {});
+    }
+    force((x) => x + 1);
+  };
   const studentAction = (action: string, flight: string | null = selected) => {
-    if (!flight || !sessionId) return;
-    logAction(sessionId, positionId, eng.t, action, { flight }).catch(() => {});
-    eng.addLog(`${flight} ${action} TRANSMITIDA`, 'INFO');
+    if (!flight) return;
+    act(action, { flight });
+  };
+  const utmInstr = (k: InstrKind, value?: number) => {
+    if (!selected) { eng.addLog('UTM: SELECCIONE UN VUELO', 'WARN'); return; }
+    act('UTM_INSTR', { flight: selected, instr: k, ...(value != null ? { value } : {}) });
   };
 
   // CPDLC: enviar mensaje al piloto del vuelo seleccionado (uplink datalink)
@@ -2372,8 +2398,7 @@ export default function SimuladorPage() {
     if (!selected) { eng.addLog('CPDLC: SELECCIONE UN VUELO', 'WARN'); return; }
     if (!t) return;
     const up = t.toUpperCase();
-    if (sessionId) logAction(sessionId, positionId, eng.t, 'CPDLC_MSG', { flight: selected, text: up }).catch(() => {});
-    eng.addLog(`${selected} CPDLC ▸ ${up}`, 'INFO');
+    act('CPDLC_MSG', { flight: selected, text: up });
     setCpdlcText('');
   };
 
@@ -2393,45 +2418,33 @@ export default function SimuladorPage() {
     }
   };
 
-  // evaluación: rúbrica transparente sobre sim_actions vs sim_events
-  //  - detectar y reconocer la alarma (ACK): 40 pts (pleno ≤30 s tras el evento)
-  //  - ordenar RTH al vuelo afectado: 30 pts
-  //  - declarar la contingencia: 30 pts · aprueba con ≥70
+  // evaluación por competencias: rúbrica del ejercicio y del rol, calculada sobre el registro del motor
+  // (ocurrencias, instrucciones, colaciones, conformidad). Ver src/lib/sim/evaluacion.ts
   const runEval = async () => {
-    if (mode !== 'instructor' || !sessionId) return;
+    if (mode !== 'instructor' && mode !== 'local') return;
     setEvalBusy(true);
     try {
-      const { positions, actions, events } = await fetchEvalData(sessionId);
-      const alarm = events.find((e) => e.event_type === 'C2LOSS' || e.event_type === 'EMERG');
-      const t0 = alarm ? Number(alarm.sim_t) : null;
-      const rows: EvalRow[] = positions.map((p) => {
-        const mine = actions.filter((a) => a.position_id === p.id);
-        const ack = mine.find((a) => a.action === 'ACK_ALARM' && (t0 === null || Number(a.sim_t) >= t0));
-        const rth = mine.find((a) => a.action === 'ORDER_RTH');
-        const cont = mine.find((a) => a.action === 'DECLARE_CONTINGENCY');
-        let score = 0;
-        if (ack && t0 !== null) {
-          const dt = Number(ack.sim_t) - t0;
-          score += dt <= 30 ? 40 : Math.max(10, Math.round(40 - (dt - 30) / 3));
-        } else if (ack) score += 30;
-        if (rth) score += 30;
-        if (cont) score += 30;
-        score = Math.min(100, score);
-        return {
-          position_id: p.id,
-          student_name: p.student_name,
-          score,
-          passed: score >= 70,
-          competencies: {
-            deteccion_s: ack && t0 !== null ? Math.round(Number(ack.sim_t) - t0) : null,
-            rth: !!rth,
-            contingencia: !!cont,
-          },
-          folio: null,
-        };
+      let positions: EvalPos[];
+      if (mode === 'instructor' && sessionId) {
+        positions = (await fetchEvalPositions(sessionId)).map((p) => ({ id: p.id, name: p.student_name, role: p.role }));
+      } else {
+        const me = userName || 'PRÁCTICA LOCAL';
+        positions = [{ id: 'LOCAL', name: me, role: 'controller' }];
+        if (eng.facts.some((f) => f.by === 'LOCAL' && ['CLAIM', 'PCMD', 'TAKEOFF'].includes(f.k))) positions.push({ id: 'LOCAL', name: me, role: 'pilot' });
+      }
+      const reps = evaluate({
+        scenario: eng.scenario, facts: eng.facts, occs: eng.occs, instrs: eng.instrs, conf: eng.conf,
+        sectorOf: (cs) => eng.tracks.get(cs)?.sector ?? 'S1', positions,
+      });
+      const pre = prerequisiteOf(eng.scenario.id);
+      const passedMap = pre && mode === 'instructor' ? await fetchPassedExercises([...new Set(reps.map((r) => r.studentName))]) : null;
+      const rows: EvalRow[] = reps.map((r) => {
+        const prereq: EvalRow['prereq'] = !pre ? 'N/A' : !passedMap ? 'SIN VERIFICAR' : (passedMap[r.studentName] ?? []).includes(pre.id) ? 'OK' : 'PENDIENTE';
+        return { ...r, passed: r.passed && prereq !== 'PENDIENTE', folio: null, prereq };
       });
       setEvalRows(rows);
       setEvalSaved(false);
+      setEvalOpen(null);
       setWin('eval', { open: true });
     } finally {
       setEvalBusy(false);
@@ -2447,17 +2460,26 @@ export default function SimuladorPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId,
-          results: evalRows.map(({ folio: _f, ...r }) => r),
+          results: evalRows.map((r) => ({
+            position_id: r.positionId === 'LOCAL' ? null : r.positionId,
+            student_name: r.studentName,
+            score: r.score,
+            passed: r.passed,
+            competencies: {
+              ejercicio: eng.scenario.id, orden: eng.scenario.order, nivel: eng.scenario.level, titulo: eng.scenario.title,
+              rol: r.role, aeronaves: r.flights, nota_minima: r.minScore, prerrequisito: r.prereq,
+              criticos: r.criticals,
+              competencias: Object.fromEntries(r.comps.map((c) => [c.key, c.score])),
+              detalle: Object.fromEntries(r.comps.map((c) => [c.key, c.detail])),
+              observaciones: r.notes.slice(0, 40),
+            },
+          })),
         }),
       });
       const j = await res.json();
       if (j.results) {
-        setEvalRows(
-          j.results.map((r: EvalRow & { certificate_folio: string | null }) => ({
-            ...r,
-            folio: r.certificate_folio,
-          }))
-        );
+        const folios = (j.results as { certificate_folio: string | null }[]).map((r) => r.certificate_folio);
+        setEvalRows((rows) => rows.map((r, i) => ({ ...r, folio: folios[i] ?? null })));
         setEvalSaved(true);
       }
     } finally {
@@ -2489,7 +2511,7 @@ export default function SimuladorPage() {
   // programadas van apareciendo según su hora). DETENER = pausa + cierra grabación.
   const startExercise = () => {
     if (mode === 'student') return;
-    eng.reset();
+    if (eng.t > 0) eng.reset(); // sin reiniciar si aún no corre: conserva decisiones previas (autorizaciones)
     arrivedAtRef.current.clear();
     setSelected(null);
     setSpd(1);
@@ -2634,7 +2656,7 @@ export default function SimuladorPage() {
     const isInstructor = authRole === 'instructor' || authRole === 'admin';
     return (
       <div className="h-screen w-screen flex items-center justify-center" style={{ background: '#101210' }}>
-        <div style={{ ...bevelOut, width: 460 }} className="font-mono">
+        <div style={{ ...bevelOut, width: 540 }} className="font-mono">
           <div className="px-1 py-0.5 text-center text-[12px] font-bold tracking-widest text-black"
             style={{ background: '#a8a8a8', borderBottom: '1px solid #5a5a5a' }}>
             CONDOR SIM — LOGIN DE POSICIÓN
@@ -2644,17 +2666,37 @@ export default function SimuladorPage() {
               USUARIO: <b>{userName}</b> · ROL: <b>{authRole.toUpperCase()}</b>
             </div>
             <div style={bevelIn} className="p-2">
-              <div className="text-[10px] font-bold text-black mb-1">EJERCICIO / ESCENARIO</div>
+              <div className="text-[10px] font-bold text-black mb-1">PROGRAMA DE EJERCICIOS — EVALUACIÓN POR COMPETENCIAS</div>
               <select value={selScenarioId} onChange={(e) => setSelScenarioId(e.target.value)}
                 style={{ ...bevelIn, background: '#fff' }}
                 className="w-full px-2 py-1 text-[11px] font-mono text-black outline-none">
-                {SCENARIOS.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
+                {[1, 2, 3, 4, 5].map((lv) => (
+                  <optgroup key={lv} label={`NIVEL ${lv} — NOTA MÍNIMA ${SCENARIOS.find((s) => s.level === lv) ? minScoreFor(SCENARIOS.find((s) => s.level === lv)!) : ''}`}>
+                    {SCENARIOS.filter((s) => s.level === lv).map((s) => (
+                      <option key={s.id} value={s.id}>{`E${s.order} · ${s.title}`}</option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
-              <div className="text-[9px] text-[#333] mt-1 leading-snug max-h-[60px] overflow-y-auto">
-                {SCENARIOS.find((s) => s.id === selScenarioId)?.briefing}
-              </div>
+              {(() => {
+                const sc = SCENARIOS.find((s) => s.id === selScenarioId);
+                if (!sc) return null;
+                const pre = prerequisiteOf(sc.id);
+                return (
+                  <div className="text-[9px] text-[#222] mt-1 leading-snug max-h-[150px] overflow-y-auto space-y-1">
+                    <div className="font-bold">{sc.name} · NOTA MÍN {minScoreFor(sc)} · ≈{Math.round((sc.durationS ?? 360) / 60)} MIN · {pre ? `REQUIERE APROBAR E${pre.order} (${pre.title})` : 'EJERCICIO INICIAL'}</div>
+                    <div className="text-[#333]">{sc.briefing}</div>
+                    {sc.objectives && (
+                      <div className="grid grid-cols-3 gap-1">
+                        {(['utm', 'uas', 'rpas'] as const).map((k) => (
+                          <div key={k}><b>{k === 'utm' ? 'OPERADOR UTM' : k === 'uas' ? 'PILOTO UAS' : 'PILOTO RPAS'}</b>
+                            {sc.objectives![k].map((o) => <div key={o}>· {o}</div>)}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
             <div className="grid grid-cols-2 gap-2">
               {isInstructor && (
@@ -2670,9 +2712,9 @@ export default function SimuladorPage() {
             <div style={bevelIn} className="p-2">
               <div className="text-[10px] font-bold text-black mb-1">UNIRSE A SESIÓN — POSICIÓN</div>
               <div className="flex gap-1 mb-2">
-                <MB label="CONTROLADOR (RADAR)" active={posRole === 'controller'} onClick={() => setPosRole('controller')} />
+                <MB label="OPERADOR UTM (RADAR)" active={posRole === 'controller'} onClick={() => setPosRole('controller')} />
+                <MB label="PILOTO UAS / RPAS (RPS)" active={posRole === 'pilot'} onClick={() => setPosRole('pilot')} />
                 <MB label="OPERACIONES (AFTN)" active={posRole === 'aftn'} onClick={() => setPosRole('aftn')} />
-                <MB label="PILOTO (RPS)" active={posRole === 'pilot'} onClick={() => setPosRole('pilot')} />
               </div>
               <div className="flex gap-2">
                 <input value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
@@ -2833,7 +2875,7 @@ export default function SimuladorPage() {
                   <span>{Math.round(t.alt)}M{(t.vs ?? 0) > 0.3 ? ' ▲' : (t.vs ?? 0) < -0.3 ? ' ▼' : ''}</span>
                   <span>{Math.round(t.speedKt)}KT</span>
                   <span>{t.manned ? 'GA' : `${Math.round(t.batteryPct)}%`}</span>
-                  <span>{t.status === 'NORMAL' && t.airborne ? 'VUELO' : t.airborne ? t.status : 'ESPERA'}</span>
+                  <span>{t.status === 'NORMAL' && t.airborne ? 'VUELO' : t.airborne ? t.status : t.auth === 'PENDING' ? 'SOLIC' : t.auth === 'DENIED' ? 'RECHAZ' : 'ESPERA'}</span>
                 </div>
               ))}
             </div>
@@ -2977,6 +3019,7 @@ export default function SimuladorPage() {
               <div className="py-1">
                 {item('CENTRAR (CSEL)', () => { setSelected(csMenu.cs); centerSelected(); })}
                 {item('CPDLC ▸', () => { setSelected(csMenu.cs); setWin('cpdlc', { open: true }); })}
+                {item('GESTIÓN UTM ▸', () => { setSelected(csMenu.cs); setWin('utm', { open: true }); }, CYAN)}
                 {!isStudent && <>
                   {item('ORDENAR RTH', () => inject(csMenu.cs, 'RTH'), AMBER)}
                   {item('PÉRDIDA C2', () => inject(csMenu.cs, 'C2LOSS'), RED)}
@@ -3048,7 +3091,28 @@ export default function SimuladorPage() {
                 const ms = (selTrack.speedKt * 0.514444).toFixed(1);
                 return (
                 <>
-                  <div className="flex justify-between"><span className="text-[#7aa]">AERONAVE</span><span className="font-bold">{selTrack.callsign} <span style={{ color: AMBER }}>{selTrack.pmode ?? 'AUTO'}</span></span></div>
+                  <div className="flex justify-between"><span className="text-[#7aa]">AERONAVE</span><span className="font-bold">{selTrack.callsign} <span className="text-[#9ab]">{selTrack.op === 'BVLOS' ? 'RPAS' : selTrack.manned ? 'TRIP' : 'UAS'}</span> <span style={{ color: AMBER }}>{selTrack.pmode ?? 'AUTO'}</span></span></div>
+                  {selTrack.auth && (
+                    <div className="text-[10px]">AUTORIZACIÓN: <b style={{ color: selTrack.auth === 'PENDING' ? AMBER : selTrack.auth === 'DENIED' ? RED : GREEN }}>{AUTH_TXT[selTrack.auth]}</b>{selTrack.authCeil != null ? ` · TECHO ${selTrack.authCeil} M` : ''}</div>
+                  )}
+                  {selTrack.instr && (
+                    <div className="p-1 text-[10px]" style={{ border: `1px solid ${CYAN}` }}>
+                      <div style={{ color: CYAN }}>UTM ▸ <b>{selTrack.instr.txt}</b> <span className="text-[#888]">T+{Math.round(selTrack.instr.t)} s</span></div>
+                      {selTrack.instr.rb == null
+                        ? <MB label="COLACIONAR (WILCO)" onClick={() => act('READBACK', { flight: selTrack.callsign, id: selTrack.instr!.id })} />
+                        : <span style={{ color: GREEN }}>COLACIONADA ✓</span>}
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-1">
+                    <MB label={selTrack.claimed ? 'AL MANDO ✓' : 'TOMAR MANDO'} active={!!selTrack.claimed}
+                      onClick={() => !selTrack.claimed && act('PILOT_CLAIM', { flight: selTrack.callsign })} />
+                    {!selTrack.airborne && selTrack.status !== 'LANDED'
+                      ? <MB label="DESPEGAR" onClick={() => act('PILOT_TAKEOFF', { flight: selTrack.callsign })} />
+                      : <MB label="INFORMAR CONTINGENCIA" color={AMBER} onClick={() => setInputWin({
+                          title: `${selTrack.callsign} — INFORME AL OPERADOR UTM`, value: 'PERDIDA ENLACE C2', placeholder: 'PERDIDA C2 / BATERIA BAJA / EMERGENCIA',
+                          onOk: (v) => act('PILOT_REPORT', { flight: selTrack.callsign, text: v.toUpperCase() }),
+                        })} />}
+                  </div>
                   <div className="grid grid-cols-2 gap-1 text-[10px]">
                     <div>ALT <b>{Math.round(selTrack.alt)} M</b></div>
                     <div>RMB <b>{String(Math.round(hd)).padStart(3, '0')}°</b></div>
@@ -3076,6 +3140,10 @@ export default function SimuladorPage() {
                     {(['AUTO', 'LOITER', 'GUIDED', 'RTL'] as const).map((m) => (
                       <MB key={m} label={m} active={(selTrack.pmode ?? 'AUTO') === m} onClick={() => pilotCmd({ mode: m })} />
                     ))}
+                  </div>
+                  <div className="grid grid-cols-2 gap-1">
+                    <MB label="ATERRIZAR" active={selTrack.pmode === 'LAND'} onClick={() => pilotCmd({ mode: 'LAND' })} />
+                    <MB label="ALTERNATIVO" active={selTrack.pmode === 'DIVERT'} onClick={() => pilotCmd({ mode: 'DIVERT' })} />
                   </div>
                   <div className="grid grid-cols-2 gap-1"><MB label="▲ SUBIR +10M" onClick={() => pilotCmd({ dAlt: 10 })} /><MB label="▼ BAJAR −10M" onClick={() => pilotCmd({ dAlt: -10 })} /></div>
                   <div className="grid grid-cols-2 gap-1"><MB label="◄ LEFT 15°" onClick={() => pilotCmd({ dHdg: -15 })} /><MB label="RIGHT 15° ►" onClick={() => pilotCmd({ dHdg: 15 })} /></div>
@@ -3665,20 +3733,18 @@ export default function SimuladorPage() {
                     : '— SELECCIONE UN MENSAJE —';
                 })()}
               </div>
-              {mode === 'student' && posRole === 'aftn' && (
+              {!(mode === 'student' && posRole === 'pilot') && (
                 <div className="flex gap-1 p-1 border-t border-[#444]" style={{ background: '#c0c0c0' }}>
                   <MB label="ACUSAR RECIBO" onClick={() => {
                     const m = eng.msgs.find((x: SimMsg) => x.id === selMsg);
-                    if (m && sessionId) {
-                      logAction(sessionId, positionId, eng.t, 'ACK_MSG', { msgId: m.id, type: m.type, flight: m.flight }).catch(() => {});
+                    if (m) {
+                      act('ACK_MSG', { msgId: m.id, type: m.type, flight: m.flight });
                       m.read = true;
                     }
                   }} />
                   <MB label="ALERTAR CONTROLADOR" onClick={() => {
                     const m = eng.msgs.find((x: SimMsg) => x.id === selMsg);
-                    if (m && sessionId) {
-                      logAction(sessionId, positionId, eng.t, 'RELAY_ALERT', { msgId: m.id, flight: m.flight }).catch(() => {});
-                    }
+                    if (m) act('RELAY_ALERT', { msgId: m.id, flight: m.flight });
                   }} />
                 </div>
               )}
@@ -3686,55 +3752,195 @@ export default function SimuladorPage() {
           </Win>
         )}
 
-        {wins.eval.open && mode === 'instructor' && (
-          <Win title="EVALUACIÓN DEL EJERCICIO" x={wins.eval.x} y={wins.eval.y} w={560}
+        {wins.utm.open && (() => {
+          const isPilot = mode === 'student' && posRole === 'pilot';
+          const reqFlights = eng.scenario.flights.filter((f) => f.req);
+          const notams = eng.scenario.zones.filter((z) => z.appearAt != null && eng.t >= z.appearAt);
+          const st = selTrack;
+          const secs = eng.scenario.sectors ?? [];
+          return (
+          <Win title="GESTIÓN UTM — OPERADOR" x={wins.utm.x} y={wins.utm.y} w={370}
+            onClose={() => setWin('utm', { open: false })}
+            onDrag={(x, y) => setWin('utm', { x, y })}>
+            <div className="p-1.5 font-mono text-[10px] space-y-1 max-h-[560px] overflow-y-auto" style={{ background: '#000', color: '#b9e8c9' }}>
+              {reqFlights.length > 0 && <div className="text-[#7aa] tracking-wider">SOLICITUDES DE AUTORIZACIÓN ({reqFlights.filter((f) => (eng.tracks.get(f.callsign)?.auth ?? 'PENDING') === 'PENDING').length} PEND.)</div>}
+              {reqFlights.map((f) => {
+                const tr = eng.tracks.get(f.callsign);
+                const stA = tr?.auth ?? 'PENDING';
+                const z = eng.scenario.zones.find((x) => x.id === f.zoneId);
+                const r = f.req!;
+                return (
+                  <div key={f.callsign} className="p-1" style={{ border: '1px solid #2c3a33' }}>
+                    <div className="flex justify-between"><b>{r.id} · {f.callsign}</b>
+                      <span style={{ color: stA === 'PENDING' ? AMBER : stA === 'DENIED' ? RED : GREEN }}>{AUTH_TXT[stA]}{tr?.authCeil != null ? ` ${tr.authCeil} M` : ''}</span></div>
+                    <div className="text-[#9ab]">{r.operator} — {r.purpose}</div>
+                    <div>{f.op === 'BVLOS' ? 'BVLOS (RPAS)' : 'VLOS (UAS)'} {f.acType} · {z?.name ?? f.zoneId}</div>
+                    <div>TECHO SOLICITADO <b>{r.ceiling} M</b> · {r.window} · DESPEGUE T+{f.startT} s</div>
+                    {stA === 'PENDING' && !isPilot && (
+                      <div className="flex gap-1 mt-0.5">
+                        <MB label="APROBAR" onClick={() => act('AUTH_APPROVE', { flight: f.callsign })} />
+                        <MB label="RECHAZAR" color={RED} onClick={() => act('AUTH_DENY', { flight: f.callsign })} />
+                        <MB label="MODIFICAR TECHO…" color={AMBER} onClick={() => setInputWin({
+                          title: `MODIFICAR ${r.id} — TECHO AUTORIZADO (M)`, value: String(Math.min(r.ceiling, z?.ceiling ?? 120)),
+                          onOk: (v) => { const n = parseInt(v, 10); if (n > 0) act('AUTH_MODIFY', { flight: f.callsign, ceil: n }); },
+                        })} />
+                        <MB label="VER" onClick={() => { setSelected(f.callsign); const t = eng.tracks.get(f.callsign); if (t) centerOn(t); }} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {notams.length > 0 && <div className="text-[#7aa] tracking-wider pt-1">NOTAM / RESTRICCIONES NUEVAS</div>}
+              {notams.map((z) => (
+                <div key={z.id} className="p-1" style={{ border: `1px solid ${z.activated != null ? '#2c3a33' : RED}` }}>
+                  <div style={{ color: z.activated != null ? GREEN : RED }}><b>{z.name}</b></div>
+                  <div>{z.kind} · {z.vlimit ?? `${z.floor}-${z.ceiling} M`} · DESDE T+{Math.round(z.appearAt ?? 0)} s</div>
+                  {z.activated != null
+                    ? <div style={{ color: GREEN }}>RESTRICCIÓN ACTIVADA T+{Math.round(z.activated)} s</div>
+                    : !isPilot && <MB label="ACTIVAR RESTRICCIÓN" color={RED} onClick={() => act('NOTAM_ACT', { zone: z.id })} />}
+                </div>
+              ))}
+              <div className="text-[#7aa] tracking-wider pt-1">INSTRUCCIONES AL PILOTO — {selected ?? 'SELECCIONE UN VUELO'}</div>
+              {st && st.manned && <div style={{ color: AMBER }}>{st.callsign} es TRÁFICO TRIPULADO{st.noncoop ? ' NO COOPERATIVO' : ''} ({st.acType}, {Math.round(st.alt)} M): no recibe instrucciones UTM — instruya a los UAS próximos.</div>}
+              {st && !st.manned && !isPilot && (
+                <>
+                  <div className="text-[#9ab]">{st.op === 'BVLOS' ? 'RPAS' : 'UAS'} · {Math.round(st.alt)} M · {st.pmode ?? 'AUTO'} · {st.status}</div>
+                  <div className="grid grid-cols-3 gap-1">
+                    <MB label="ALTURA…" onClick={() => setInputWin({ title: `${st.callsign} — ASCIENDA / DESCIENDA A (M)`, value: String(Math.round(st.alt)),
+                      onOk: (v) => { const n = parseInt(v, 10); if (n >= 0) utmInstr('ALT', n); } })} />
+                    <MB label="ESPERA" onClick={() => utmInstr('HOLD')} />
+                    <MB label="REANUDAR" onClick={() => utmInstr('RESUME')} />
+                    <MB label="ATERRIZAR" color={AMBER} onClick={() => utmInstr('LAND')} />
+                    <MB label="RTL / BASE" color={AMBER} onClick={() => utmInstr('RTL')} />
+                    <MB label="INFO TRÁFICO" onClick={() => utmInstr('TFC')} />
+                  </div>
+                  <div className="grid grid-cols-3 gap-1">
+                    <MB label="RECONOCER" onClick={() => studentAction('ACK_ALARM')} />
+                    <MB label="CONTINGENCIA" color={RED} onClick={() => studentAction('DECLARE_CONTINGENCY')} />
+                    {secs.length > 1
+                      ? <MB label={`HANDOVER ▸ ${secs.find((x) => x !== (st.sector ?? 'S1')) ?? ''}`} color={CYAN}
+                          onClick={() => act('HANDOVER', { flight: st.callsign, to: secs.find((x) => x !== (st.sector ?? 'S1')) })} />
+                      : <MB label="CPDLC ▸" onClick={() => setWin('cpdlc', { open: true })} />}
+                  </div>
+                  {st.instr && (
+                    <div>ÚLTIMA: <b>{st.instr.txt}</b> T+{Math.round(st.instr.t)} s · {st.instr.rb != null ? <span style={{ color: GREEN }}>COLACIONADA (+{Math.round(st.instr.rb - st.instr.t)} s)</span> : <span style={{ color: AMBER }}>SIN COLACIÓN</span>}</div>
+                  )}
+                </>
+              )}
+              <div className="text-[9px] text-[#5c6b63] border-t border-[#333] pt-1">
+                Todas las decisiones (AUTH_*, UTM_INSTR, NOTAM_ACT, contingencias) quedan registradas para la evaluación por competencias.
+              </div>
+            </div>
+          </Win>
+          );
+        })()}
+
+        {wins.brief.open && (() => {
+          const sc = eng.scenario;
+          const pre = prerequisiteOf(sc.id);
+          const mine = mode === 'student' ? (posRole === 'pilot' ? ['uas', 'rpas'] : posRole === 'controller' ? ['utm'] : []) : [];
+          return (
+          <Win title={`BRIEFING${sc.order ? ` — NIVEL ${sc.level} · EJERCICIO ${sc.order}/10` : ''}`} x={wins.brief.x} y={wins.brief.y} w={480}
+            onClose={() => setWin('brief', { open: false })}
+            onDrag={(x, y) => setWin('brief', { x, y })}>
+            <div className="p-2 font-mono text-[10px] space-y-1.5 text-black max-h-[560px] overflow-y-auto" style={{ background: '#c9c9c9' }}>
+              <div className="font-bold text-[11px]">{sc.name}</div>
+              {sc.order != null && (
+                <div>NOTA MÍNIMA <b>{minScoreFor(sc)}</b> · DURACIÓN ≈ {Math.round((sc.durationS ?? 360) / 60)} MIN · {pre ? `REQUIERE APROBAR E${pre.order} (${pre.title})` : 'EJERCICIO INICIAL'}</div>
+              )}
+              <div className="leading-snug">{sc.briefing}</div>
+              {sc.objectives && (['utm', 'uas', 'rpas'] as const).map((k) => (
+                <div key={k} style={{ ...bevelIn, background: mine.includes(k) ? '#e6f4ea' : '#d6d6d6' }} className="p-1">
+                  <div className="font-bold">{k === 'utm' ? 'OPERADOR UTM' : k === 'uas' ? 'PILOTO UAS — VLOS MANUAL' : 'PILOTO RPAS — BVLOS AUTOMÁTICO'}{mine.includes(k) ? ' ◀ SU ROL' : ''}</div>
+                  {sc.objectives![k].map((o) => <div key={o}>· {o}</div>)}
+                </div>
+              ))}
+              {sc.criticals && (
+                <div className="p-1" style={{ ...bevelIn, background: '#f1dede' }}>
+                  <div className="font-bold" style={{ color: '#a00' }}>ERRORES CRÍTICOS — REPRUEBAN AUNQUE EL PUNTAJE ALCANCE</div>
+                  {sc.criticals.map((c) => <div key={c}>· {c}</div>)}
+                </div>
+              )}
+              <div className="text-[9px] text-[#444] border-t border-[#888] pt-1">
+                Competencias: conciencia situacional · comunicación · toma de decisiones · procedimientos · conformidad (pilotos){(sc.level ?? 1) >= 4 ? ' · gestión de carga' : ''}.
+                Herramientas: GESTIÓN UTM (solicitudes, NOTAM, instrucciones) · AFTN (acuse FPL/DEP) · PILOTO (tomar mando, colacionar, despegar, informar).
+              </div>
+            </div>
+          </Win>
+          );
+        })()}
+
+        {wins.eval.open && (mode === 'instructor' || mode === 'local') && (
+          <Win title={`EVALUACIÓN POR COMPETENCIAS — ${eng.scenario.order ? `N${eng.scenario.level}·E${eng.scenario.order}` : eng.scenario.name}${mode === 'local' ? ' (AUTOEVALUACIÓN)' : ''}`} x={wins.eval.x} y={wins.eval.y} w={720}
             onClose={() => setWin('eval', { open: false })}
             onDrag={(x, y) => setWin('eval', { x, y })}>
-            <div className="p-2 font-mono text-[10px]" style={{ background: '#c9c9c9' }}>
+            <div className="p-2 font-mono text-[10px] max-h-[600px] overflow-y-auto" style={{ background: '#c9c9c9' }}>
               {evalRows.length === 0 ? (
-                <div className="text-black">Sin controladores en la sesión.</div>
+                <div className="text-black">Sin Operadores UTM ni Pilotos en la sesión.</div>
               ) : (
                 <table className="w-full text-black">
                   <thead>
                     <tr className="font-bold text-left border-b border-[#888]">
-                      <th>ALUMNO</th><th>DETECCIÓN</th><th>RTH</th><th>CONT</th><th>NOTA</th><th>RESULTADO</th><th></th>
+                      <th>ALUMNO</th><th>ROL</th>
+                      {(['situacional', 'comunicacion', 'decisiones', 'procedimientos', 'conformidad', 'carga'] as const).map((k) => <th key={k} title={k}>{COMP_SHORT[k]}</th>)}
+                      <th>NOTA</th><th>CRÍT</th><th>PRERREQ</th><th>RESULTADO</th><th></th>
                     </tr>
                   </thead>
                   <tbody>
                     {evalRows.map((r, i) => (
-                      <tr key={i} className="border-b border-[#aaa]">
-                        <td className="font-bold">{r.student_name}</td>
-                        <td>{r.competencies.deteccion_s != null ? `${r.competencies.deteccion_s} s` : '—'}</td>
-                        <td>{r.competencies.rth ? 'SÍ' : 'NO'}</td>
-                        <td>{r.competencies.contingencia ? 'SÍ' : 'NO'}</td>
-                        <td className="font-bold">{r.score}</td>
-                        <td className="font-bold" style={{ color: r.passed ? '#0a7a3a' : '#a00' }}>
-                          {r.passed ? 'APTO' : 'NO APTO'}
-                        </td>
-                        <td>
-                          {r.passed && r.folio && (
-                            <MB label="CERT PDF" onClick={() =>
-                              certificadoPdf({
-                                studentName: r.student_name,
-                                folio: r.folio!,
-                                score: r.score,
-                                scenarioName: eng.scenario.name,
-                                instructorName: userName || 'INSTRUCTOR',
-                              })
-                            } />
-                          )}
-                        </td>
-                      </tr>
+                      <Fragment key={i}>
+                        <tr className="border-b border-[#aaa] cursor-pointer" onClick={() => setEvalOpen(evalOpen === i ? null : i)}>
+                          <td className="font-bold">{evalOpen === i ? '▾' : '▸'} {r.studentName}</td>
+                          <td>{r.role}{r.flights.length ? ` ${r.flights.join(',')}` : ''}</td>
+                          {(['situacional', 'comunicacion', 'decisiones', 'procedimientos', 'conformidad', 'carga'] as const).map((k) => {
+                            const c = r.comps.find((x) => x.key === k);
+                            return <td key={k} style={{ color: c && c.score < r.minScore ? '#a00' : undefined }}>{c ? c.score : '—'}</td>;
+                          })}
+                          <td className="font-bold">{r.score}/{r.minScore}</td>
+                          <td style={{ color: r.criticals.length ? '#a00' : undefined }}>{r.criticals.length}</td>
+                          <td style={{ color: r.prereq === 'PENDIENTE' ? '#a00' : undefined }}>{r.prereq}</td>
+                          <td className="font-bold" style={{ color: r.passed ? '#0a7a3a' : '#a00' }}>{r.passed ? 'APROBADO' : 'NO APROBADO'}</td>
+                          <td className="whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                            <MB label="INFORME" onClick={() => informePdf({
+                              studentName: r.studentName, role: r.role, flights: r.flights, score: r.score, minScore: r.minScore, passed: r.passed,
+                              criticals: r.criticals, comps: r.comps, notes: r.notes, scenarioName: eng.scenario.name,
+                              level: eng.scenario.level, order: eng.scenario.order, instructorName: userName || 'INSTRUCTOR', prereq: r.prereq,
+                            })} />
+                            {r.passed && r.folio && (
+                              <MB label="CERT PDF" onClick={() =>
+                                certificadoPdf({
+                                  studentName: r.studentName, folio: r.folio!, score: r.score, scenarioName: eng.scenario.name,
+                                  instructorName: userName || 'INSTRUCTOR', level: eng.scenario.level, order: eng.scenario.order,
+                                  title: eng.scenario.title, role: r.role, minScore: r.minScore,
+                                  comps: r.comps.map((c) => ({ label: c.label, score: c.score })),
+                                })
+                              } />
+                            )}
+                          </td>
+                        </tr>
+                        {evalOpen === i && (
+                          <tr className="border-b border-[#888]">
+                            <td colSpan={13} className="py-1 text-[9px] leading-snug">
+                              <div><b>{ROLE_TXT[r.role] ?? r.role}</b></div>
+                              {r.comps.map((c) => <div key={c.key}>· <b>{c.label} {c.score}</b> — {c.detail}</div>)}
+                              {r.criticals.map((c) => <div key={c} style={{ color: '#a00' }}>✖ CRÍTICO: {c}</div>)}
+                              {r.notes.map((n) => <div key={n} className="text-[#333]">· {n}</div>)}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
               )}
-              <div className="flex gap-2 mt-2 items-center">
+              <div className="flex gap-2 mt-2 items-center flex-wrap">
                 <MB label={evalBusy ? '…' : 'RECALCULAR'} onClick={runEval} />
-                <MB label={evalSaved ? 'GUARDADO ✓' : 'GUARDAR Y EMITIR FOLIOS'} active={evalSaved}
-                  onClick={evalSaved ? undefined : saveEval} />
+                {mode === 'instructor' && (
+                  <MB label={evalSaved ? 'GUARDADO ✓' : 'GUARDAR Y EMITIR FOLIOS'} active={evalSaved}
+                    onClick={evalSaved ? undefined : saveEval} />
+                )}
                 <span className="text-[9px] text-[#444]">
-                  Rúbrica: ACK ≤30 s = 40 pts · RTH = 30 · Contingencia = 30 · Aprueba ≥70
+                  Nota mínima {minScoreFor(eng.scenario)} · reprueba con cualquier error crítico{prerequisiteOf(eng.scenario.id) ? ` · requiere haber aprobado E${prerequisiteOf(eng.scenario.id)!.order}` : ''} · clic en una fila para el detalle.
                 </span>
               </div>
             </div>
@@ -3853,7 +4059,10 @@ export default function SimuladorPage() {
           {(mode === 'instructor' || mode === 'local') && (
             <MB label="ZONA+" active={wins.zonemaker.open} onClick={() => setWin('zonemaker', { open: !wins.zonemaker.open })} />
           )}
-          {mode === 'instructor' && <MB label="EVAL" active={wins.eval.open} onClick={runEval} />}
+          <MB label="GESTIÓN UTM" active={wins.utm.open} color={eng.scenario.flights.some((f) => f.req && eng.tracks.get(f.callsign)?.auth === 'PENDING') || eng.scenario.zones.some((z) => z.appearAt != null && eng.t >= z.appearAt && z.activated == null) ? AMBER : undefined}
+            onClick={() => setWin('utm', { open: !wins.utm.open })} />
+          <MB label="BRIEF" active={wins.brief.open} onClick={() => setWin('brief', { open: !wins.brief.open })} />
+          {(mode === 'instructor' || mode === 'local') && <MB label="EVAL" active={wins.eval.open} onClick={runEval} />}
           <MB label="AFTN" active={wins.aftn.open} onClick={() => setWin('aftn', { open: !wins.aftn.open })}
             color={eng.msgs.some((m: SimMsg) => m.prio === 'FF' && !m.read) ? RED : undefined} />
           <span className="flex-1" />
