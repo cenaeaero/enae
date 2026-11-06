@@ -45,6 +45,7 @@ const navSections: NavSection[] = [
   {
     section: "4 · Certificación DGAC",
     items: [
+      { href: "/admin/tramites-dgac", label: "Trámites DGAC (tablero)", icon: "🗂️" },
       { href: "/admin/apendice-c", label: "Apéndice C", icon: "📄" },
       { href: "/admin/coordinacion-dgac", label: "Coordinación examen", icon: "🛩️" },
       { href: "/admin/certificados", label: "Certificados DGAC", icon: "🏅" },
