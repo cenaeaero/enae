@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-service";
 import { requireAdmin } from "@/lib/auth-instructor";
+import { getDgacProcedureCourses } from "@/lib/dgac-courses";
 
 // GET -> Prioridades DGAC para el dashboard del admin.
 //
-// Universo: inscripciones de cursos que emiten Certificado DGAC
-// (courses.has_dgac_certificate), confirmadas o completadas y NO egresadas.
+// Universo: inscripciones de cursos que requieren trámite de credencial DGAC
+// (courses.requires_dgac_procedure; hoy solo Operador RPAS N1), confirmadas o completadas y NO egresadas.
 //
 // Señales por inscripción:
 //   - Práctico realizado: checklist "Examen práctico de vuelo" (dgac_procedures.examen_practico)
@@ -41,11 +42,7 @@ export async function GET() {
   const auth = await requireAdmin();
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-  const { data: courses, error: cErr } = await supabaseAdmin
-    .from("courses")
-    .select("id, title, code")
-    .eq("has_dgac_certificate", true);
-  if (cErr) return NextResponse.json({ error: cErr.message }, { status: 500 });
+  const courses = await getDgacProcedureCourses();
   const courseIds = (courses || []).map((c) => c.id);
   if (courseIds.length === 0) return NextResponse.json({ teorico_pendiente: [], tramite_pendiente: [] });
   const courseById: Record<string, { title: string; code: string | null }> = {};

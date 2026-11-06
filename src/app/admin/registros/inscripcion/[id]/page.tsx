@@ -140,6 +140,8 @@ export default function RegistroDetailPage() {
   const [folioEnae, setFolioEnae] = useState("");
   const [isAlumni, setIsAlumni] = useState(false);
   const [hasDgacCert, setHasDgacCert] = useState(false);
+  const [requiresDgac, setRequiresDgac] = useState<boolean | null>(null); // null = desconocido (columna pendiente)
+  const [showDgacAnyway, setShowDgacAnyway] = useState(false);
   const [certMsg, setCertMsg] = useState("");
   const [savingCert, setSavingCert] = useState(false);
   const [sendingCert, setSendingCert] = useState(false);
@@ -186,6 +188,13 @@ export default function RegistroDetailPage() {
         setHasDgacCert((courseRow as any)?.has_dgac_certificate === true);
         setApendiceRequired((courseRow as any)?.apendice_c_required === true);
         setHabilitationText((courseRow as any)?.apendice_c_habilitation_text || "");
+        // ¿Requiere trámite de credencial DGAC? (consulta aparte: tolera que la columna aún no exista)
+        const { data: reqRow, error: reqErr } = await supabase
+          .from("courses")
+          .select("requires_dgac_procedure")
+          .eq("id", regData.course_id)
+          .maybeSingle();
+        setRequiresDgac(reqErr ? null : (reqRow as any)?.requires_dgac_procedure === true);
       }
 
       // Try to get full profile data
@@ -1214,7 +1223,14 @@ export default function RegistroDetailPage() {
         </div>
       </div>
 
-      {/* DGAC Procedures */}
+      {/* DGAC Procedures — solo cursos que requieren trámite de credencial DGAC (o si ya existe un trámite) */}
+      {requiresDgac === false && !procedure && !showDgacAnyway && (
+        <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6 flex items-center justify-between gap-3">
+          <p className="text-sm text-gray-500">Este curso no requiere trámite de credencial DGAC.</p>
+          <button onClick={() => setShowDgacAnyway(true)} className="text-xs text-[#0072CE] hover:underline whitespace-nowrap">Mostrar trámites DGAC de todas formas</button>
+        </div>
+      )}
+      {(requiresDgac !== false || !!procedure || showDgacAnyway) && (
       <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
         <h2 className="font-semibold text-gray-800 mb-4">Tramites DGAC</h2>
 
@@ -1605,6 +1621,7 @@ export default function RegistroDetailPage() {
           </div>
         )}
       </div>
+      )}
 
       {/* History log */}
       {history.length > 0 && (

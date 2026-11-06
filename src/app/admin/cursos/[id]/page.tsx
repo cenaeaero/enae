@@ -63,6 +63,8 @@ export default function EditCoursePage({
   const [apendiceCRequired, setApendiceCRequired] = useState(false);
   const [apendiceCHabilitationText, setApendiceCHabilitationText] = useState("");
   const [hasDgacCertificate, setHasDgacCertificate] = useState(false);
+  const [requiresDgacProcedure, setRequiresDgacProcedure] = useState(false);
+  const [hasReqDgacCol, setHasReqDgacCol] = useState(false); // la columna existe en la BD
   const [dgacHabilitaciones, setDgacHabilitaciones] = useState("");
   // Config del Certificado DGAC (fechas/ciudad/horas/textos reales del curso)
   const [certCity, setCertCity] = useState("");
@@ -111,6 +113,8 @@ export default function EditCoursePage({
       setApendiceCRequired(!!data.apendice_c_required);
       setApendiceCHabilitationText(data.apendice_c_habilitation_text || "");
       setHasDgacCertificate(!!data.has_dgac_certificate);
+      setHasReqDgacCol("requires_dgac_procedure" in data);
+      setRequiresDgacProcedure(!!(data as any).requires_dgac_procedure);
       setDgacHabilitaciones(data.dgac_habilitaciones || "");
       setCertCity((data as any).cert_city || "");
       setCertStartDate((data as any).cert_start_date || "");
@@ -181,6 +185,7 @@ export default function EditCoursePage({
         // (line "Habilitación de tipo XXX").
         apendice_c_habilitation_text: (hasDgacCertificate || apendiceCRequired) ? ((apendiceCHabilitationText || "").trim() || null) : null,
         has_dgac_certificate: hasDgacCertificate,
+        ...(hasReqDgacCol ? { requires_dgac_procedure: requiresDgacProcedure } : {}),
         allow_attendance_choice: allowAttendanceChoice,
         min_attendance_pct: minAttendancePct,
         dgac_habilitaciones: (hasDgacCertificate || apendiceCRequired) ? ((apendiceCHabilitationText || "").trim() || null) : null,
@@ -658,6 +663,22 @@ export default function EditCoursePage({
           <p className="text-xs text-gray-500 mb-4 ml-6">
             Si está activo, el curso aparecerá en la sección Certificados y los alumnos podrán descargar el Certificado DGAC al completar el 100% del curso.
           </p>
+          {hasReqDgacCol && (
+            <>
+              <label className="flex items-center gap-2 cursor-pointer mb-1">
+                <input
+                  type="checkbox"
+                  checked={requiresDgacProcedure}
+                  onChange={(e) => setRequiresDgacProcedure(e.target.checked)}
+                  className="rounded border-gray-300 text-[#0072CE]"
+                />
+                <span className="text-sm text-gray-700">Este curso requiere trámite de credencial DGAC (SIPA, solicitud, examen)</span>
+              </label>
+              <p className="text-xs text-gray-500 mb-4 ml-6">
+                Solo estos cursos aparecen en el tablero de Trámites DGAC y en Prioridades DGAC. Hoy corresponde únicamente a Operador RPAS N1.
+              </p>
+            </>
+          )}
           <label className="flex items-center gap-2 cursor-pointer mb-4">
             <input
               type="checkbox"

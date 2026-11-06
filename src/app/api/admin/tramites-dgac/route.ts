@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-service";
 import { requireAdmin } from "@/lib/auth-instructor";
+import { getDgacProcedureCourses } from "@/lib/dgac-courses";
 
-// GET -> Tablero de trámites DGAC: una tarjeta por inscripción en cursos con
-// Certificado DGAC (confirmadas o completadas). ?egresados=1 incluye egresados.
+// GET -> Tablero de trámites DGAC: una tarjeta por inscripción en cursos que
+// requieren trámite de credencial DGAC (hoy: Operador RPAS N1), confirmadas o completadas. ?egresados=1 incluye egresados.
 // Usa los mismos datos del checklist de la ficha (dgac_procedures); no los modifica.
 const STEPS = [
   { key: "registro_sipa", label: "Registro SIPA" },
@@ -20,9 +21,7 @@ export async function GET(request: Request) {
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
   const includeAlumni = new URL(request.url).searchParams.get("egresados") === "1";
 
-  const { data: courses, error: cErr } = await supabaseAdmin
-    .from("courses").select("id, title, code").eq("has_dgac_certificate", true);
-  if (cErr) return NextResponse.json({ error: cErr.message }, { status: 500 });
+  const courses = await getDgacProcedureCourses();
   const courseIds = (courses || []).map((c) => c.id);
   if (courseIds.length === 0) return NextResponse.json({ cards: [], courses: [] });
 
