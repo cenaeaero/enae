@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { type PracticeSite, mapsUrlFor, scheduleWarnings } from "@/lib/practice-sites";
 
 export type ScheduleFields = {
   city: string;
@@ -8,6 +9,7 @@ export type ScheduleFields = {
   start_time: string;
   location_name: string;
   location_url: string;
+  practice_site_id: string | null; // lugar del catálogo (null = escrito a mano)
 };
 
 // Ventana para programar la clase práctica (fecha, hora, lugar, mapa) de una o
@@ -23,16 +25,39 @@ export default function ScheduleClassModal({ count, initial, onCancel, onSave }:
   const [time, setTime] = useState(initial?.start_time || "");
   const [locationName, setLocationName] = useState(initial?.location_name || "");
   const [locationUrl, setLocationUrl] = useState(initial?.location_url || "");
+  const [siteId, setSiteId] = useState<string>(initial?.practice_site_id || "");
+  const [sites, setSites] = useState<PracticeSite[]>([]);
   const [notify, setNotify] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  // Catálogo de lugares de práctica (si la migración no está, queda vacío y se escribe a mano)
+  useEffect(() => {
+    fetch("/api/lugares-practica")
+      .then((r) => r.json())
+      .then((d) => setSites(d.sites || []))
+      .catch(() => setSites([]));
+  }, []);
+
+  const site = useMemo(() => sites.find((x) => x.id === siteId) || null, [sites, siteId]);
+  const warnings = useMemo(() => (site ? scheduleWarnings(site, date || null) : []), [site, date]);
+
+  function pickSite(id: string) {
+    setSiteId(id);
+    const st = sites.find((x) => x.id === id);
+    if (!st) return;
+    setCity(st.city || "");
+    setLocationName(st.name);
+    setLocationUrl(mapsUrlFor(st) || "");
+  }
+
   async function save() {
     if (!date) { setError("La fecha es requerida"); return; }
+    if (warnings.length > 0 && !confirm(`Advertencias del lugar:\n\n- ${warnings.join("\n- ")}\n\n¿Programar de todas formas?`)) return;
     setSaving(true);
     setError("");
     try {
-      await onSave({ city, scheduled_date: date, start_time: time, location_name: locationName, location_url: locationUrl }, notify);
+      await onSave({ city, scheduled_date: date, start_time: time, location_name: locationName, location_url: locationUrl, practice_site_id: siteId || null }, notify);
     } catch (err: any) {
       setError(err?.message || "Error al guardar");
       setSaving(false);
@@ -61,14 +86,48 @@ export default function ScheduleClassModal({ count, initial, onCancel, onSave }:
                 className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
             </div>
           </div>
+          {sites.length > 0 && (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Lugar de práctica (catálogo ENAE)</label>
+              <select value={siteId} onChange={(e) => pickSite(e.target.value)}
+                className="w-full border border-gray-200 rounded px-3 py-2 text-sm">
+                <option value="">— Escribir el lugar manualmente —</option>
+                {sites.filter((x) => x.status === "activo" || x.id === siteId).map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.name}{x.city ? ` · ${x.city}` : ""}{x.status === "suspendido" ? " (suspendido)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {site && (
+            <div className="text-[11px] text-gray-600 bg-blue-50 border border-blue-100 rounded p-2 space-y-0.5">
+              <p>
+                {[site.max_height_agl_m != null ? `Altura máx. ${site.max_height_agl_m} m AGL` : null,
+                  site.max_radius_m != null ? `radio ${site.max_radius_m} m` : null,
+                  (site.operation_types || []).join("/") || null,
+                  site.max_simultaneous_rpa != null ? `${site.max_simultaneous_rpa} RPA simult.` : null,
+                  site.capacity_students != null ? `capacidad ${site.capacity_students} alumnos` : null,
+                ].filter(Boolean).join(" · ") || "Sin límites registrados"}
+              </p>
+              {site.restricted_zones && <p>Zonas cercanas: {site.restricted_zones}</p>}
+              {site.availability && <p>Disponibilidad: {site.availability}</p>}
+              {site.contact_name && <p>Contacto: {site.contact_name}{site.contact_phone ? ` · ${site.contact_phone}` : ""}</p>}
+            </div>
+          )}
+          {warnings.length > 0 && (
+            <ul className="text-[11px] text-orange-800 bg-orange-50 border border-orange-200 rounded p-2 list-disc pl-5">
+              {warnings.map((w) => <li key={w}>{w}</li>)}
+            </ul>
+          )}
           <div>
             <label className="block text-xs text-gray-500 mb-1">Ciudad</label>
-            <input type="text" placeholder="Ej: Antofagasta" value={city} onChange={(e) => setCity(e.target.value)}
+            <input type="text" placeholder="Ej: Antofagasta" value={city} onChange={(e) => { setCity(e.target.value); }}
               className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Lugar de la práctica</label>
-            <input type="text" placeholder="Ej: Aeródromo Eulogio Sánchez, Tobalaba" value={locationName} onChange={(e) => setLocationName(e.target.value)}
+            <input type="text" placeholder="Ej: Aeródromo Eulogio Sánchez, Tobalaba" value={locationName} onChange={(e) => { setLocationName(e.target.value); if (siteId) setSiteId(""); }}
               className="w-full border border-gray-200 rounded px-3 py-2 text-sm" />
           </div>
           <div>

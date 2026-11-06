@@ -56,17 +56,22 @@ export async function PATCH(request: Request) {
   const ids: string[] = Array.isArray(body.ids) ? body.ids : (body.id ? [body.id] : []);
   if (ids.length === 0) return NextResponse.json({ error: "ids requerido" }, { status: 400 });
 
-  const allowed = ["city", "scheduled_date", "start_time", "location_name", "location_url", "kind", "status"];
+  const allowed = ["city", "scheduled_date", "start_time", "location_name", "location_url", "practice_site_id", "kind", "status"];
   const updates: Record<string, any> = {};
   for (const k of allowed) {
     if (body.fields && k in body.fields) updates[k] = body.fields[k] === "" ? null : body.fields[k];
   }
   if (Object.keys(updates).length === 0) return NextResponse.json({ error: "Sin campos para actualizar" }, { status: 400 });
 
-  const { error } = await supabaseAdmin
+  let { error } = await supabaseAdmin
     .from("instructor_assignments")
     .update(updates)
     .in("id", ids);
+  // Compatibilidad: si aún no se ejecutó migration_lugares_practica.sql, guardar sin el lugar del catálogo
+  if (error && "practice_site_id" in updates && /practice_site_id/.test(error.message)) {
+    delete updates.practice_site_id;
+    ({ error } = await supabaseAdmin.from("instructor_assignments").update(updates).in("id", ids));
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json({ ok: true, count: ids.length });

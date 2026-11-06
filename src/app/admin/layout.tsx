@@ -26,6 +26,13 @@ const navSections: NavSection[] = [
     ],
   },
   {
+    section: "Operaciones Prácticas",
+    items: [
+      { href: "/admin/instructores", label: "Instructores", icon: "🧑‍🏫" },
+      { href: "/admin/lugares-practica", label: "Lugares de práctica", icon: "📍" },
+    ],
+  },
+  {
     section: "Documentos",
     items: [
       { href: "/admin/registros", label: "Registros", icon: "📋" },
@@ -51,7 +58,6 @@ const navSections: NavSection[] = [
       { href: "/admin/huerfanos", label: "Huérfanos", icon: "🫥" },
       { href: "/admin/empresas", label: "Empresas", icon: "🏢" },
       { href: "/admin/supervisores", label: "Supervisores", icon: "🧑‍💼" },
-      { href: "/admin/instructores", label: "Instructores", icon: "🧑‍🏫" },
       { href: "/admin/alumni", label: "Alumni", icon: "🎓" },
       { href: "/admin/ver-como", label: "Ver como", icon: "🕵️" },
     ],

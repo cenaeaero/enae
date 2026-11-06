@@ -235,6 +235,7 @@ export default function AsignacionesPage() {
                     start_time: fields.start_time || null,
                     location_name: fields.location_name || null,
                     location_url: fields.location_url || null,
+                    practice_site_id: fields.practice_site_id || null,
                     notify,
                   }),
                 });

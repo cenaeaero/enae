@@ -63,6 +63,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if ("start_time"        in body) updates.start_time        = body.start_time || null;
   if ("location_name"     in body) updates.location_name     = body.location_name || null;
   if ("location_url"      in body) updates.location_url      = body.location_url || null;
+  if ("practice_site_id"  in body) updates.practice_site_id  = body.practice_site_id || null;
 
   const markCompleted = body.markCompleted === true;
   if (markCompleted) {
@@ -81,12 +82,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const notifyStudent = body.notify === true;
   if (notifyStudent) updates.notified_at = new Date().toISOString();
 
-  const { data, error } = await supabaseAdmin
+  let { data, error } = await supabaseAdmin
     .from("instructor_assignments")
     .update(updates)
     .eq("id", id)
     .select()
     .single();
+  // Compatibilidad: si aún no se ejecutó migration_lugares_practica.sql, guardar sin el lugar del catálogo
+  if (error && "practice_site_id" in updates && /practice_site_id/.test(error.message)) {
+    delete updates.practice_site_id;
+    ({ data, error } = await supabaseAdmin
+      .from("instructor_assignments").update(updates).eq("id", id).select().single());
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Enviar el correo de coordinación al alumno (datos del instructor + fecha/lugar)
