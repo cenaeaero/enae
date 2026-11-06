@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-service";
+import { requireAdmin } from "@/lib/auth-instructor";
 import nodemailer from "nodemailer";
 
 // Increase body size limit for PDF base64
@@ -25,6 +26,8 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://www.enae.cl";
 
 // POST: Send diploma by email with PDF attachment
 export async function POST(request: Request) {
+  const auth = await requireAdmin();
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
   console.log("[enviar-diploma] Request received");
 
   try {

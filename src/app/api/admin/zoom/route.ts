@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-service";
+import { requireAdmin } from "@/lib/auth-instructor";
 import { createZoomMeeting, deleteZoomMeeting } from "@/lib/zoom";
 
 // POST: Create Zoom meeting for an activity
 export async function POST(request: Request) {
+  const auth = await requireAdmin();
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
   try {
     const { activity_id, topic, start_time, duration_minutes } = await request.json();
 
@@ -42,6 +45,8 @@ export async function POST(request: Request) {
 
 // DELETE: Delete Zoom meeting
 export async function DELETE(request: Request) {
+  const auth = await requireAdmin();
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
   try {
     const { searchParams } = new URL(request.url);
     const activityId = searchParams.get("activity_id");
