@@ -34,6 +34,7 @@ type Registration = {
   final_score: number | null;
   grade_status: string | null;
   is_alumni: boolean;
+  alumni_at?: string | null;
   theoretical_start: string | null;
   practical_end: string | null;
   instruction_city: string | null;
@@ -146,6 +147,33 @@ export default function AlumnoDossierPage({ params }: { params: Promise<{ id: st
   const [noteForReg, setNoteForReg] = useState<string>("");
   const [savingNote, setSavingNote] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [egresandoReg, setEgresandoReg] = useState<string | null>(null);
+  const [egresoMsg, setEgresoMsg] = useState<Record<string, string>>({});
+
+  // Egreso inmediato de UN curso (inscripción), aunque el alumno tenga otros en curso.
+  async function egresarCurso(regId: string, titulo: string) {
+    if (!confirm(`¿Pasar a Egresado el curso "${titulo}"?\n\nNo se enviará ninguna notificación al alumno. El curso aparecerá en la sección Alumni; los demás cursos del alumno no se modifican.`)) return;
+    setEgresandoReg(regId);
+    setEgresoMsg((m) => ({ ...m, [regId]: "" }));
+    try {
+      const res = await fetch("/api/admin/alumnos/egresar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registration_ids: [regId] }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setEgresoMsg((m) => ({ ...m, [regId]: `Error: ${json.error || "No se pudo completar"}` }));
+      } else if ((json.graduated_registrations || []).includes(regId)) {
+        await load();
+      } else {
+        setEgresoMsg((m) => ({ ...m, [regId]: "Error: el curso no está Completado o ya era egresado" }));
+      }
+    } catch (e: any) {
+      setEgresoMsg((m) => ({ ...m, [regId]: `Error: ${e?.message || "Sin conexión"}` }));
+    }
+    setEgresandoReg(null);
+  }
 
   async function load() {
     setLoading(true);
@@ -416,6 +444,28 @@ export default function AlumnoDossierPage({ params }: { params: Promise<{ id: st
                       <span className={`text-xs font-medium px-2 py-1 rounded ${statusColors[r.status] || "bg-gray-100 text-gray-600"}`}>
                         {statusLabels[r.status] || r.status}
                       </span>
+                      {r.is_alumni ? (
+                        <p className="mt-2">
+                          <span
+                            className="text-xs font-medium px-2 py-1 rounded bg-purple-100 text-purple-800"
+                            title={r.alumni_at ? `Egresado el ${fmtDate(r.alumni_at)}` : "Egresado"}
+                          >
+                            🎓 Egresado{r.alumni_at ? ` · ${fmtDate(r.alumni_at)}` : ""}
+                          </span>
+                        </p>
+                      ) : r.status === "completed" ? (
+                        <p className="mt-2">
+                          <button
+                            onClick={() => egresarCurso(r.id, r.courses?.title || "Curso")}
+                            disabled={egresandoReg === r.id}
+                            className="text-xs font-medium px-3 py-1.5 rounded bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50"
+                            title="Pasa este curso a Egresados de inmediato (sin notificar al alumno)"
+                          >
+                            {egresandoReg === r.id ? "Procesando…" : "🎓 Pasar a Egresado"}
+                          </button>
+                        </p>
+                      ) : null}
+                      {egresoMsg[r.id] && <p className="mt-1 text-[11px] text-red-600 max-w-[200px]">{egresoMsg[r.id]}</p>}
                       {r.final_score != null && (
                         <p className={`mt-2 text-lg font-bold ${r.final_score >= 80 ? "text-green-700" : "text-red-600"}`}>
                           {r.final_score}%
