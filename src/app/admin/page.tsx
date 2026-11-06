@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import PrioridadesDgac from "@/components/PrioridadesDgac";
+import AlertasLugares from "@/components/AlertasLugares";
 
 type Stats = {
   totalCourses: number;
@@ -343,6 +344,7 @@ export default function AdminDashboard() {
 
       {/* Prioridades DGAC: práctico hecho sin cerrar teórico o trámite */}
       <PrioridadesDgac />
+      <AlertasLugares />
 
       {/* Pending actions */}
       {pendingActions.length > 0 && (

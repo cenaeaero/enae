@@ -1,5 +1,6 @@
 "use client";
 
+import SiteIndications from "@/components/SiteIndications";
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { PHASES, GRADE_KEYS, GRADE_PASS, computePracticalScore, getExamScore, type ItemState } from "@/lib/practical-eval-format";
@@ -72,6 +73,7 @@ export default function PracticaAlumnoPage({ params }: { params: Promise<{ id: s
           </p>
           <p className="text-gray-500">{data.instructor?.phone && <span>📞 {data.instructor.phone} · </span>}<span className="break-all">{data.instructor?.email}</span></p>
         </div>
+        <SiteIndications site={a.site} className="mx-5 mb-5" />
       </div>
 
       {!ev ? (

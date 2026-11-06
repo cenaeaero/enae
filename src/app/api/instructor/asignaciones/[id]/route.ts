@@ -100,6 +100,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (notifyStudent && a.registrations?.email) {
     try {
       const { sendPracticaDataToStudent } = await import("@/lib/email");
+      const { loadPracticeSites } = await import("@/lib/practice-sites-server");
+      const siteId = ((data as any)?.practice_site_id as string | null) || null;
+      const site = siteId ? (await loadPracticeSites([siteId]))[siteId] || null : null;
       const { data: instProf } = await supabaseAdmin
         .from("profiles").select("first_name, last_name, phone, email").ilike("email", a.instructor_email).limit(1).maybeSingle();
       await sendPracticaDataToStudent({
@@ -117,6 +120,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           locationName: (updates.location_name ?? a.location_name) || null,
           locationUrl: (updates.location_url ?? a.location_url) || null,
           course: a.registrations?.courses?.title || null,
+          site,
         },
       });
     } catch (e) {

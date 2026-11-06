@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-service";
 import { createSupabaseServer } from "@/lib/supabase-server";
+import { loadPracticeSites } from "@/lib/practice-sites-server";
+import { studentSiteInfo } from "@/lib/practice-sites";
 
 // API del ALUMNO para su clase práctica:
 //   GET               → lista sus asignaciones (instructor, fecha, hora, lugar, estado evaluación)
@@ -17,7 +19,7 @@ async function requireStudent() {
 async function loadOwnedAssignment(assignmentId: string, studentEmail: string) {
   const { data: a } = await supabaseAdmin
     .from("instructor_assignments")
-    .select("id, instructor_email, registration_id, kind, city, scheduled_date, start_time, location_name, location_url, status, registrations(id, email, first_name, last_name, courses(title, code))")
+    .select("id, instructor_email, registration_id, kind, city, scheduled_date, start_time, location_name, location_url, practice_site_id, status, registrations(id, email, first_name, last_name, courses(title, code))")
     .eq("id", assignmentId)
     .maybeSingle();
   if (!a) return null;
@@ -68,6 +70,7 @@ export async function GET(request: Request) {
         location_url: a.location_url,
         status: a.status,
         course: a.registrations?.courses?.title || null,
+        site: a.practice_site_id ? studentSiteInfo((await loadPracticeSites([a.practice_site_id]))[a.practice_site_id]) : null,
       },
       instructor: await instructorInfo(a.instructor_email),
       evaluation: evaluation || null,
@@ -84,10 +87,11 @@ export async function GET(request: Request) {
 
   const { data: asgs } = await supabaseAdmin
     .from("instructor_assignments")
-    .select("id, instructor_email, kind, city, scheduled_date, start_time, location_name, location_url, status, registrations(courses(title, code)), practical_evaluations(id, status, completed_at, student_signed_at)")
+    .select("id, instructor_email, kind, city, scheduled_date, start_time, location_name, location_url, practice_site_id, status, registrations(courses(title, code)), practical_evaluations(id, status, completed_at, student_signed_at)")
     .in("registration_id", regIds)
     .order("scheduled_date", { ascending: true });
 
+  const sitesById = await loadPracticeSites(((asgs || []) as any[]).map((a) => a.practice_site_id));
   const practicas = [] as any[];
   for (const a of (asgs || []) as any[]) {
     const pe = Array.isArray(a.practical_evaluations) ? a.practical_evaluations[0] : a.practical_evaluations;
@@ -101,6 +105,7 @@ export async function GET(request: Request) {
       location_url: a.location_url,
       status: a.status,
       course: a.registrations?.courses?.title || null,
+      site: a.practice_site_id ? studentSiteInfo(sitesById[a.practice_site_id]) : null,
       instructor: await instructorInfo(a.instructor_email),
       evaluation: pe ? { id: pe.id, status: pe.status, completed_at: pe.completed_at, student_signed_at: pe.student_signed_at } : null,
     });

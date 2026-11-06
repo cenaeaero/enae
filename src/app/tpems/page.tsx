@@ -1,5 +1,6 @@
 "use client";
 
+import SiteIndications from "@/components/SiteIndications";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
@@ -244,6 +245,7 @@ export default function TpemsDashboard() {
                         <span className="break-all">{p.instructor?.email}</span>
                       </p>
                     </div>
+                    <SiteIndications site={p.site} className="mt-3" />
                   </div>
                   <div className="text-right shrink-0 space-y-1.5">
                     {p.evaluation ? (

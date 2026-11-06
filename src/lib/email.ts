@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { type PracticeSite, studentSiteInfo, operationalLines } from "@/lib/practice-sites";
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || "smtp.gmail.com",
@@ -803,7 +804,53 @@ export type PracticaScheduleInfo = {
   locationName: string | null;
   locationUrl: string | null;
   course: string | null;
+  site?: PracticeSite | null; // ficha del catálogo de Lugares de práctica (si se eligió)
 };
+
+function escHtml(v: string): string {
+  return v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function escMultiline(v: string): string {
+  return escHtml(v).replace(/\n/g, "<br/>");
+}
+
+// Bloque "Indicaciones del lugar" para el alumno
+function studentSiteBlock(s: PracticaScheduleInfo): string {
+  const info = studentSiteInfo(s.site);
+  if (!info) return "";
+  const row = (icon: string, label: string, v: string | null) =>
+    v ? `<p style="margin:6px 0;color:#374151;">${icon} <strong>${label}:</strong> ${escMultiline(v)}</p>` : "";
+  return `
+          <div style="background:white;border:1px solid #e5e7eb;border-left:4px solid #0072CE;border-radius:8px;padding:16px 20px;margin:16px 0;">
+            <p style="margin:0 0 8px;color:#003366;font-weight:bold;">Indicaciones del lugar</p>
+            ${row("🧭", "Cómo llegar / acceso", info.access_instructions)}
+            ${row("📌", "Punto de reunión", info.meeting_point)}
+            ${row("🏕️", "Servicios", info.services)}
+            ${row("👤", "Contacto en el lugar", [info.contact_name, info.contact_phone].filter(Boolean).join(" · ") || null)}
+            ${row("🚑", "Emergencias", [info.emergency_phone, info.nearest_medical_center].filter(Boolean).join(" · ") || null)}
+          </div>`;
+}
+
+// Fichas operacionales (una por lugar distinto) para el instructor
+function instructorSitesBlock(schedules: PracticaScheduleInfo[]): string {
+  const seen = new Set<string>();
+  const blocks: string[] = [];
+  for (const sch of schedules) {
+    const site = sch.site;
+    if (!site || seen.has(site.id)) continue;
+    seen.add(site.id);
+    const lines = operationalLines(site)
+      .map((l) => `<tr><td style="padding:4px 8px;color:#6b7280;vertical-align:top;white-space:nowrap;">${escHtml(l.label)}</td><td style="padding:4px 8px;color:#111827;">${escMultiline(l.value)}</td></tr>`)
+      .join("");
+    blocks.push(`
+        <div style="border:1px solid #d1d5db;border-radius:6px;margin:12px 0;">
+          <p style="margin:0;padding:8px 12px;background:#f3f4f6;color:#003366;font-weight:bold;">📍 ${escHtml(site.name)}${site.city ? ` · ${escHtml(site.city)}` : ""}</p>
+          <table style="border-collapse:collapse;width:100%;font-size:12px;">${lines}</table>
+        </div>`);
+  }
+  if (blocks.length === 0) return "";
+  return `<h3 style="color:#003366;font-size:15px;margin-top:20px;">Ficha operacional del lugar</h3>${blocks.join("")}`;
+}
 
 function formatPracticaFecha(s: PracticaScheduleInfo): string {
   const fecha = s.date
@@ -852,6 +899,7 @@ export async function sendPracticaDataToInstructor(args: {
           </thead>
           <tbody>${rows}</tbody>
         </table>
+        ${instructorSitesBlock(args.students.map((st) => st.schedule))}
         <p style="font-size:13px;color:#4b5563;">Recuerda registrar la evaluación práctica (formato ENAE-CHL-N1) en el <a href="${SITE_URL}/instructor">portal de instructor</a> al finalizar cada clase.</p>
         <p style="color:#9ca3af;font-size:11px;margin-top:20px;">Escuela de Navegación Aérea | AOC 1521 DGAC | Certificada ISO 9001:2015</p>
       </div>
@@ -888,6 +936,7 @@ export async function sendPracticaDataToStudent(args: {
             ${args.instructor.phone ? `<p style="margin:6px 0;color:#374151;">📞 ${args.instructor.phone}</p>` : ""}
             <p style="margin:6px 0;color:#374151;">✉️ <a href="mailto:${args.instructor.email}" style="color:#0072CE;">${args.instructor.email}</a></p>
           </div>
+          ${studentSiteBlock(s)}
           <p style="color:#374151;font-size:14px;">Llega con anticipación y coordina cualquier cambio directamente con tu instructor. Después de la clase podrás revisar y firmar tu evaluación práctica en el <a href="${SITE_URL}/tpems" style="color:#0072CE;">Portal de Alumno</a>.</p>
         </div>
         <div style="background: #001d3d; padding: 15px; text-align: center;">

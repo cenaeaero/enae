@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-service";
+import { loadPracticeSites } from "@/lib/practice-sites-server";
 import { requireAdmin } from "@/lib/auth-instructor";
 import { sendPracticaDataToInstructor, sendPracticaDataToStudent, type PracticaScheduleInfo } from "@/lib/email";
 
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
 
   const { data: asgs, error } = await supabaseAdmin
     .from("instructor_assignments")
-    .select("id, instructor_email, city, scheduled_date, start_time, location_name, location_url, registrations(first_name, last_name, email, courses(title))")
+    .select("id, instructor_email, city, scheduled_date, start_time, location_name, location_url, practice_site_id, registrations(first_name, last_name, email, courses(title))")
     .in("id", ids);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!asgs || asgs.length === 0) return NextResponse.json({ error: "Asignaciones no encontradas" }, { status: 404 });
@@ -46,6 +47,9 @@ export async function POST(request: Request) {
     phone: instProf?.phone || null,
   };
 
+  // Fichas del catálogo de Lugares de práctica (indicaciones al alumno, ficha operacional al instructor)
+  const sitesById = await loadPracticeSites((asgs as any[]).map((a) => a.practice_site_id));
+
   const scheduleOf = (a: any): PracticaScheduleInfo => ({
     date: a.scheduled_date || null,
     time: a.start_time || null,
@@ -53,6 +57,7 @@ export async function POST(request: Request) {
     locationName: a.location_name || null,
     locationUrl: a.location_url || null,
     course: a.registrations?.courses?.title || null,
+    site: a.practice_site_id ? sitesById[a.practice_site_id] || null : null,
   });
 
   let sentStudents = 0;

@@ -108,7 +108,9 @@ export function authorizationState(site: PracticeSite, refDate?: string): { stat
 }
 
 // Advertencias al programar una clase en un lugar para una fecha dada.
-export function scheduleWarnings(site: PracticeSite, date: string | null, courseId?: string | null): string[] {
+// opts.skipLead: omitir la regla de antelación (útil para clases ya programadas, donde
+// la antelación se evaluó al momento de programar).
+export function scheduleWarnings(site: PracticeSite, date: string | null, courseId?: string | null, opts?: { skipLead?: boolean }): string[] {
   const w: string[] = [];
   if (site.status === "suspendido") w.push("El lugar está SUSPENDIDO.");
   if (courseId && site.course_ids && site.course_ids.length > 0 && !site.course_ids.includes(courseId)) {
@@ -119,7 +121,7 @@ export function scheduleWarnings(site: PracticeSite, date: string | null, course
   if (date) {
     const lead = Math.max(0, ...auths.map((a) => a.lead_days || 0));
     const daysAhead = daysBetween(todayISO(), date);
-    if (lead > 0 && daysAhead < lead) {
+    if (!opts?.skipLead && lead > 0 && daysAhead < lead) {
       w.push(`Requiere coordinar con ${lead} día(s) de antelación; la clase es en ${daysAhead} día(s).`);
     }
     for (const a of auths) {
@@ -128,4 +130,59 @@ export function scheduleWarnings(site: PracticeSite, date: string | null, course
     }
   }
   return w;
+}
+
+// ---------------------------------------------------------------------------
+// Resúmenes para correos y portal
+// ---------------------------------------------------------------------------
+
+// Lo que ve el ALUMNO (sin datos operacionales internos)
+export type StudentSiteInfo = {
+  name: string;
+  access_instructions: string | null;
+  meeting_point: string | null;
+  services: string | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+  emergency_phone: string | null;
+  nearest_medical_center: string | null;
+};
+
+export function studentSiteInfo(s: PracticeSite | null | undefined): StudentSiteInfo | null {
+  if (!s) return null;
+  const info: StudentSiteInfo = {
+    name: s.name,
+    access_instructions: s.access_instructions,
+    meeting_point: s.meeting_point,
+    services: s.services,
+    contact_name: s.contact_name,
+    contact_phone: s.contact_phone,
+    emergency_phone: s.emergency_phone,
+    nearest_medical_center: s.nearest_medical_center,
+  };
+  const hasAny = Object.entries(info).some(([k, v]) => k !== "name" && !!v);
+  return hasAny ? info : null;
+}
+
+// Lo que ve el INSTRUCTOR: ficha operacional completa del lugar
+export function operationalLines(s: PracticeSite): { label: string; value: string }[] {
+  const out: { label: string; value: string }[] = [];
+  const push = (label: string, v: unknown) => { if (v != null && v !== "" && !(Array.isArray(v) && v.length === 0)) out.push({ label, value: String(v) }); };
+  push("Espacio aéreo", [s.fir, s.airspace_class ? `clase ${s.airspace_class}` : null].filter(Boolean).join(" · ") || null);
+  push("Aeródromo más cercano", s.nearest_aerodrome ? `${s.nearest_aerodrome}${s.nearest_aerodrome_km != null ? ` (${s.nearest_aerodrome_km} km)` : ""}` : null);
+  push("Zonas restringidas/peligrosas", s.restricted_zones);
+  push("Límites", [
+    s.max_height_agl_m != null ? `${s.max_height_agl_m} m AGL` : null,
+    s.max_radius_m != null ? `radio ${s.max_radius_m} m` : null,
+    (s.operation_types || []).join("/") || null,
+    s.max_mtom_kg != null ? `MTOM ${s.max_mtom_kg} kg` : null,
+    s.max_simultaneous_rpa != null ? `${s.max_simultaneous_rpa} RPA simultáneos` : null,
+  ].filter(Boolean).join(" · ") || null);
+  push("Autorizaciones", (s.practice_site_authorizations || []).map((a) =>
+    `${a.authority}${a.reference ? ` ${a.reference}` : ""}${a.valid_until ? ` (vence ${a.valid_until})` : ""}${a.lead_days ? ` · coordinar con ${a.lead_days} día(s)` : ""}`).join("; ") || "Sin autorizaciones registradas");
+  push("Contacto del lugar", [s.contact_name, s.contact_phone].filter(Boolean).join(" · ") || null);
+  push("Punto de reunión", s.meeting_point);
+  push("Emergencias", [s.emergency_phone, s.nearest_medical_center].filter(Boolean).join(" · ") || null);
+  push("Plan de emergencia", s.emergency_plan);
+  return out;
 }
