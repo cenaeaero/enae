@@ -43,6 +43,16 @@ export default function ExamPlayer({ examId, registrationId, onComplete }: Props
   const answersRef = useRef(answers);
   const attemptIdRef = useRef(attemptId);
   const submittingRef = useRef(false);
+  // Últimas respuestas confirmadas en el servidor: el autoguardado envía solo
+  // lo que cambió (antes reenviaba todas cada 30 s → alto Disk IO en la BD).
+  const savedRef = useRef<Record<string, string>>({});
+  const pendingDelta = () => {
+    const delta: Record<string, string> = {};
+    for (const [q, v] of Object.entries(answersRef.current)) {
+      if (savedRef.current[q] !== v) delta[q] = v as string;
+    }
+    return delta;
+  };
 
   // Keep refs in sync
   useEffect(() => { answersRef.current = answers; }, [answers]);
@@ -51,16 +61,17 @@ export default function ExamPlayer({ examId, registrationId, onComplete }: Props
   // Auto-save answers every 30 seconds
   const saveAnswers = useCallback(async () => {
     const currentAttemptId = attemptIdRef.current;
-    const currentAnswers = answersRef.current;
-    if (!currentAttemptId || Object.keys(currentAnswers).length === 0 || submittingRef.current) return;
+    const delta = pendingDelta();
+    if (!currentAttemptId || Object.keys(delta).length === 0 || submittingRef.current) return;
     try {
       const res = await fetch("/api/examenes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "save_answers", attempt_id: currentAttemptId, answers: currentAnswers }),
+        body: JSON.stringify({ action: "save_answers", attempt_id: currentAttemptId, answers: delta }),
       });
       const json = await res.json();
       if (json.saved) {
+        savedRef.current = { ...savedRef.current, ...delta };
         setLastSaved(new Date().toLocaleTimeString());
       }
     } catch {
@@ -78,12 +89,12 @@ export default function ExamPlayer({ examId, registrationId, onComplete }: Props
   useEffect(() => {
     const handleBeforeUnload = () => {
       const currentAttemptId = attemptIdRef.current;
-      const currentAnswers = answersRef.current;
-      if (!currentAttemptId || Object.keys(currentAnswers).length === 0) return;
+      const delta = pendingDelta();
+      if (!currentAttemptId || Object.keys(delta).length === 0) return;
       const blob = new Blob([JSON.stringify({
         action: "save_answers",
         attempt_id: currentAttemptId,
-        answers: currentAnswers,
+        answers: delta,
       })], { type: "application/json" });
       navigator.sendBeacon("/api/examenes", blob);
     };
@@ -112,10 +123,12 @@ export default function ExamPlayer({ examId, registrationId, onComplete }: Props
 
       setAttemptId(json.attempt_id);
       setQuestions(json.questions || []);
+      savedRef.current = {}; // intento nuevo: nada confirmado aún
 
       // Resume: restore saved answers
       if (json.resumed && json.saved_answers) {
         setAnswers(json.saved_answers);
+        savedRef.current = { ...json.saved_answers };
         setResumed(true);
       }
 
