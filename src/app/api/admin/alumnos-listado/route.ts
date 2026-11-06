@@ -7,17 +7,44 @@ export async function GET() {
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   // Profiles + conteo de cursos por email + cursos disponibles para filtrar
-  const [{ data: profiles }, { data: regs }, { data: courseRows }] = await Promise.all([
+  const [{ data: profiles }, { data: regs }, { data: courseRows }, { data: procs }] = await Promise.all([
     supabaseAdmin
       .from("profiles")
       .select("id, first_name, last_name, email, rut, folio_enae, organization, phone, role, created_at")
       .order("last_name", { ascending: true }),
-    supabaseAdmin.from("registrations").select("email, status, course_id, is_alumni"),
+    supabaseAdmin.from("registrations").select("id, email, status, course_id, is_alumni"),
     supabaseAdmin.from("courses").select("id, title"),
+    supabaseAdmin.from("dgac_procedures").select("registration_id, solicitud_teoricos_at, exam_datetime, coordinacion_examen"),
   ]);
 
   const courseTitles: Record<string, string> = {};
   for (const c of courseRows || []) courseTitles[c.id] = c.title;
+
+  // registration_id -> email (para cruzar la coordinación DGAC por alumno)
+  const regEmailById: Record<string, string> = {};
+  for (const r of regs || []) {
+    if (r.id && r.email) regEmailById[r.id] = (r.email || "").toLowerCase();
+  }
+
+  // Coordinación DGAC agregada por email: ¿se solicitó examen a teóricos?
+  // dgac_ref: fecha de referencia más reciente (examen o solicitud a teóricos)
+  // para medir cuánto llevan esperando el egreso.
+  const dgacByEmail: Record<string, { coordinado: boolean; ref: number | null }> = {};
+  for (const pr of procs || []) {
+    const e = regEmailById[pr.registration_id];
+    if (!e) continue;
+    dgacByEmail[e] ||= { coordinado: false, ref: null };
+    const coordinado = !!pr.solicitud_teoricos_at || !!pr.coordinacion_examen || !!pr.exam_datetime;
+    if (coordinado) dgacByEmail[e].coordinado = true;
+    // Referencia: fecha del examen si existe, si no la solicitud a teóricos.
+    const refStr = pr.exam_datetime || pr.solicitud_teoricos_at;
+    if (refStr) {
+      const t = new Date(refStr).getTime();
+      if (!Number.isNaN(t) && (dgacByEmail[e].ref === null || t > (dgacByEmail[e].ref as number))) {
+        dgacByEmail[e].ref = t;
+      }
+    }
+  }
 
   const byEmail: Record<string, { total: number; completed: number; in_progress: number; blocking: number; alumni: number; course_ids: Set<string> }> = {};
   for (const r of regs || []) {
@@ -34,7 +61,9 @@ export async function GET() {
   }
 
   const alumnos = (profiles || []).map((p: any) => {
-    const stats = byEmail[(p.email || "").toLowerCase()] || { total: 0, completed: 0, in_progress: 0, blocking: 0, alumni: 0, course_ids: new Set<string>() };
+    const emailKey = (p.email || "").toLowerCase();
+    const stats = byEmail[emailKey] || { total: 0, completed: 0, in_progress: 0, blocking: 0, alumni: 0, course_ids: new Set<string>() };
+    const dgac = dgacByEmail[emailKey] || { coordinado: false, ref: null };
     // Egresado (ocultable): terminó todo, sin pendientes, y sus cursos completados ya están marcados alumni.
     const is_egresado = stats.total > 0 && stats.blocking === 0 && stats.completed > 0 && stats.alumni >= stats.completed;
     return {
@@ -54,6 +83,8 @@ export async function GET() {
       pending_courses: stats.blocking,
       alumni_courses: stats.alumni,
       is_egresado,
+      dgac_coordinado: dgac.coordinado,
+      dgac_ref_date: dgac.ref ? new Date(dgac.ref).toISOString() : null,
       course_ids: Array.from(stats.course_ids),
     };
   });

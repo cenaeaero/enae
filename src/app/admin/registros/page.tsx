@@ -20,8 +20,21 @@ type AlumnoRow = {
   pending_courses: number;
   alumni_courses: number;
   is_egresado: boolean;
+  dgac_coordinado: boolean;
+  dgac_ref_date: string | null;
   course_ids: string[];
 };
+
+// Meses enteros transcurridos desde una fecha ISO hasta hoy.
+function monthsSince(dateStr: string | null): number | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return null;
+  const now = new Date();
+  let m = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+  if (now.getDate() < d.getDate()) m -= 1;
+  return Math.max(0, m);
+}
 
 type CourseOption = { id: string; title: string };
 
@@ -34,6 +47,9 @@ export default function AdminRegistrosPage() {
   const [filterCourse, setFilterCourse] = useState("");
   const [filterRole, setFilterRole] = useState<"all" | "student" | "instructor" | "admin">("student");
   const [showEgresados, setShowEgresados] = useState(false);
+  // Filtro "Listos para egresar (DGAC)": "" = off, "coord" = examen coordinado,
+  // "1"/"2"/"3" = además llevan más de 1/2/3 meses sin ser ingresados a ex-alumnos.
+  const [filterDgac, setFilterDgac] = useState<"" | "coord" | "1" | "2" | "3">("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [egresando, setEgresando] = useState(false);
   const [egresarMsg, setEgresarMsg] = useState("");
@@ -62,6 +78,17 @@ export default function AdminRegistrosPage() {
       if (filterRole !== "all" && a.role !== filterRole) return false;
       if (filterCompany && a.organization !== filterCompany) return false;
       if (filterCourse && !(a.course_ids || []).includes(filterCourse)) return false;
+      if (filterDgac) {
+        // Candidatos a ex-alumno: terminaron módulos (sin pendientes), examen
+        // coordinado con teóricos DGAC y aún NO ingresados a ex-alumnos.
+        if (a.role !== "student" || a.is_egresado) return false;
+        if (!(a.pending_courses === 0 && a.completed_courses > 0)) return false;
+        if (!a.dgac_coordinado) return false;
+        if (filterDgac !== "coord") {
+          const m = monthsSince(a.dgac_ref_date);
+          if (m === null || m < parseInt(filterDgac, 10)) return false;
+        }
+      }
       if (!term) return true;
       return (
         a.first_name.toLowerCase().includes(term) ||
@@ -72,7 +99,7 @@ export default function AdminRegistrosPage() {
         (a.organization || "").toLowerCase().includes(term)
       );
     });
-  }, [alumnos, q, filterCompany, filterCourse, filterRole, showEgresados]);
+  }, [alumnos, q, filterCompany, filterCourse, filterRole, showEgresados, filterDgac]);
 
   // Egresable: alumno con todo completado, sin pendientes y aún no egresado.
   function esEgresable(a: AlumnoRow) {
@@ -100,7 +127,7 @@ export default function AdminRegistrosPage() {
   async function pasarAEgresados() {
     const emails = Array.from(selected);
     if (emails.length === 0) return;
-    if (!confirm(`¿Pasar ${emails.length} alumno(s) a Egresados? Dejarán de verse en Registros y aparecerán en la sección Alumni.`)) return;
+    if (!confirm(`¿Pasar ${emails.length} alumno(s) a Egresados? No se les enviará ninguna notificación. Dejarán de verse en Registros y aparecerán en la sección Alumni.`)) return;
     setEgresando(true);
     setEgresarMsg("");
     try {
@@ -159,6 +186,15 @@ export default function AdminRegistrosPage() {
           <option value="instructor">Instructores</option>
           <option value="admin">Admins</option>
         </select>
+        <select value={filterDgac} onChange={(e) => setFilterDgac(e.target.value as any)}
+          className="py-2 px-3 border border-gray-300 rounded-lg text-sm"
+          title="Alumnos que terminaron sus módulos y tienen examen coordinado con teóricos DGAC, aún no ingresados a ex-alumnos">
+          <option value="">Listos para egresar (DGAC)…</option>
+          <option value="coord">Con examen coordinado</option>
+          <option value="1">· más de 1 mes sin ingresar</option>
+          <option value="2">· más de 2 meses sin ingresar</option>
+          <option value="3">· más de 3 meses sin ingresar</option>
+        </select>
         <label className="flex items-center gap-2 text-sm text-gray-600 px-2">
           <input type="checkbox" checked={showEgresados} onChange={(e) => setShowEgresados(e.target.checked)} className="rounded" />
           Ver egresados
@@ -173,8 +209,16 @@ export default function AdminRegistrosPage() {
         >
           {egresando ? "Procesando…" : `🎓 Pasar a Egresado${selected.size > 0 ? ` (${selected.size})` : ""}`}
         </button>
+        {filterDgac && elegibles.length > 0 && (
+          <button
+            onClick={toggleSelAll}
+            className="text-xs font-medium text-purple-700 hover:text-purple-900 underline"
+          >
+            Seleccionar los {elegibles.length} del filtro
+          </button>
+        )}
         <span className="text-xs text-gray-400">
-          Selecciona alumnos con todo completado y sin pendientes. Los que quedan pendientes no se pueden seleccionar (revísalos manualmente).
+          Pasa a ex-alumnos sin notificar al alumno. Solo seleccionables los que terminaron todo y sin pendientes; los pendientes se revisan manualmente.
         </span>
         {egresarMsg && (
           <span className={`text-xs ${egresarMsg.startsWith("Error") ? "text-red-600" : "text-green-700"}`}>{egresarMsg}</span>
@@ -204,6 +248,7 @@ export default function AdminRegistrosPage() {
                 <th className="px-4 py-3 text-right">Cursos</th>
                 <th className="px-4 py-3 text-right">Completados</th>
                 <th className="px-4 py-3 text-right">En curso</th>
+                <th className="px-4 py-3">DGAC</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -241,11 +286,31 @@ export default function AdminRegistrosPage() {
                   <td className="px-4 py-3 text-right font-semibold">{a.total_courses}</td>
                   <td className="px-4 py-3 text-right text-green-700">{a.completed_courses}</td>
                   <td className="px-4 py-3 text-right text-blue-700">{a.in_progress_courses}</td>
+                  <td className="px-4 py-3">
+                    {a.dgac_coordinado ? (() => {
+                      const m = monthsSince(a.dgac_ref_date);
+                      const waiting = !a.is_egresado;
+                      const color = !waiting ? "bg-gray-100 text-gray-500"
+                        : m !== null && m >= 3 ? "bg-red-100 text-red-700"
+                        : m !== null && m >= 1 ? "bg-amber-100 text-amber-700"
+                        : "bg-teal-100 text-teal-700";
+                      const label = m === null ? "coordinado"
+                        : m === 0 ? "coordinado · <1 mes"
+                        : `esperando · ${m} ${m === 1 ? "mes" : "meses"}`;
+                      return (
+                        <span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md ${color}`} title="Examen coordinado con teóricos DGAC">
+                          🛩️ {label}
+                        </span>
+                      );
+                    })() : (
+                      <span className="text-gray-300">—</span>
+                    )}
+                  </td>
                 </tr>
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">Sin resultados.</td></tr>
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400">Sin resultados.</td></tr>
               )}
             </tbody>
           </table>
