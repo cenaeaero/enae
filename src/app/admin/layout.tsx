@@ -4,42 +4,65 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import AdminSearch from "@/components/AdminSearch";
 
 type NavItem = { href: string; label: string; icon: string };
 type NavSection = { section?: string; items: NavItem[] };
 
+// Menú ordenado por el ciclo de vida del alumno (Auditoría 06-11-2026, Fase 2):
+// Inicio → Admisión → Formación → Operaciones Prácticas → Certificación DGAC → Egreso,
+// más los grupos de apoyo (Alumnos y Empresas, Comunicación, Finanzas, Sistema).
 const navSections: NavSection[] = [
   {
     items: [
-      { href: "/admin", label: "Dashboard", icon: "📊" },
+      { href: "/admin", label: "Bandeja de trabajo", icon: "📥" },
     ],
   },
   {
-    section: "Académico",
+    section: "1 · Admisión",
+    items: [
+      { href: "/admin/inscripcion", label: "Inscripción manual", icon: "✏️" },
+      { href: "/admin/pagos", label: "Pagos", icon: "💳" },
+    ],
+  },
+  {
+    section: "2 · Formación",
     items: [
       { href: "/admin/programas", label: "Programas", icon: "📦" },
       { href: "/admin/cursos", label: "Cursos", icon: "📚" },
-      { href: "/admin/inscripcion", label: "Inscripción", icon: "✏️" },
       { href: "/admin/clases-sincronas", label: "Clases sincrónicas", icon: "🎥" },
       { href: "/admin/asistencia", label: "Asistencia", icon: "✅" },
       { href: "/admin/calificaciones", label: "Calificaciones", icon: "🎯" },
     ],
   },
   {
-    section: "Operaciones Prácticas",
+    section: "3 · Operaciones Prácticas",
     items: [
-      { href: "/admin/instructores", label: "Instructores", icon: "🧑‍🏫" },
+      { href: "/admin/instructores", label: "Instructores y clases", icon: "🧑‍🏫" },
       { href: "/admin/lugares-practica", label: "Lugares de práctica", icon: "📍" },
     ],
   },
   {
-    section: "Documentos",
+    section: "4 · Certificación DGAC",
     items: [
-      { href: "/admin/registros", label: "Registros", icon: "📋" },
-      { href: "/admin/diplomas", label: "Diplomas", icon: "📜" },
-      { href: "/admin/certificados", label: "Certificados", icon: "🏅" },
       { href: "/admin/apendice-c", label: "Apéndice C", icon: "📄" },
-      { href: "/admin/coordinacion-dgac", label: "Coordinación DGAC", icon: "🛩️" },
+      { href: "/admin/coordinacion-dgac", label: "Coordinación examen", icon: "🛩️" },
+      { href: "/admin/certificados", label: "Certificados DGAC", icon: "🏅" },
+    ],
+  },
+  {
+    section: "5 · Egreso",
+    items: [
+      { href: "/admin/diplomas", label: "Diplomas", icon: "📜" },
+      { href: "/admin/alumni", label: "Egresados", icon: "🎓" },
+    ],
+  },
+  {
+    section: "Alumnos y Empresas",
+    items: [
+      { href: "/admin/registros", label: "Alumnos", icon: "📋" },
+      { href: "/admin/empresas", label: "Empresas", icon: "🏢" },
+      { href: "/admin/supervisores", label: "Supervisores", icon: "🧑‍💼" },
     ],
   },
   {
@@ -51,29 +74,26 @@ const navSections: NavSection[] = [
     ],
   },
   {
-    section: "Personas",
+    section: "Finanzas",
     items: [
-      { href: "/admin/perfiles", label: "Perfiles", icon: "👥" },
-      { href: "/admin/duplicados", label: "Duplicados", icon: "🧹" },
-      { href: "/admin/huerfanos", label: "Huérfanos", icon: "🫥" },
-      { href: "/admin/empresas", label: "Empresas", icon: "🏢" },
-      { href: "/admin/supervisores", label: "Supervisores", icon: "🧑‍💼" },
-      { href: "/admin/alumni", label: "Alumni", icon: "🎓" },
-      { href: "/admin/ver-como", label: "Ver como", icon: "🕵️" },
+      { href: "/admin/facturacion", label: "Facturación B2B", icon: "🧾" },
+      { href: "/admin/honorarios", label: "Honorarios", icon: "💼" },
     ],
   },
   {
-    section: "Finanzas",
+    section: "Sistema",
     items: [
-      { href: "/admin/pagos", label: "Pagos", icon: "💳" },
-      { href: "/admin/facturacion", label: "Facturación B2B", icon: "🧾" },
-      { href: "/admin/honorarios", label: "Honorarios", icon: "💼" },
+      { href: "/admin/perfiles", label: "Usuarios y perfiles", icon: "👥" },
+      { href: "/admin/duplicados", label: "Duplicados", icon: "🧹" },
+      { href: "/admin/huerfanos", label: "Huérfanos", icon: "🫥" },
+      { href: "/admin/ver-como", label: "Ver como", icon: "🕵️" },
     ],
   },
 ];
 
 // Flat list for mobile nav (top items only to fit bottom bar)
-const navItems = navSections.flatMap((s) => s.items);
+const MOBILE_HREFS = ["/admin", "/admin/registros", "/admin/instructores", "/admin/apendice-c", "/admin/pagos"];
+const navItems = navSections.flatMap((s) => s.items).filter((i) => MOBILE_HREFS.includes(i.href));
 
 type PendingReg = {
   id: string;
@@ -224,6 +244,9 @@ export default function AdminLayout({
             )}
           </div>
         </div>
+        <div className="px-3 pt-3">
+          <AdminSearch />
+        </div>
         <nav className="p-3 flex-1 overflow-y-auto">
           {navSections.map((section, sIdx) => (
             <div key={sIdx} className={sIdx > 0 ? "mt-4" : ""}>
@@ -287,7 +310,7 @@ export default function AdminLayout({
               }`}
             >
               <span className="text-lg">{item.icon}</span>
-              {item.label}
+              <span className="truncate max-w-[70px]">{item.label}</span>
             </Link>
           );
         })}

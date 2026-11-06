@@ -331,15 +331,15 @@ export default function AdminDashboard() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-[#003366] mb-6">Dashboard</h1>
+      <h1 className="text-2xl font-bold text-[#003366] mb-1">Bandeja de trabajo</h1>
+      <p className="text-sm text-gray-500 mb-5">Lo que requiere acción hoy. Cada recuadro lleva a la sección donde se resuelve.</p>
 
-      {/* Stats cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
-        <StatCard label="Cursos Activos" value={stats.totalCourses} color="text-[#003366]" href="/admin/cursos" />
-        <StatCard label="Alumnos" value={stats.totalStudents} color="text-[#0072CE]" href="/admin/perfiles" />
-        <StatCard label="Registros Pendientes" value={stats.pendingRegistrations} color="text-yellow-600" href="/admin/registros" />
-        <StatCard label="Pagos Recibidos" value={stats.approvedPayments} color="text-green-600" href="/admin/pagos" />
-        <StatCard label="Diplomas Emitidos" value={stats.totalDiplomas} color="text-purple-600" href="/admin/diplomas" />
+      {/* Pendientes accionables */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        <TrayCard label="Inscripciones por revisar" value={stats.pendingRegistrations} href="/admin/registros" tone="yellow" />
+        <TrayCard label="Pagos pendientes" value={stats.pendingPayments} href="/admin/pagos" tone="orange" />
+        <TrayCard label="Calificaciones pendientes" value={stats.pendingGrades} href="/admin/calificaciones" tone="blue" />
+        <TrayCard label="Diplomas por emitir" value={stats.pendingDiplomas} href="/admin/diplomas" tone="purple" />
       </div>
 
       {/* Prioridades DGAC: práctico hecho sin cerrar teórico o trámite */}
@@ -517,6 +517,16 @@ export default function AdminDashboard() {
       </div>
 
       {/* Quick actions */}
+      {/* Indicadores generales */}
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Indicadores generales</h2>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+        <StatCard label="Cursos Activos" value={stats.totalCourses} color="text-[#003366]" href="/admin/cursos" />
+        <StatCard label="Alumnos" value={stats.totalStudents} color="text-[#0072CE]" href="/admin/perfiles" />
+        <StatCard label="Registros Pendientes" value={stats.pendingRegistrations} color="text-yellow-600" href="/admin/registros" />
+        <StatCard label="Pagos Recibidos" value={stats.approvedPayments} color="text-green-600" href="/admin/pagos" />
+        <StatCard label="Diplomas Emitidos" value={stats.totalDiplomas} color="text-purple-600" href="/admin/diplomas" />
+      </div>
+
       <h2 className="text-lg font-semibold text-[#003366] mb-4">Acciones Rápidas</h2>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <QuickAction href="/admin/inscripcion" icon="✏️" label="Inscribir Alumnos" desc="Inscripción manual o masiva" />
@@ -543,6 +553,24 @@ function QuickAction({ href, icon, label, desc }: { href: string; icon: string; 
       <div className="text-2xl mb-2">{icon}</div>
       <h3 className="font-semibold text-sm text-[#003366] group-hover:text-[#0072CE]">{label}</h3>
       <p className="text-xs text-gray-500 mt-0.5">{desc}</p>
+    </Link>
+  );
+}
+
+function TrayCard({ label, value, href, tone }: { label: string; value: number; href: string; tone: "yellow" | "orange" | "blue" | "purple" }) {
+  const tones: Record<string, string> = {
+    yellow: "border-yellow-300 bg-yellow-50 text-yellow-800",
+    orange: "border-orange-300 bg-orange-50 text-orange-800",
+    blue: "border-blue-300 bg-blue-50 text-blue-800",
+    purple: "border-purple-300 bg-purple-50 text-purple-800",
+  };
+  const idle = value === 0;
+  return (
+    <Link href={href}
+      className={`block rounded-lg border p-4 transition hover:shadow-md ${idle ? "border-gray-200 bg-white text-gray-400" : tones[tone]}`}>
+      <p className="text-3xl font-bold">{value}</p>
+      <p className="text-xs font-medium mt-1">{label}</p>
+      {idle && <p className="text-[10px] mt-0.5">Al día ✓</p>}
     </Link>
   );
 }
