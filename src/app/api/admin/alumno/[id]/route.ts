@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-service";
+import { getDgacProcedureCourses } from "@/lib/dgac-courses";
 import { createSupabaseServer } from "@/lib/supabase-server";
 
 async function requireAdmin() {
@@ -128,8 +129,40 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     }
   }
 
+  // 11) Trámite DGAC por inscripción (solo cursos que requieren credencial DGAC, o si ya existe trámite)
+  const dgacCourseIds = new Set((await getDgacProcedureCourses()).map((c) => c.id));
+  const dgacByReg: Record<string, any> = {};
+  if (regIds.length > 0) {
+    const { data: procs } = await supabaseAdmin
+      .from("dgac_procedures")
+      .select("registration_id, procedure_type, registro_sipa, solicitud_credencial, apendice_c, cedula_identidad, pago_tasa, examen_practico, coordinacion_examen, exam_datetime, exam_unit_city, dgac_credential_number, updated_at, created_at")
+      .in("registration_id", regIds);
+    for (const p of (procs || []) as any[]) {
+      const prev = dgacByReg[p.registration_id];
+      if (!prev || (p.updated_at || p.created_at) > (prev.updated_at || prev.created_at)) dgacByReg[p.registration_id] = p;
+    }
+  }
+  const dgacRequiredRegIds = (regs || []).filter((r: any) => dgacCourseIds.has(r.course_id)).map((r: any) => r.id);
+
+  // 12) Clases prácticas (asignaciones de instructor) + evaluación
+  const practicesByReg: Record<string, any[]> = {};
+  if (regIds.length > 0) {
+    const { data: asgs } = await supabaseAdmin
+      .from("instructor_assignments")
+      .select("id, registration_id, instructor_email, kind, status, city, scheduled_date, start_time, location_name, location_url, completed_at, practical_evaluations(status, pre_solo_result, completed_at, student_signed_at)")
+      .in("registration_id", regIds)
+      .order("scheduled_date", { ascending: true });
+    for (const a of (asgs || []) as any[]) {
+      const pe = Array.isArray(a.practical_evaluations) ? a.practical_evaluations[0] : a.practical_evaluations;
+      (practicesByReg[a.registration_id] ||= []).push({ ...a, practical_evaluations: undefined, evaluation: pe || null });
+    }
+  }
+
   return NextResponse.json({
     profile,
+    dgacByReg,
+    dgacRequiredRegIds,
+    practicesByReg,
     registrations: regs || [],
     gradesByReg,
     diplomas: diplomas || [],

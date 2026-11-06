@@ -110,7 +110,31 @@ type Dossier = {
   surveys: { id: string; registration_id: string; questionnaire_type: string; created_at: string }[];
   accessSummary: { lastAccess: string | null; totalAccess: number };
   companyHistory: { company: string; from: string; to: string | null }[];
+  dgacByReg?: Record<string, DgacProc>;
+  dgacRequiredRegIds?: string[];
+  practicesByReg?: Record<string, Practice[]>;
 };
+
+type DgacProc = {
+  procedure_type: string | null; registro_sipa: boolean; solicitud_credencial: boolean; apendice_c: boolean;
+  cedula_identidad: boolean; pago_tasa: boolean; examen_practico: boolean; coordinacion_examen: boolean;
+  exam_datetime: string | null; exam_unit_city: string | null; dgac_credential_number: string | null;
+};
+type Practice = {
+  id: string; instructor_email: string; kind: string; status: string; city: string | null;
+  scheduled_date: string | null; start_time: string | null; location_name: string | null; location_url: string | null;
+  evaluation: { status: string; pre_solo_result: string | null; completed_at: string | null; student_signed_at: string | null } | null;
+};
+const DGAC_STEPS: { key: keyof DgacProc; label: string }[] = [
+  { key: "registro_sipa", label: "SIPA" },
+  { key: "solicitud_credencial", label: "Solicitud" },
+  { key: "apendice_c", label: "Apéndice C" },
+  { key: "cedula_identidad", label: "Cédula" },
+  { key: "pago_tasa", label: "Tasa" },
+  { key: "examen_practico", label: "Práctico" },
+  { key: "coordinacion_examen", label: "Coordinación" },
+];
+const asgStatus: Record<string, string> = { assigned: "Asignada", in_progress: "En curso", completed: "Realizada", cancelled: "Cancelada" };
 
 const statusLabels: Record<string, string> = {
   pending: "Pendiente",
@@ -484,6 +508,61 @@ export default function AlumnoDossierPage({ params }: { params: Promise<{ id: st
                             <span className="text-gray-600 truncate">{g.grade_items?.name || "Item"}</span>
                             <span className={`font-bold ${(g.score ?? 0) >= 80 ? "text-green-700" : "text-gray-800"}`}>
                               {g.score ?? "—"}{g.score != null && "%"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Trámite DGAC (solo cursos que lo requieren o con trámite creado) */}
+                  {(() => {
+                    const proc = dossier.dgacByReg?.[r.id];
+                    const required = (dossier.dgacRequiredRegIds || []).includes(r.id);
+                    if (!proc && !required) return null;
+                    const done = DGAC_STEPS.filter((s) => proc?.[s.key] === true).length;
+                    return (
+                      <div className="mt-3 pt-3 border-t border-gray-100">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <p className="text-xs font-medium text-gray-500 uppercase">Trámite DGAC {proc ? `· ${done}/${DGAC_STEPS.length}` : ""}</p>
+                          <Link href={`/admin/registros/inscripcion/${r.id}`} className="text-[11px] text-[#0072CE] hover:underline">{proc ? "Abrir checklist →" : "Crear trámite →"}</Link>
+                        </div>
+                        {proc ? (
+                          <>
+                            <div className="flex flex-wrap gap-1">
+                              {DGAC_STEPS.map((s) => (
+                                <span key={s.key} className={`text-[10px] px-1.5 py-0.5 rounded ${proc[s.key] ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-500"}`}>
+                                  {proc[s.key] ? "✓" : "○"} {s.label}
+                                </span>
+                              ))}
+                            </div>
+                            <p className="text-[11px] text-gray-500 mt-1">
+                              {[proc.dgac_credential_number ? `Credencial N° ${proc.dgac_credential_number}` : null,
+                                proc.exam_datetime ? `Examen ${new Date(proc.exam_datetime).toLocaleString("es-CL", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Santiago" })}${proc.exam_unit_city ? ` · ${proc.exam_unit_city}` : ""}` : null,
+                              ].filter(Boolean).join(" · ")}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="text-[11px] text-orange-700">Este curso requiere trámite de credencial DGAC y aún no se ha creado.</p>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Clase práctica */}
+                  {(dossier.practicesByReg?.[r.id] || []).length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      <p className="text-xs font-medium text-gray-500 uppercase mb-1.5">Clase práctica</p>
+                      <div className="space-y-1.5">
+                        {(dossier.practicesByReg?.[r.id] || []).map((a) => (
+                          <div key={a.id} className="text-xs text-gray-700 flex flex-wrap gap-x-4 gap-y-0.5">
+                            <span>📅 {a.scheduled_date ? fmtDate(a.scheduled_date + "T12:00:00") : "Sin fecha"}{a.start_time ? ` · ${a.start_time}` : ""}</span>
+                            <span>📍 {a.location_name || a.city || "Lugar por definir"}{a.location_url && <a href={a.location_url} target="_blank" rel="noopener noreferrer" className="ml-1 text-[#0072CE] hover:underline">mapa</a>}</span>
+                            <span>🧑‍🏫 {a.instructor_email}</span>
+                            <span className={a.status === "completed" ? "text-green-700" : a.status === "cancelled" ? "text-red-600" : "text-gray-600"}>{asgStatus[a.status] || a.status}</span>
+                            <span className="text-gray-500">
+                              Evaluación: {a.evaluation ? (a.evaluation.status === "completed" ? `completada${a.evaluation.pre_solo_result ? ` (${a.evaluation.pre_solo_result})` : ""}` : "en borrador") : "no registrada"}
+                              {a.evaluation?.student_signed_at ? " · firmada ✓" : a.evaluation?.status === "completed" ? " · falta firma del alumno" : ""}
                             </span>
                           </div>
                         ))}
