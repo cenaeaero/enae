@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
+import PrioridadesDgac from "@/components/PrioridadesDgac";
 
 type Stats = {
   totalCourses: number;
@@ -339,6 +340,9 @@ export default function AdminDashboard() {
         <StatCard label="Pagos Recibidos" value={stats.approvedPayments} color="text-green-600" href="/admin/pagos" />
         <StatCard label="Diplomas Emitidos" value={stats.totalDiplomas} color="text-purple-600" href="/admin/diplomas" />
       </div>
+
+      {/* Prioridades DGAC: práctico hecho sin cerrar teórico o trámite */}
+      <PrioridadesDgac />
 
       {/* Pending actions */}
       {pendingActions.length > 0 && (
