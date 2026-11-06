@@ -25,18 +25,26 @@ async function verifyAdmin() {
   return profile?.role === "admin" ? user : null;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const admin = await verifyAdmin();
     if (!admin) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
-    // Fetch all registrations using admin client (bypasses RLS)
-    const { data, error } = await supabaseAdmin
+    // Fetch registrations using admin client (bypasses RLS).
+    // ?status=pending&limit=20 -> solo lo necesario (campana de notificaciones);
+    // sin parámetros -> todas (compatibilidad con los usos existentes).
+    const sp = new URL(request.url).searchParams;
+    const status = sp.get("status");
+    const limit = Math.min(Number(sp.get("limit")) || 0, 500);
+    let query = supabaseAdmin
       .from("registrations")
       .select("id, first_name, last_name, email, company, organization, delivery_mode, status, created_at, course_id, courses(title)")
       .order("created_at", { ascending: false });
+    if (status) query = query.eq("status", status);
+    if (limit > 0) query = query.limit(limit);
+    const { data, error } = await query;
 
     if (error) {
       console.error("Error fetching registrations:", error.message);

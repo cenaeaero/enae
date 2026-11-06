@@ -118,7 +118,7 @@ export default function AdminLayout({
 
   async function loadPending() {
     try {
-      const res = await fetch("/api/admin/registros");
+      const res = await fetch("/api/admin/registros?status=pending&limit=20");
       if (!res.ok) return;
       const json = await res.json();
       const regs = (json.registrations || []) as any[];
@@ -140,7 +140,11 @@ export default function AdminLayout({
   useEffect(() => {
     if (pathname === "/admin/login") return;
     loadPending();
-    const interval = setInterval(loadPending, 60_000);
+    // Consulta liviana (solo pendientes) y solo con la pestaña visible, para no
+    // consumir Disk IO de la base con pestañas olvidadas abiertas.
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") loadPending();
+    }, 120_000);
     return () => clearInterval(interval);
   }, [pathname]);
 
