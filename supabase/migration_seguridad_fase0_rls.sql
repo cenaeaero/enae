@@ -6,7 +6,7 @@
 -- rol public (incluye anon = cualquier visitante con la clave pública del
 -- sitio). Verificado en pg_policies el 06-11-2026.
 --
--- Estas 10 tablas SOLO se usan desde el servidor con supabaseAdmin
+-- Estas 13 tablas SOLO se usan desde el servidor con supabaseAdmin
 -- (service_role), que ignora RLS. Por eso cerrarlas NO afecta ninguna
 -- pantalla. zoom_config no se usa en el código.
 --
@@ -27,6 +27,9 @@ ALTER TABLE public.email_recipients                 ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.practical_evaluations            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.instructor_assignment_documents  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.course_instructors               ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.discussion_posts                 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reading_materials                ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.task_submissions                 ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Full access zoom_config"       ON public.zoom_config;
 DROP POLICY IF EXISTS "Full access zoom_meetings"     ON public.zoom_meetings;
@@ -38,13 +41,17 @@ DROP POLICY IF EXISTS "srv_recip"                     ON public.email_recipients
 DROP POLICY IF EXISTS "Service role access"           ON public.practical_evaluations;
 DROP POLICY IF EXISTS "Service role access"           ON public.instructor_assignment_documents;
 DROP POLICY IF EXISTS "course_instructors_all"        ON public.course_instructors;
+DROP POLICY IF EXISTS "Full access discussion_posts"  ON public.discussion_posts;
+DROP POLICY IF EXISTS "Full access reading_materials" ON public.reading_materials;
+DROP POLICY IF EXISTS "Full access task_submissions"  ON public.task_submissions;
 
 -- Política explícita solo para service_role (documental; service_role ya ignora RLS)
 DO $$
 DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY['zoom_config','zoom_meetings','exam_questions','exam_answers','leads',
-    'email_campaigns','email_recipients','practical_evaluations','instructor_assignment_documents','course_instructors']
+    'email_campaigns','email_recipients','practical_evaluations','instructor_assignment_documents','course_instructors',
+    'discussion_posts','reading_materials','task_submissions']
   LOOP
     EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_service_only', t);
     EXECUTE format('CREATE POLICY %I ON public.%I FOR ALL TO service_role USING (true) WITH CHECK (true)', t || '_service_only', t);
@@ -58,5 +65,6 @@ select tablename, policyname, roles, cmd
 from pg_policies
 where schemaname = 'public'
   and tablename in ('zoom_config','zoom_meetings','exam_questions','exam_answers','leads',
-    'email_campaigns','email_recipients','practical_evaluations','instructor_assignment_documents','course_instructors')
+    'email_campaigns','email_recipients','practical_evaluations','instructor_assignment_documents','course_instructors',
+    'discussion_posts','reading_materials','task_submissions')
 order by tablename;
