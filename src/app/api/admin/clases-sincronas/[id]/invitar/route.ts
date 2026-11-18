@@ -25,6 +25,12 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
         .select("first_name, last_name, email")
         .in("id", regIds);
 
+  // starts_at/ends_at son la fuente vigente; scheduled_at/duration_minutes son legacy.
+  const startsAt: string = cls.starts_at || cls.scheduled_at;
+  const durationMin: number = cls.ends_at
+    ? Math.max(1, Math.round((new Date(cls.ends_at).getTime() - new Date(startsAt).getTime()) / 60000))
+    : cls.duration_minutes;
+
   const results: { email: string; ok: boolean; error?: string }[] = [];
   for (const r of regs || []) {
     try {
@@ -34,8 +40,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
         courseTitle: cls.courses?.title || "Curso",
         classTitle: cls.title,
         kind: cls.kind,
-        scheduledAt: cls.scheduled_at,
-        durationMin: cls.duration_minutes,
+        scheduledAt: startsAt,
+        endsAt: cls.ends_at,
+        durationMin,
         linkUrl: cls.link_url,
         description: cls.description,
       });

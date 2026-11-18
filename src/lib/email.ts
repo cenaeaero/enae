@@ -252,6 +252,7 @@ export async function sendStudentPaymentReceipt(
   const formattedDate = new Date(transaction.date).toLocaleString("es-CL", {
     dateStyle: "long",
     timeStyle: "short",
+    timeZone: "America/Santiago",
   });
 
   await transporter.sendMail({
@@ -717,12 +718,25 @@ export async function sendSynchronousClassInvitation(args: {
   classTitle: string;
   kind: string;
   scheduledAt: string;
+  endsAt?: string | null;
   durationMin: number;
   linkUrl: string | null;
   description: string | null;
 }) {
-  const { to, studentName, courseTitle, classTitle, kind, scheduledAt, durationMin, linkUrl, description } = args;
-  const when = new Date(scheduledAt).toLocaleString("es-CL", { dateStyle: "full", timeStyle: "short" });
+  const { to, studentName, courseTitle, classTitle, kind, scheduledAt, endsAt, durationMin, linkUrl, description } = args;
+  // El servidor corre en UTC: sin timeZone explícita la hora sale desfasada
+  // (08:30 de Chile se enviaba como 11:30). Siempre formatear en hora de Chile.
+  const TZ = "America/Santiago";
+  const start = new Date(scheduledAt);
+  const end = endsAt ? new Date(endsAt) : null;
+  const fmtDay = (d: Date) => d.toLocaleDateString("es-CL", { dateStyle: "full", timeZone: TZ });
+  const fmtTime = (d: Date) => d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
+  const when = `${fmtDay(start)}, ${fmtTime(start)} hrs`;
+  const sameDay = end ? fmtDay(end) === fmtDay(start) : false;
+  const endLabel = end ? (sameDay ? `${fmtTime(end)} hrs` : `${fmtDay(end)}, ${fmtTime(end)} hrs`) : null;
+  const durH = Math.floor(durationMin / 60);
+  const durM = durationMin % 60;
+  const durLabel = durH === 0 ? `${durM} minutos` : `${durH} h${durM ? ` ${durM} min` : ""}`;
   const kindLabel: Record<string, string> = {
     class: "Clase sincrónica",
     exam: "Examen en línea",
@@ -745,9 +759,11 @@ export async function sendSynchronousClassInvitation(args: {
 
           <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #e5e7eb; margin: 20px 0;">
             <p style="font-size: 18px; font-weight: 600; color: #003366; margin: 0 0 12px 0;">${classTitle}</p>
-            <p style="margin: 6px 0; color: #374151;"><strong>Fecha:</strong> ${when}</p>
-            <p style="margin: 6px 0; color: #374151;"><strong>Duración:</strong> ${durationMin} minutos</p>
-            ${description ? `<p style="margin: 12px 0; color: #4b5563; font-size: 14px; padding: 10px; background: #f3f4f6; border-radius: 4px;">${description}</p>` : ""}
+            <p style="margin: 6px 0; color: #374151;"><strong>Inicio:</strong> ${when}</p>
+            ${endLabel ? `<p style="margin: 6px 0; color: #374151;"><strong>Término:</strong> ${endLabel}</p>` : ""}
+            <p style="margin: 6px 0; color: #374151;"><strong>Duración:</strong> ${durLabel}</p>
+            <p style="margin: 6px 0; color: #6b7280; font-size: 12px;">Horario en hora de Chile continental.</p>
+            ${description ? `<div style="margin: 12px 0; color: #4b5563; font-size: 14px; line-height: 1.5; padding: 10px; background: #f3f4f6; border-radius: 4px;">${descriptionToHtml(description)}</div>` : ""}
           </div>
 
           ${linkUrl ? `
@@ -812,6 +828,43 @@ function escHtml(v: string): string {
 }
 function escMultiline(v: string): string {
   return escHtml(v).replace(/\n/g, "<br/>");
+}
+
+// Descripción de una clase → HTML de correo. Conserva los saltos de línea y
+// convierte los bloques de líneas tabuladas (cronograma pegado desde Word/Excel)
+// en una tabla, para que el horario no llegue como un párrafo corrido.
+function descriptionToHtml(text: string): string {
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  const out: string[] = [];
+  let rows: string[][] = [];
+  const flush = () => {
+    if (rows.length === 0) return;
+    const cols = Math.max(...rows.map((r) => r.length));
+    const isHeader = (r: string[]) => !/\d/.test(r.join(""));
+    const body = rows
+      .map((r, i) => {
+        const head = i === 0 && rows.length > 1 && isHeader(r);
+        const cells = Array.from({ length: cols }, (_, c) => {
+          const style = `border: 1px solid #d1d5db; padding: 5px 8px; text-align: left; vertical-align: top; font-size: 13px;${head ? " background: #003366; color: #ffffff; font-weight: bold;" : ""}${!head && c < 2 && cols > 2 ? " white-space: nowrap;" : ""}`;
+          return `<td style="${style}">${escHtml(r[c] || "")}</td>`;
+        }).join("");
+        return `<tr>${cells}</tr>`;
+      })
+      .join("");
+    out.push(`<table cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%; margin: 8px 0; background: #ffffff;">${body}</table>`);
+    rows = [];
+  };
+  for (const line of lines) {
+    const cells = line.split("\t").map((c) => c.trim());
+    if (cells.filter(Boolean).length >= 2) {
+      rows.push(cells);
+      continue;
+    }
+    flush();
+    out.push(line.trim() ? `<div>${escHtml(line.trim())}</div>` : `<div style="height: 10px; line-height: 10px;">&nbsp;</div>`);
+  }
+  flush();
+  return out.join("");
 }
 
 // Bloque "Indicaciones del lugar" para el alumno
