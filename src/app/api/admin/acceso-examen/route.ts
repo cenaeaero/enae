@@ -62,12 +62,14 @@ async function loadContext(courseId: string) {
     }
   }
 
-  const { data: regs } = await supabaseAdmin
+  // select("*"): no depender de columnas opcionales (p. ej. `rut`) que podrían no existir.
+  const { data: regs, error: regsErr } = await supabaseAdmin
     .from("registrations")
-    .select("id, first_name, last_name, email, rut, status, delivery_mode, is_alumni")
+    .select("*")
     .eq("course_id", courseId)
     .in("status", ["confirmed", "completed"])
     .order("last_name");
+  if (regsErr) throw new Error("No se pudieron leer las inscripciones: " + regsErr.message);
 
   return { course, exam, mods, activities: activities || [], items, examGradeItemId, regs: regs || [] };
 }
@@ -78,13 +80,13 @@ async function profilesByEmail(emails: string[]) {
   const map = new Map<string, any>();
   if (emails.length === 0) return map;
   const { data } = await supabaseAdmin
-    .from("profiles").select("id, email, rut, user_id, role").in("email", emails);
+    .from("profiles").select("*").in("email", emails);
   for (const p of data || []) map.set((p.email || "").toLowerCase(), p);
   // Correos guardados con otra capitalización
   for (const e of emails) {
     if (map.has(e.toLowerCase())) continue;
     const { data: one } = await supabaseAdmin
-      .from("profiles").select("id, email, rut, user_id, role").ilike("email", e).limit(1);
+      .from("profiles").select("*").ilike("email", e).limit(1);
     if (one?.[0]) map.set(e.toLowerCase(), one[0]);
   }
   return map;
@@ -96,7 +98,12 @@ export async function GET(request: Request) {
 
   const courseId = new URL(request.url).searchParams.get("course_id");
   if (!courseId) return NextResponse.json({ error: "course_id requerido" }, { status: 400 });
-  const ctx = await loadContext(courseId);
+  let ctx: Awaited<ReturnType<typeof loadContext>>;
+  try {
+    ctx = await loadContext(courseId);
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message || "Error interno" }, { status: 500 });
+  }
   if (!ctx) return NextResponse.json({ error: "Curso no encontrado" }, { status: 404 });
 
   const regIds = ctx.regs.map((r: any) => r.id);
