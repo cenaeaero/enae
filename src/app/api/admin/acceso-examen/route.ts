@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { supabaseAdmin } from "@/lib/supabase-service";
 import { createSupabaseServer } from "@/lib/supabase-server";
-import { findFinalExam } from "@/lib/examen-directo";
+import { findFinalExam, ensureFinalExamGradeItem } from "@/lib/examen-directo";
+import { autoGradeRegistration, linkExamsToGradeItems } from "@/lib/auto-calificar";
 import { normalizeId } from "@/lib/rut";
 
 // Acceso directo al examen final (clase sincrónica):
@@ -165,7 +166,7 @@ export async function GET(request: Request) {
 }
 
 async function preparar(ctx: Ctx) {
-  const regs = ctx.regs.filter((r: any) => r.status === "confirmed");
+  const regs = ctx.regs;
   if (regs.length === 0) return { alumnos: 0, modulos: 0, notas: 0, aviso: null as string | null };
   const now = new Date().toISOString();
   const regIds = regs.map((r: any) => r.id);
@@ -286,7 +287,31 @@ export async function POST(request: Request) {
     const ctx = await loadContext(course_id);
     if (!ctx) return NextResponse.json({ error: "Curso no encontrado" }, { status: 404 });
 
-    if (action === "preparar") return NextResponse.json(await preparar(ctx));
+    if (action === "preparar") {
+      let c = ctx;
+      // Sin ítem de nota para el examen no se registran notas ni se emiten diplomas.
+      if (c.exam && !c.exam.gradeItemId) {
+        const linked = await ensureFinalExamGradeItem(course_id, c.exam.examId);
+        if (!linked) await linkExamsToGradeItems(course_id);
+        c = (await loadContext(course_id)) || c;
+      }
+      const prep = await preparar(c);
+
+      // Quienes ya rindieron: recalcular nota final y emitir el diploma pendiente.
+      let diplomas = 0;
+      if (c.exam) {
+        const { data: done } = await supabaseAdmin
+          .from("exam_attempts").select("registration_id")
+          .eq("exam_id", c.exam.examId).eq("status", "completed")
+          .in("registration_id", c.regs.map((r: any) => r.id));
+        const ids = Array.from(new Set((done || []).map((a: any) => a.registration_id)));
+        for (const id of ids) {
+          const r: any = await autoGradeRegistration(id as string, course_id);
+          if (r?.grade_status === "approved") diplomas++;
+        }
+      }
+      return NextResponse.json({ ...prep, diplomas });
+    }
     if (action === "asignar_claves") return NextResponse.json(await asignarClaves(ctx));
     return NextResponse.json({ error: "Acción no válida" }, { status: 400 });
   } catch (err: any) {

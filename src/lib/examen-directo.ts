@@ -72,3 +72,38 @@ export async function findFinalExam(courseId: string): Promise<FinalExamInfo | n
     questionCount: count || 0,
   };
 }
+
+/**
+ * Garantiza que el examen final tenga un ítem de nota. Sin él, rendir el examen
+ * no registra nota ni emite diploma. Si el curso no tiene ningún ítem de nota,
+ * crea "Examen Final" con toda la ponderación. Devuelve el id o null.
+ */
+export async function ensureFinalExamGradeItem(courseId: string, examId: string): Promise<string | null> {
+  const { data: exam } = await supabaseAdmin
+    .from("exams").select("id, grade_item_id").eq("id", examId).maybeSingle();
+  if (!exam) return null;
+  if (exam.grade_item_id) return exam.grade_item_id;
+
+  const { data: items } = await supabaseAdmin
+    .from("grade_items").select("id, name").eq("course_id", courseId).order("sort_order");
+  const list = items || [];
+  const norm = (t: string) => (t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+  let itemId: string | null =
+    list.find((gi: any) => norm(gi.name).includes("examen final"))?.id ||
+    (list.length === 1 ? list[0].id : null);
+
+  if (!itemId && list.length === 0) {
+    const { data: created, error } = await supabaseAdmin
+      .from("grade_items")
+      .insert({ course_id: courseId, name: "Examen Final", weight: 100, sort_order: 0 })
+      .select("id")
+      .single();
+    if (error) throw new Error("No se pudo crear el ítem de nota del examen: " + error.message);
+    itemId = created.id;
+  }
+  if (!itemId) return null;
+
+  await supabaseAdmin.from("exams").update({ grade_item_id: itemId }).eq("id", examId);
+  return itemId;
+}

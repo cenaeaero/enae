@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-service";
 import { createSupabaseServer } from "@/lib/supabase-server";
 import { sendAdminExamNotification } from "@/lib/email";
+import { ensureFinalExamGradeItem } from "@/lib/examen-directo";
 
 async function getUser() {
   const supabase = await createSupabaseServer();
@@ -350,7 +351,12 @@ export async function POST(request: Request) {
           if (match) {
             gradeItemId = match.id;
             await supabaseAdmin.from("exams").update({ grade_item_id: gradeItemId }).eq("id", exam.id);
-          } else {
+          } else if (items.length === 0 || exam.is_final_exam) {
+            // Examen final sin ítem de nota: se crea/enlaza para que la nota
+            // quede registrada y se emita el diploma.
+            try { gradeItemId = await ensureFinalExamGradeItem(mod.course_id, exam.id); } catch {}
+          }
+          if (!gradeItemId) {
             console.warn("[examenes finalize] could not auto-link grade_item", {
               exam_id: exam.id,
               course_id: mod.course_id,

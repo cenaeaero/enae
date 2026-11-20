@@ -81,7 +81,7 @@ export default function AccesoExamenPage({ params }: { params: Promise<{ id: str
       const json = await res.json();
       if (!res.ok) setMessage("Error: " + (json.error || "no se pudo completar"));
       else if (action === "preparar") {
-        setMessage(json.aviso || `Listo: ${json.alumnos} alumnos con ${json.modulos} módulo(s) previo(s) aprobados y ${json.notas} nota(s) 100 registradas.`);
+        setMessage(json.aviso || `Listo: ${json.alumnos} alumnos con ${json.modulos} módulo(s) previo(s) aprobados y ${json.notas} nota(s) 100 registradas.${json.diplomas ? ` Diplomas emitidos o actualizados: ${json.diplomas}.` : ""}`);
       } else {
         setKeyResults(json.results);
         const ok = json.results.filter((r: KeyResult) => r.resultado === "rut").length;
@@ -213,10 +213,10 @@ export default function AccesoExamenPage({ params }: { params: Promise<{ id: str
             )}
             <button
               onClick={() => run("preparar")}
-              disabled={!!busy || (prevModules.length === 0 && otherItems.length === 0)}
+              disabled={!!busy}
               className="px-4 py-2 text-sm bg-[#0072CE] text-white rounded-lg hover:bg-[#005BA1] disabled:opacity-40"
             >
-              {busy === "preparar" ? "Preparando…" : pendingPrep > 0 ? `Preparar ${pendingPrep} alumno(s)` : "Volver a preparar"}
+              {busy === "preparar" ? "Preparando…" : pendingPrep > 0 ? `Preparar ${pendingPrep} alumno(s)` : "Volver a preparar y emitir diplomas"}
             </button>
             {pendingPrep === 0 && students.length > 0 && <span className="ml-3 text-sm text-green-700">✓ Todos listos</span>}
           </div>
