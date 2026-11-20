@@ -117,6 +117,8 @@ export default function TpemsCourseDetail() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get("tab") as Tab) || "info";
+  // Enlace directo al examen (QR de clase sincrónica): ?examen=<id de la actividad>
+  const directExamId = searchParams.get("examen");
 
   const [course, setCourse] = useState<CourseDelivery | null>(null);
   const [loading, setLoading] = useState(true);
@@ -920,6 +922,11 @@ export default function TpemsCourseDetail() {
             .order("sort_order");
           if (lessonsData) setLessons(lessonsData as LessonData[]);
 
+          // Acceso directo: abre el examen aunque los módulos previos no estén completados.
+          const directExam = directExamId
+            ? (lessonsData || []).find((l: any) => l.id === directExamId && l.type === "exam")
+            : null;
+
           // Load activity progress
           const lessonIds = (lessonsData || []).map((l: any) => l.id);
           if (lessonIds.length > 0) {
@@ -942,7 +949,11 @@ export default function TpemsCourseDetail() {
           const inProgressMod = progressData?.find(
             (p: any) => p.status === "in_progress"
           );
-          if (simuladorMod) {
+          if (directExam) {
+            setSelectedModuleId(directExam.module_id);
+            setActiveTab("modules");
+            setFullscreenExam({ lessonId: directExam.id, lessonTitle: directExam.title });
+          } else if (simuladorMod) {
             setSelectedModuleId(simuladorMod.id);
           } else if (inProgressMod) {
             setSelectedModuleId((inProgressMod as any).module_id);
@@ -1137,11 +1148,11 @@ export default function TpemsCourseDetail() {
   // como práctica del examen DGAC. Los demás módulos del curso son online y no aplican.
   const normalizeText = (s: string) =>
     (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-  const visibleModules = isPresencial
+  const visibleModules = isPresencial && !directExamId
     ? modules.filter((m) => normalizeText(m.title).includes("simulador"))
     : modules;
   const visibleModuleIds = new Set(visibleModules.map((m) => m.id));
-  const visibleLessons = isPresencial
+  const visibleLessons = isPresencial && !directExamId
     ? lessons.filter((l) => visibleModuleIds.has(l.module_id))
     : lessons;
 

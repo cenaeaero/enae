@@ -379,6 +379,12 @@ export default function EditCoursePage({
             Evaluaciones
           </Link>
           <Link
+            href={`/admin/cursos/${id}/acceso-examen`}
+            className="px-3 py-2 text-sm bg-[#2E7D32] text-white rounded-lg hover:bg-[#1B5E20]"
+          >
+            Acceso a examen (QR)
+          </Link>
+          <Link
             href={`/admin/cursos/${id}/biblioteca`}
             className="px-3 py-2 text-sm bg-[#7B1FA2] text-white rounded-lg hover:bg-[#5E1582]"
           >

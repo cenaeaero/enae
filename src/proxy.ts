@@ -40,10 +40,15 @@ export async function proxy(request: NextRequest) {
 
   // TPEMS routes
   if (isTpemsRoute && !isTpemsPublic && !user) {
-    return NextResponse.redirect(new URL("/tpems/login", request.url));
+    const login = new URL("/tpems/login", request.url);
+    // Enlace directo al examen (QR): tras el login vuelve al examen.
+    if (pathname.startsWith("/tpems/examen/")) login.searchParams.set("next", pathname);
+    return NextResponse.redirect(login);
   }
   if (isTpemsLogin && user) {
-    return NextResponse.redirect(new URL("/tpems", request.url));
+    const next = request.nextUrl.searchParams.get("next");
+    const dest = next && next.startsWith("/tpems/examen/") ? next : "/tpems";
+    return NextResponse.redirect(new URL(dest, request.url));
   }
 
   // Instructor routes (reuses admin auth — role is checked inside the page/API)
